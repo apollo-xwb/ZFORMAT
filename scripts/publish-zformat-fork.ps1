@@ -11,11 +11,16 @@ if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
 
 gh auth status | Out-Null
 
-Write-Host "Creating fork apollo-xwb/ROCO -> ZFORMAT (if it does not already exist)..."
-gh repo fork apollo-xwb/ROCO --fork-name ZFORMAT --remote=false 2>$null
-
 $login = gh api user --jq .login
 $forkUrl = "https://github.com/$login/ZFORMAT.git"
+
+if (gh repo view "$login/ZFORMAT" 2>$null) {
+  Write-Host "Repository $login/ZFORMAT already exists."
+} else {
+  Write-Host "Creating separate ZFORMAT repository (upstream ROCO main stays untouched)..."
+  gh repo create "$login/ZFORMAT" --public --description "ZFORMAT — Z-format manual ops line from ROCO" --source=. --remote=origin --push
+  exit $LASTEXITCODE
+}
 
 if (git remote | Select-String -Pattern "^origin$" -Quiet) {
   git remote set-url origin $forkUrl

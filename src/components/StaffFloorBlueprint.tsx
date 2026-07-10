@@ -1,13 +1,20 @@
+import { Bell, Receipt } from "lucide-react";
 import { ROCO_TABLES, REMOTE_TABLE_ID, formatTableLabel, type TableConfig } from "../rocoTables";
 
 type TableState = "Available" | "Occupied" | "Booked";
+
+export type TableNotificationSummary = {
+  openOrders: number;
+  waiterCalls: number;
+  billRequests: number;
+  hasAlert: boolean;
+};
 
 type Props = {
   selectedTableId: string | null;
   tablesState: Record<string, TableState | string>;
   tableWaiterAssignments: Record<string, string>;
-  openOrderCounts: Record<string, number>;
-  openRequestCounts: Record<string, number>;
+  tableNotifications: Record<string, TableNotificationSummary>;
   onTableSelect: (tableId: string) => void;
 };
 
@@ -105,12 +112,35 @@ function TableShape({
   );
 }
 
+function NotificationBanner({ notify }: { notify: TableNotificationSummary }) {
+  const parts: string[] = [];
+  if (notify.waiterCalls > 0) parts.push(`WAITER ×${notify.waiterCalls}`);
+  if (notify.billRequests > 0) parts.push(`BILL ×${notify.billRequests}`);
+  if (notify.openOrders > 0) parts.push(`${notify.openOrders} ORDER${notify.openOrders > 1 ? "S" : ""}`);
+  if (notify.hasAlert && parts.length === 0) parts.push("ALERT");
+
+  if (parts.length === 0) return null;
+
+  const isUrgent = notify.hasAlert || notify.waiterCalls > 0;
+
+  return (
+    <div
+      className={`absolute inset-x-1 top-1 z-20 rounded-md px-1 py-0.5 text-center font-black uppercase tracking-wide animate-pulse ${
+        isUrgent
+          ? "bg-red-600 text-white border border-red-300 shadow-[0_0_12px_rgba(239,68,68,0.7)]"
+          : "bg-[#E78A3E] text-black border border-black/20"
+      }`}
+    >
+      <span className="text-[6px] sm:text-[7px] leading-tight block">{parts.join(" • ")}</span>
+    </div>
+  );
+}
+
 export function StaffFloorBlueprint({
   selectedTableId,
   tablesState,
   tableWaiterAssignments,
-  openOrderCounts,
-  openRequestCounts,
+  tableNotifications,
   onTableSelect
 }: Props) {
   return (
@@ -133,16 +163,16 @@ export function StaffFloorBlueprint({
 
         <div className="grid grid-cols-3 gap-1 sm:gap-2 mb-3 bg-black/60 p-2 rounded-xl text-[7px] sm:text-[8px] font-mono text-zinc-500 uppercase tracking-wider border border-zinc-900">
           <div className="flex items-center gap-1.5">
-            <div className="w-2.5 h-2 bg-[#5a3a22] border border-[#E78A3E]/20 rounded-sm" />
-            <span>Booth (6 max)</span>
+            <span className="w-3 h-3 rounded bg-red-600 animate-pulse" />
+            <span>Waiter / alert</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <div className="w-2.5 h-2.5 rounded-full bg-[#5a3a22] border border-[#E78A3E]/20" />
-            <span>Round (6 max)</span>
+            <span className="w-3 h-3 rounded bg-[#E78A3E]" />
+            <span>Open orders</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <div className="w-2 h-2 rotate-45 bg-[#5a3a22] border border-[#E78A3E]/20" />
-            <span>Small (4 max)</span>
+            <Receipt className="w-3 h-3 text-purple-400" />
+            <span>Bill request</span>
           </div>
         </div>
 
@@ -192,8 +222,13 @@ export function StaffFloorBlueprint({
                 const isRemote = tableId === REMOTE_TABLE_ID;
                 const state = (tablesState[tableId] as string) || "Available";
                 const isSelected = selectedTableId === tableId;
-                const openOrders = openOrderCounts[tableId] || 0;
-                const openRequests = openRequestCounts[tableId] || 0;
+                const notify = tableNotifications[tableId] || {
+                  openOrders: 0,
+                  waiterCalls: 0,
+                  billRequests: 0,
+                  hasAlert: false
+                };
+                const isHot = notify.hasAlert || notify.waiterCalls > 0 || notify.billRequests > 0 || notify.openOrders > 0;
 
                 return (
                   <button
@@ -201,27 +236,48 @@ export function StaffFloorBlueprint({
                     type="button"
                     onClick={() => onTableSelect(tableId)}
                     className={`relative p-0.5 sm:p-1 rounded-lg flex flex-col items-center justify-center transition-all duration-200 select-none cursor-pointer border transform active:scale-95 min-h-[clamp(48px,11vw,80px)] ${
-                      isSelected
-                        ? "bg-[#E78A3E]/15 border-[#E78A3E] shadow-[0_0_12px_rgba(231,138,62,0.35)] scale-[1.02] z-10"
-                        : state === "Booked"
-                          ? "bg-purple-950/20 border-purple-600/30"
-                          : state === "Occupied"
-                            ? "bg-amber-950/20 border-amber-500/25"
-                            : "bg-zinc-900/40 border-zinc-800 hover:border-[#E78A3E]/50"
+                      notify.hasAlert || notify.waiterCalls > 0
+                        ? "bg-red-950/40 border-red-500 shadow-[0_0_16px_rgba(239,68,68,0.55)] ring-2 ring-red-500/60 animate-pulse"
+                        : notify.billRequests > 0
+                          ? "bg-purple-950/35 border-purple-500 shadow-[0_0_12px_rgba(168,85,247,0.45)] ring-1 ring-purple-500/50"
+                          : notify.openOrders > 0
+                            ? "bg-[#E78A3E]/20 border-[#E78A3E] shadow-[0_0_10px_rgba(231,138,62,0.4)]"
+                            : isSelected
+                              ? "bg-[#E78A3E]/15 border-[#E78A3E] shadow-[0_0_12px_rgba(231,138,62,0.35)] scale-[1.02] z-10"
+                              : state === "Booked"
+                                ? "bg-purple-950/20 border-purple-600/30"
+                                : state === "Occupied"
+                                  ? "bg-amber-950/20 border-amber-500/25"
+                                  : "bg-zinc-900/40 border-zinc-800 hover:border-[#E78A3E]/50"
                     }`}
                     title={`${formatTableLabel(tableId)} • ${state} • ${tableWaiterAssignments[tableId] || "Unassigned"}`}
                   >
+                    <NotificationBanner notify={notify} />
+
+                    {(notify.hasAlert || notify.waiterCalls > 0) && (
+                      <div className="absolute -top-2 -right-2 z-30 w-5 h-5 rounded-full bg-red-600 border-2 border-white flex items-center justify-center shadow-lg">
+                        <Bell className="w-3 h-3 text-white" />
+                      </div>
+                    )}
+
+                    {notify.billRequests > 0 && (
+                      <div className="absolute -bottom-1 -left-1 z-30 px-1.5 py-0.5 rounded-full bg-purple-600 border border-white text-white text-[7px] font-black uppercase flex items-center gap-0.5">
+                        <Receipt className="w-2.5 h-2.5" /> Bill
+                      </div>
+                    )}
+
                     <TableShape table={table} tableId={tableId} isSelected={isSelected} isRemote={isRemote} state={state} />
+
                     <span className="text-[6px] sm:text-[7px] font-mono uppercase text-[#E78A3E] truncate max-w-full px-1 mt-0.5">
                       {(tableWaiterAssignments[tableId] || "Open").split(" ")[0]}
                     </span>
-                    {(openOrders > 0 || openRequests > 0) && (
-                      <div className="absolute top-1 right-1 flex flex-col gap-0.5">
-                        {openRequests > 0 && (
-                          <span className="px-1 py-0.5 rounded-full bg-red-600 text-white text-[6px] sm:text-[7px] font-mono font-black">{openRequests}R</span>
-                        )}
-                        {openOrders > 0 && (
-                          <span className="px-1 py-0.5 rounded-full bg-[#E78A3E] text-black text-[6px] sm:text-[7px] font-mono font-black">{openOrders}O</span>
+
+                    {isHot && (
+                      <div className="absolute bottom-1 right-1 flex gap-0.5 z-20">
+                        {notify.openOrders > 0 && (
+                          <span className="px-1.5 py-0.5 rounded-full bg-[#E78A3E] text-black text-[7px] sm:text-[8px] font-mono font-black border border-black/30">
+                            {notify.openOrders}O
+                          </span>
                         )}
                       </div>
                     )}

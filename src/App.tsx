@@ -117,6 +117,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { ThuneeFullscreenApp } from "./components/ThuneeFullscreenApp";
 import { HalftoneQRCode } from "./components/HalftoneQRCode";
 import { StaffFloorBlueprint } from "./components/StaffFloorBlueprint";
+import { OrderMasonryGrid } from "./components/OrderMasonryGrid";
 import { MenuItem, CartItem, HistoricOrder, MasterBillItem } from "./types";
 import { MENU_ITEMS, SPECIALS } from "./data";
 import {
@@ -127,6 +128,26 @@ import {
   getStaffOrderColor,
   type TableConfig
 } from "./rocoTables";
+import {
+  RONDEBOSCH_VENUE,
+  getBookingTimeSlots,
+  getDefaultBookingTime,
+  getHoursLabelForDate,
+} from "./restaurantHours";
+import { getOrderPrepSeconds, formatPrepMinutes } from "./prepTimes";
+import {
+  createSplitSession,
+  getSplitBillStorageKey,
+  getSplitJoinUrl,
+  joinSplitSession,
+  loadJoinedSplitSession,
+  loadSplitSession,
+  parseSplitFromLocation,
+  parseSplitIdFromValue,
+  saveSplitSession,
+  type RemoteSplitSession
+} from "./remoteSplit";
+import { appendChatMessage, loadChatMessages, saveChatMessages } from "./chatStore";
 
 export { ROCO_TABLES, REMOTE_TABLE_ID, formatTableLabel, formatTableShort, getStaffOrderColor };
 export type { TableConfig };
@@ -174,6 +195,25 @@ export function isAdminKioskRoute(): boolean {
   } catch {
     return false;
   }
+}
+
+function resolveActiveTableId(fallback: string): string {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const tableParam = params.get("table");
+    if (tableParam) {
+      const cleanId = tableParam.replace(/\D/g, "");
+      return cleanId || tableParam;
+    }
+  } catch {}
+  return fallback || REMOTE_TABLE_ID;
+}
+
+function formatTimerRemaining(seconds: number): string {
+  if (seconds <= 0) return "0 min";
+  if (seconds < 60) return `${seconds}s`;
+  const mins = Math.ceil(seconds / 60);
+  return `${mins} min`;
 }
 
 function SplashKeywords({ playBeep, onComplete }: { playBeep: any, onComplete: () => void }) {
@@ -337,6 +377,9 @@ export default function App() {
 
   // QR modal state
   const [isQrModalOpen, setIsQrModalOpen] = useState(false);
+  const [splitQrStep, setSplitQrStep] = useState<"choose" | "host" | "join">("choose");
+  const [joinSplitInput, setJoinSplitInput] = useState("");
+  const [remoteSplitSession, setRemoteSplitSession] = useState<RemoteSplitSession | null>(() => loadJoinedSplitSession());
 
   // Custom QR override states
   const [isCustomQrPanelOpen, setIsCustomQrPanelOpen] = useState(false);
@@ -434,7 +477,7 @@ export default function App() {
     } catch (e) {
       console.error(e);
     }
-    return "12";
+    return REMOTE_TABLE_ID;
   });
 
   // Check if we are on a table card (client view has ?table=XX)
@@ -527,7 +570,9 @@ export default function App() {
       const tableParam = params.get("table");
       if (tableParam) {
         const cleanId = tableParam.replace(/\D/g, "");
-        setCurrentTableId(cleanId || tableParam);
+        const tableId = cleanId || tableParam;
+        setCurrentTableId(tableId);
+        localStorage.setItem("roco_active_customer_table", tableId);
         // Scanning a table QR code should always return Customer View, never staff view
         setAppMode("CUSTOMER");
       } else {
@@ -542,6 +587,7 @@ export default function App() {
           const next = `?table=14&token=${encodeURIComponent(config.secureToken)}`;
           window.history.replaceState({}, "", `${window.location.pathname}${next}`);
           setCurrentTableId("14");
+          localStorage.setItem("roco_active_customer_table", "14");
           setAppMode("CUSTOMER");
           setIsAdminUnlocked(false);
         } catch {
@@ -723,7 +769,7 @@ export default function App() {
   const [bookingDate, setBookingDate] = useState(() => {
     return new Date().toISOString().split('T')[0];
   });
-  const [bookingTime, setBookingTime] = useState("18:30");
+  const [bookingTime, setBookingTime] = useState(() => getDefaultBookingTime(new Date().toISOString().split("T")[0]));
   const [bookingGuests, setBookingGuests] = useState(2);
   const [bookingTableId, setBookingTableId] = useState<string | null>(null);
   const [bookingName, setBookingName] = useState("");
@@ -731,6 +777,13 @@ export default function App() {
   const [bookingOccasion, setBookingOccasion] = useState("Just Vibes");
   const [bookingSpecialRequests, setBookingSpecialRequests] = useState("");
   const [bookingStep, setBookingStep] = useState(1);
+
+  useEffect(() => {
+    const slots = getBookingTimeSlots(bookingDate);
+    if (!slots.includes(bookingTime)) {
+      setBookingTime(getDefaultBookingTime(bookingDate));
+    }
+  }, [bookingDate, bookingTime]);
 
   // Booking list
   const [bookings, setBookings] = useState<any[]>(() => {
@@ -756,14 +809,7 @@ export default function App() {
   });
 
   // Table chat messages lobby
-  const [chatMessages, setChatMessages] = useState<any[]>(() => {
-    try {
-      const saved = localStorage.getItem("roco_chat_messages");
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
+  const [chatMessages, setChatMessages] = useState<any[]>(() => loadChatMessages());
 
   // Active chat input state
   const [chatInputText, setChatInputText] = useState("");
@@ -1056,7 +1102,7 @@ export default function App() {
   const [activeStaffProfileId, setActiveStaffProfileId] = useState<string>(() => localStorage.getItem("roco_active_staff_profile_id") || "");
   const [staffWorkspace, setStaffWorkspace] = useState<StaffWorkspace>("overview");
   const [staffSidebarOpen, setStaffSidebarOpen] = useState(false);
-  const [staffInspectorChatOpen, setStaffInspectorChatOpen] = useState(false);
+  const [staffInspectorChatOpen, setStaffInspectorChatOpen] = useState(true);
   const [staffChatInput, setStaffChatInput] = useState("");
   const [staffAuthError, setStaffAuthError] = useState("");
   const [staffCreateName, setStaffCreateName] = useState("");
@@ -1369,10 +1415,38 @@ export default function App() {
       text: staffChatInput.trim(),
       timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
     };
-    setChatMessages(prev => [...prev, newMsg]);
+    setChatMessages((prev) => appendChatMessage(prev, newMsg));
     setStaffChatInput("");
     playBeep(520, "sine", 0.05);
     triggerToast(`Message sent to ${formatTableLabel(selectedStaffTable)}`, "success");
+  };
+
+  const handleHostSplitSession = () => {
+    const name = currentPlayerName || sessionStorage.getItem("roco_my_session_name") || "Guest";
+    const session = createSplitSession(name, REMOTE_TABLE_ID);
+    setRemoteSplitSession(session);
+    setSplitQrStep("host");
+    playBeep(520, "sine", 0.06);
+  };
+
+  const handleJoinSplitSession = () => {
+    const sessionId = parseSplitIdFromValue(joinSplitInput);
+    if (!sessionId) {
+      triggerToast("Paste a valid split link or session code.", "info");
+      return;
+    }
+    const name = currentPlayerName || sessionStorage.getItem("roco_my_session_name") || "Guest";
+    const session = joinSplitSession(sessionId, name);
+    if (!session) {
+      triggerToast("Split session not found. Ask your host to share their QR.", "info");
+      return;
+    }
+    setRemoteSplitSession(session);
+    setIsQrModalOpen(false);
+    setSplitQrStep("choose");
+    setJoinSplitInput("");
+    playBeep(520, "sine", 0.06);
+    triggerToast(`Joined split with ${session.hostName}`, "success");
   };
 
   const handleStaffLogin = () => {
@@ -2484,7 +2558,14 @@ export default function App() {
   });
 
   // Collaborative Bill Splitting Session Members
-  const [sessionMembers, setSessionMembers] = useState<string[]>(["You"]);
+  // Collaborative Bill Splitting Session Members
+  const [sessionMembers, setSessionMembers] = useState<string[]>([]);
+
+  const isRemoteTable = currentTableId === REMOTE_TABLE_ID;
+  const isRemoteSplitConnected = !isRemoteTable || !!remoteSplitSession;
+  const displaySessionMembers = isRemoteTable
+    ? (remoteSplitSession?.members ?? (currentPlayerName ? [currentPlayerName] : []))
+    : sessionMembers;
 
   const [isInviteOpen, setIsInviteOpen] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
@@ -2962,8 +3043,59 @@ export default function App() {
   }, [tablesState]);
 
   useEffect(() => {
-    localStorage.setItem("roco_chat_messages", JSON.stringify(chatMessages));
+    saveChatMessages(chatMessages);
   }, [chatMessages]);
+
+  useEffect(() => {
+    const syncChat = () => {
+      const next = loadChatMessages();
+      setChatMessages((prev) => (JSON.stringify(prev) === JSON.stringify(next) ? prev : next));
+    };
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === "roco_chat_messages") syncChat();
+    };
+    window.addEventListener("storage", onStorage);
+    window.addEventListener("roco_chat_updated", syncChat);
+    const interval = setInterval(syncChat, 2000);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("roco_chat_updated", syncChat);
+      clearInterval(interval);
+    };
+  }, []);
+
+  useEffect(() => {
+    const syncSplit = () => {
+      const joined = loadJoinedSplitSession();
+      setRemoteSplitSession((prev) => {
+        if (!joined && !prev) return prev;
+        if (joined && prev && joined.id === prev.id && JSON.stringify(joined.members) === JSON.stringify(prev.members)) return prev;
+        return joined;
+      });
+    };
+    const onStorage = (e: StorageEvent) => {
+      if (e.key?.startsWith("roco_remote_split_") || e.key === "roco_remote_split_joined") syncSplit();
+    };
+    window.addEventListener("storage", onStorage);
+    const interval = setInterval(syncSplit, 2000);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      clearInterval(interval);
+    };
+  }, []);
+
+  useEffect(() => {
+    const splitId = parseSplitFromLocation();
+    if (!splitId || resolveActiveTableId(currentTableId) !== REMOTE_TABLE_ID) return;
+    const name = currentPlayerName || sessionStorage.getItem("roco_my_session_name");
+    if (!name) return;
+    if (remoteSplitSession?.id === splitId) return;
+    const joined = joinSplitSession(splitId, name);
+    if (joined) {
+      setRemoteSplitSession(joined);
+      triggerToast(`Joined ${joined.hostName}'s split session`, "success");
+    }
+  }, [currentTableId, currentPlayerName, remoteSplitSession?.id]);
 
   // Handle upcoming bookings and show popups/Browser Notifications
   useEffect(() => {
@@ -3000,24 +3132,54 @@ export default function App() {
     }
   }, [appMode, bookings, tablesState]);
 
+  useEffect(() => {
+    if (isRemoteTable && remoteSplitSession) {
+      setSplitCount(Math.max(remoteSplitSession.members.length, 2));
+    }
+  }, [isRemoteTable, remoteSplitSession?.members.length, remoteSplitSession?.id]);
+
+  useEffect(() => {
+    if (!remoteSplitSession) return;
+    const billKey = getSplitBillStorageKey(remoteSplitSession.id);
+    const syncBill = () => {
+      try {
+        const saved = localStorage.getItem(billKey);
+        if (!saved) return;
+        const parsed = JSON.parse(saved);
+        if (!Array.isArray(parsed)) return;
+        const filtered = parsed.filter((item: any) => item && item.id && !item.id.startsWith("init-"));
+        setMasterBillItems((prev) => (JSON.stringify(prev) === JSON.stringify(filtered) ? prev : filtered));
+      } catch {
+        // ignore parse errors
+      }
+    };
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === billKey) syncBill();
+    };
+    window.addEventListener("storage", onStorage);
+    const interval = setInterval(syncBill, 2000);
+    return () => {
+      window.removeEventListener("storage", onStorage);
+      clearInterval(interval);
+    };
+  }, [remoteSplitSession?.id]);
+
   // Dynamic table-scoped master bill initialization and synchronization
   useEffect(() => {
-    // Generate an authentic Roco nickname for this browser tab session if not exists
-    if (!sessionStorage.getItem("roco_my_session_name")) {
-      const rockPrefixes = ["Smash", "Roco", "Burger", "Supa", "Wing", "Chilli", "Cheeze", "Waffle", "Grill", "Spice"];
-      const rockSuffixes = ["Rocker", "Crew", "Wizard", "Boss", "Beast", "Star", "Bandit", "Ninja", "Champs", "Rider"];
-      const randPref = rockPrefixes[Math.floor(Math.random() * rockPrefixes.length)];
-      const randSuff = rockSuffixes[Math.floor(Math.random() * rockSuffixes.length)];
-      const randNum = Math.floor(10 + Math.random() * 90);
-      const generatedName = `${randPref}${randSuff}_${randNum}`;
-      sessionStorage.setItem("roco_my_session_name", generatedName);
+    const myName = currentPlayerName || sessionStorage.getItem("roco_my_session_name") || "";
+
+    const billKey =
+      currentTableId === REMOTE_TABLE_ID && remoteSplitSession
+        ? getSplitBillStorageKey(remoteSplitSession.id)
+        : `roco_master_bill_${currentTableId}`;
+
+    if (currentTableId === REMOTE_TABLE_ID && !remoteSplitSession) {
+      setMasterBillItems([]);
+      return;
     }
 
-    const myName = sessionStorage.getItem("roco_my_session_name") || "You";
-
-    // 1. Sync master bill from table storage
     try {
-      const savedBill = localStorage.getItem("roco_master_bill_" + currentTableId);
+      const savedBill = localStorage.getItem(billKey);
       if (savedBill) {
         const parsed = JSON.parse(savedBill);
         if (Array.isArray(parsed)) {
@@ -3033,38 +3195,36 @@ export default function App() {
       setMasterBillItems([]);
     }
 
-    // 2. Sync sessionMembers from table storage & ensure current tab user is in it
-    try {
-      const savedMembersStr = localStorage.getItem("roco_session_members_" + currentTableId);
-      let currentMembers: string[] = [];
-      if (savedMembersStr) {
-        currentMembers = JSON.parse(savedMembersStr);
+    if (currentTableId !== REMOTE_TABLE_ID) {
+      try {
+        const savedMembersStr = localStorage.getItem("roco_session_members_" + currentTableId);
+        let currentMembers: string[] = savedMembersStr ? JSON.parse(savedMembersStr) : [];
+        if (myName && !currentMembers.includes(myName)) {
+          currentMembers = [...currentMembers, myName];
+        }
+        setSessionMembers(currentMembers.filter(Boolean));
+      } catch {
+        setSessionMembers(myName ? [myName] : []);
       }
-      
-      let nextMembers = currentMembers.map(m => m === "You" ? myName : m);
-      if (!nextMembers.includes(myName)) {
-        nextMembers.push(myName);
-      }
-      // Remove any initial raw "You" handles to keep names highly literal
-      nextMembers = nextMembers.filter(m => m !== "You" || m === myName);
-      
-      setSessionMembers(nextMembers);
-      localStorage.setItem("roco_session_members_" + currentTableId, JSON.stringify(nextMembers));
-    } catch {
-      setSessionMembers([myName]);
     }
-  }, [currentTableId]);
+  }, [currentTableId, remoteSplitSession?.id, currentPlayerName]);
 
   // Persist master bill when modified
   useEffect(() => {
-    if (currentTableId) {
-      localStorage.setItem("roco_master_bill_" + currentTableId, JSON.stringify(masterBillItems));
-    }
-  }, [masterBillItems, currentTableId]);
+    if (!currentTableId) return;
+    if (currentTableId === REMOTE_TABLE_ID && !remoteSplitSession) return;
 
-  // Persist session members when modified
+    const billKey =
+      currentTableId === REMOTE_TABLE_ID && remoteSplitSession
+        ? getSplitBillStorageKey(remoteSplitSession.id)
+        : `roco_master_bill_${currentTableId}`;
+
+    localStorage.setItem(billKey, JSON.stringify(masterBillItems));
+  }, [masterBillItems, currentTableId, remoteSplitSession?.id]);
+
+  // Persist session members when modified (dine-in tables only)
   useEffect(() => {
-    if (currentTableId) {
+    if (currentTableId && currentTableId !== REMOTE_TABLE_ID) {
       localStorage.setItem("roco_session_members_" + currentTableId, JSON.stringify(sessionMembers));
     }
   }, [sessionMembers, currentTableId]);
@@ -3430,29 +3590,22 @@ export default function App() {
       return;
     }
 
-    // Complexity-based Timer Calculation in seconds
-    let maxPrepSeconds = 30; // default base prep
-    cart.forEach(it => {
-      const name = (it.menuItem?.name || "").toLowerCase();
-      const cat = (it.menuItem?.category || "").toLowerCase();
-      if (name.includes("combo") || name.includes("wings") || name.includes("ribs") || (it.menuItem?.price || 0) >= 100) {
-        maxPrepSeconds = Math.max(maxPrepSeconds, 60);
-      } else if (name.includes("burger") || cat === "eat") {
-        maxPrepSeconds = Math.max(maxPrepSeconds, 45);
-      } else {
-        maxPrepSeconds = Math.max(maxPrepSeconds, 30);
-      }
-    });
+    const activeTableId = resolveActiveTableId(currentTableId);
+    if (activeTableId !== currentTableId) {
+      setCurrentTableId(activeTableId);
+    }
+    localStorage.setItem("roco_active_customer_table", activeTableId);
 
-    // Add historic orders
-    const assignedWaiterName = currentTableId
-      ? (tableWaiterAssignments[currentTableId] || getNextAvailableWaiter(tableWaiterAssignments)?.name || "")
+    const maxPrepSeconds = getOrderPrepSeconds(cart);
+
+    const assignedWaiterName = activeTableId
+      ? (tableWaiterAssignments[activeTableId] || getNextAvailableWaiter(tableWaiterAssignments)?.name || "")
       : "";
 
-    if (currentTableId && !tableWaiterAssignments[currentTableId] && assignedWaiterName) {
+    if (activeTableId && !tableWaiterAssignments[activeTableId] && assignedWaiterName) {
       persistTableAssignments({
         ...tableWaiterAssignments,
-        [currentTableId]: assignedWaiterName
+        [activeTableId]: assignedWaiterName
       });
     }
 
@@ -3471,7 +3624,6 @@ export default function App() {
 
     setHistoricOrders(prev => [newOrder, ...prev]);
 
-    // Push order into Waiter's Dashboard Live Queue in real-time
     const assignedWaiterProfile = staffProfiles.find(profile => profile.name === assignedWaiterName);
     const liveIncomingOrderForStaff = {
       id: newOrder.id,
@@ -3483,7 +3635,7 @@ export default function App() {
       })),
       total: newOrder.total,
       status: "Sent",
-      tableId: currentTableId || "12",
+      tableId: activeTableId,
       assignedStaffId: assignedWaiterProfile?.id || "",
       assignedStaffName: assignedWaiterName,
       paymentStatus: "UNPAID",
@@ -3514,30 +3666,33 @@ export default function App() {
     
     setStamps(newStampsVal);
     
-    // Roll the ordered items directly to Table 12 Master Bill
-    setMasterBillItems(prev => {
-      const updated = [...prev];
-      cart.forEach(c => {
-        // Try to find a matching named item in the master bill where paid count is not yet fully met
-        const index = updated.findIndex(m => m.name === c.menuItem.name && m.paidCount < m.quantity);
-        if (index !== -1) {
-          updated[index] = {
-            ...updated[index],
-            quantity: updated[index].quantity + c.quantity
-          };
-        } else {
-          updated.push({
-            id: `item-${Date.now()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
-            name: c.menuItem.name,
-            price: c.menuItem.price,
-            emoji: c.menuItem.emoji,
-            quantity: c.quantity,
-            paidCount: 0
-          });
-        }
+    const canSyncSplitBill = activeTableId !== REMOTE_TABLE_ID || !!remoteSplitSession;
+    if (canSyncSplitBill) {
+      setMasterBillItems(prev => {
+        const updated = [...prev];
+        cart.forEach(c => {
+          const index = updated.findIndex(m => m.name === c.menuItem.name && m.paidCount < m.quantity);
+          if (index !== -1) {
+            updated[index] = {
+              ...updated[index],
+              quantity: updated[index].quantity + c.quantity
+            };
+          } else {
+            updated.push({
+              id: `item-${Date.now()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
+              name: c.menuItem.name,
+              price: c.menuItem.price,
+              emoji: c.menuItem.emoji,
+              quantity: c.quantity,
+              paidCount: 0
+            });
+          }
+        });
+        return updated;
       });
-      return updated;
-    });
+    } else if (activeTableId === REMOTE_TABLE_ID) {
+      triggerToast("Order sent! Host or join a split to sync the bill with your group.", "info");
+    }
 
     setCart([]);
     setOrderNotes("");
@@ -3547,7 +3702,7 @@ export default function App() {
       setHighlightKitchenOrders(false);
     }, 4500);
 
-    triggerToast("Order sent! Roco Crew will bring your drinks/food shortly.", "success");
+    triggerToast(`Order sent to ${formatTableLabel(activeTableId)}! Roco Crew will bring your drinks/food shortly.`, "success");
 
     // Fast-mock status upgrade timers
     const orderId = newOrder.id;
@@ -4568,7 +4723,7 @@ export default function App() {
                     <div className="flex justify-between items-center text-[9px] font-mono leading-none">
                       <span className="text-zinc-500 uppercase tracking-wider">ROCO SPEED STANDARD:</span>
                       {activeKitchenOrders[0].timerRemaining > 0 ? (
-                        <span className="text-orange-400 font-black animate-pulse font-bold">{activeKitchenOrders[0].timerRemaining}s remaining</span>
+                        <span className="text-orange-400 font-black animate-pulse font-bold">{formatTimerRemaining(activeKitchenOrders[0].timerRemaining)} remaining</span>
                       ) : (
                         <span className="text-red-500 font-black flex items-center gap-1">
                           ⚠️ TIMED OUT (+🍦 FREE SUNDAE)
@@ -5510,84 +5665,46 @@ export default function App() {
               animate={{ y: 0 }}
               exit={{ y: "100%" }}
               transition={{ type: "spring", damping: 25, stiffness: 220 }}
-              className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[500px] bg-[#1C1C1E] border-t-4 border-[#FF5A00] rounded-t-3xl z-55 overflow-hidden flex flex-col max-h-[85vh] shadow-2xl pb-6"
+              className="fixed inset-0 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 sm:top-[6%] sm:bottom-[6%] w-full sm:max-w-[520px] bg-[#F7F4EF] border-2 border-[#E78A3E] sm:rounded-3xl z-55 overflow-hidden flex flex-col max-h-[100dvh] sm:max-h-none shadow-2xl"
             >
-              {/* Header drawer controls */}
-              <div className="p-4 bg-[#121212] border-b border-zinc-900 flex justify-between items-center relative">
+              <div className="p-4 bg-black border-b-2 border-[#E78A3E] flex justify-between items-center relative shrink-0">
                 <div>
-                  <h3 className="font-display font-black text-[#FF5A00] tracking-widest text-lg uppercase">
+                  <h3 className="font-display font-black text-[#E78A3E] tracking-widest text-lg uppercase">
                     Your Order
                   </h3>
-                  <p className="text-[10px] font-mono tracking-wider text-zinc-500 uppercase">
-                    {formatTableLabel(currentTableId)} • Roco Rockstar Smash-Box
+                  <p className="text-[10px] font-mono tracking-wider text-white uppercase">
+                    {formatTableLabel(resolveActiveTableId(currentTableId))} • {cartTotalItems} item{cartTotalItems === 1 ? "" : "s"}
                   </p>
                 </div>
                 
                 <button
                   onClick={() => setIsCartOpen(false)}
-                  className="p-2 bg-[#1C1C1E] border border-zinc-800 text-zinc-400 hover:text-white rounded-lg transition-colors cursor-pointer"
+                  className="p-2 bg-zinc-900 border border-zinc-700 text-zinc-300 hover:text-white rounded-lg transition-colors cursor-pointer"
                   aria-label="Close drawer"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
 
-              {/* Items List */}
-              <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-3 min-h-[150px]">
+              <div className="flex-1 overflow-y-auto px-4 py-4 min-h-[150px]">
                 {cart.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-10 text-center">
-                    <div className="w-16 h-16 bg-[#121212] rounded-full border border-dashed border-zinc-800 flex items-center justify-center text-zinc-600 mb-3 text-2xl">
+                    <div className="w-16 h-16 bg-white rounded-full border border-dashed border-zinc-300 flex items-center justify-center text-zinc-500 mb-3 text-2xl">
                       🥩
                     </div>
-                    <h4 className="font-sub font-black text-white text-sm uppercase tracking-wider">
+                    <h4 className="font-sub font-black text-black text-sm uppercase tracking-wider">
                       Your Order is Empty
                     </h4>
-                    <p className="text-xs text-zinc-500 font-sans mt-1 max-w-[250px] leading-relaxed">
-                      Don't starve. Go grab "The Wrap Daddy" or a ice-cold Windhoek Lager right away!
+                    <p className="text-xs text-zinc-600 font-sans mt-1 max-w-[250px] leading-relaxed">
+                      Browse the menu and add smashburgers, wings, or an ice-cold Windhoek to get started.
                     </p>
                   </div>
                 ) : (
-                  cart.map((cartItem) => {
-                    const item = cartItem.menuItem;
-                    return (
-                      <div 
-                        key={item.id} 
-                        className="bg-[#121212] p-3.5 rounded-xl border border-zinc-900 flex items-center justify-between"
-                      >
-                        {/* Title, description & Price */}
-                        <div className="flex items-center gap-3">
-                          <span className="text-2xl">{item.emoji}</span>
-                          <div>
-                            <h4 className="font-sub font-black text-xs text-white uppercase tracking-wider">
-                              {item.name}
-                            </h4>
-                            <p className="font-mono text-11px text-[#FF5A00] mt-0.5">
-                              R{item.price} each
-                            </p>
-                          </div>
-                        </div>
-
-                        {/* Adjust qty panel */}
-                        <div className="flex items-center bg-[#1C1C1E] border border-zinc-800 rounded-lg overflow-hidden shrink-0 ml-4">
-                          <button
-                            onClick={() => handleUpdateQuantity(item.id, -1)}
-                            className="px-2.5 py-1 text-zinc-400 hover:text-[#FF5A00] hover:bg-[#121212] transition-colors"
-                          >
-                            <Minus className="w-3 h-3" />
-                          </button>
-                          <span className="px-3 font-mono font-bold text-xs text-white">
-                            {cartItem.quantity}
-                          </span>
-                          <button
-                            onClick={() => handleUpdateQuantity(item.id, 1)}
-                            className="px-2.5 py-1 text-zinc-400 hover:text-[#FF5A00] hover:bg-[#121212] transition-colors"
-                          >
-                            <Plus className="w-3 h-3" />
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })
+                  <OrderMasonryGrid
+                    items={cart}
+                    onUpdateQuantity={handleUpdateQuantity}
+                    resolveImage={getProductResolvedImage}
+                  />
                 )}
 
                 {/* --- INTELLIGENT CONTEXTUAL UP-SELLING ENGINE --- */}
@@ -5643,9 +5760,9 @@ export default function App() {
 
                 {/* Custom Order Notes input section */}
                 {cart.length > 0 && (
-                  <div className="mt-4 p-3.5 bg-zinc-950/45 rounded-xl border border-zinc-850/60 flex flex-col gap-2 shadow-inner">
-                    <label htmlFor="order-notes-textarea" className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-wider text-zinc-400 select-none">
-                      <span>📝 Kitchen Notes & Instructions</span>
+                  <div className="mt-4 p-3.5 bg-white rounded-xl border border-zinc-200 flex flex-col gap-2 shadow-sm">
+                    <label htmlFor="order-notes-textarea" className="flex items-center gap-2 text-[10px] font-mono uppercase tracking-wider text-zinc-600 select-none font-black">
+                      <span>Kitchen notes</span>
                     </label>
                     <textarea
                       id="order-notes-textarea"
@@ -5653,47 +5770,44 @@ export default function App() {
                       value={orderNotes}
                       onChange={(e) => setOrderNotes(e.target.value)}
                       placeholder="e.g. Medium burger, no onions, extra ice on beer please..."
-                      className="w-full bg-[#121212] text-zinc-100 placeholder-zinc-700 text-xs rounded-lg p-3 border border-zinc-850/80 focus:outline-none focus:border-[#FF5A00] focus:ring-1 focus:ring-[#FF5A00]/20 font-sans transition-all resize-none shadow-inner"
+                      className="w-full bg-[#F7F4EF] text-black placeholder-zinc-400 text-xs rounded-lg p-3 border border-zinc-300 focus:outline-none focus:border-[#E78A3E] focus:ring-1 focus:ring-[#E78A3E]/30 font-sans transition-all resize-none"
                     />
                   </div>
                 )}
               </div>
 
-              {/* Price break-down / calculations footer */}
               {cart.length > 0 && (
-                <div className="px-4 py-4 bg-[#121212]/90 border-t border-zinc-900 flex flex-col gap-3">
+                <div className="px-4 py-4 bg-white border-t border-zinc-200 flex flex-col gap-3 shrink-0">
                   {/* Detail pricing list */}
-                  <div className="flex flex-col gap-1.5 text-xs text-zinc-400 font-mono">
+                  <div className="flex flex-col gap-1.5 text-xs text-zinc-600 font-mono">
                     <div className="flex justify-between">
                       <span>Order Subtotal</span>
-                      <span className="font-sans text-white">R{(cartTotal * 0.85).toFixed(2)}</span>
+                      <span className="font-sans text-black">R{(cartTotal * 0.85).toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between">
                       <span>VAT (15% Included)</span>
-                      <span className="font-sans text-white font-bold text-[#FF5A00]">R{(cartTotal * 0.15).toFixed(2)}</span>
+                      <span className="font-sans text-black font-bold text-[#E78A3E]">R{(cartTotal * 0.15).toFixed(2)}</span>
                     </div>
 
-                    {/* Google Coupons Applied Row */}
                     {couponApplied && (
-                      <div className="flex justify-between text-emerald-400 border-t border-zinc-900/50 pt-1.5 text-11px">
-                        <span>⭐️ Google Review Code applied</span>
-                        <span className="font-sub font-black font-sans text-emerald-400">-R50.00</span>
+                      <div className="flex justify-between text-emerald-700 border-t border-zinc-200 pt-1.5 text-11px">
+                        <span>Google Review Code applied</span>
+                        <span className="font-sub font-black font-sans">-R50.00</span>
                       </div>
                     )}
 
-                    <div className="flex justify-between text-sm text-white font-sub font-black border-t border-zinc-800/50 pt-2 uppercase">
+                    <div className="flex justify-between text-sm text-black font-sub font-black border-t border-zinc-200 pt-2 uppercase">
                       <span>Total Price</span>
-                      <span className="font-mono text-base text-[#FF5A00]">
+                      <span className="font-mono text-base text-[#E78A3E]">
                         R{Math.max(0, cartTotal - (couponApplied ? 50 : 0))}
                       </span>
                     </div>
                   </div>
 
-                  {/* Stamp warning notification */}
-                  <div className="p-3 bg-zinc-950/45 rounded-lg border border-[#FF5A00]/10 flex items-center gap-2.5 text-[11px] font-mono text-[#A0A0A0]">
-                    <Award className="w-4 h-4 text-orange-400 shrink-0" />
+                  <div className="p-3 bg-[#F7F4EF] rounded-lg border border-[#E78A3E]/20 flex items-center gap-2.5 text-[11px] font-mono text-zinc-700">
+                    <Award className="w-4 h-4 text-[#E78A3E] shrink-0" />
                     <p className="leading-relaxed text-[10.5px]">
-                      Sending this order wins you <span className="text-white font-bold">{cartTotalItems} gold stamp(s)</span> on your card!
+                      Sending this order wins you <span className="text-black font-bold">{cartTotalItems} gold stamp(s)</span> on your card!
                     </p>
                   </div>
 
@@ -5744,7 +5858,7 @@ export default function App() {
 
                     <button
                       onClick={handleSendOrder}
-                      className="flex-[2] py-4 bg-[#FF5A00] hover:bg-orange-400 text-[#121212] font-sub font-black text-xs uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer shadow-lg"
+                      className="flex-[2] py-4 bg-[#E78A3E] hover:bg-[#d67a32] text-black font-sub font-black text-xs uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer shadow-lg"
                     >
                       <Plus className="w-4 h-4 shrink-0" /> Send Order to Kitchen
                     </button>
@@ -5803,7 +5917,7 @@ export default function App() {
               {/* Chat Messages thread */}
               <div className="flex-1 overflow-y-auto px-5 py-5 flex flex-col gap-3 min-h-[250px] max-h-[400px]">
                 {(() => {
-                  const tableKey = currentTableId || "12";
+                  const tableKey = resolveActiveTableId(currentTableId);
                   const filtered = chatMessages.filter(
                     (m) => String(m.tableId) === String(tableKey)
                   );
@@ -5871,10 +5985,11 @@ export default function App() {
                     if (!customerChatInput.trim()) return;
                     playBeep(650, "sine", 0.05);
 
+                    const tableKey = resolveActiveTableId(currentTableId);
                     const newMsg = {
                       id: "c-guest-" + Date.now().toString(36),
-                      tableId: currentTableId || "12",
-                      sender: "Customer",
+                      tableId: tableKey,
+                      sender: currentPlayerName || "Guest",
                       text: customerChatInput.trim(),
                       timestamp: new Date().toLocaleTimeString([], {
                         hour: "2-digit",
@@ -5882,7 +5997,8 @@ export default function App() {
                       }),
                     };
 
-                    setChatMessages((prev) => [...prev, newMsg]);
+                    setChatMessages((prev) => appendChatMessage(prev, newMsg));
+                    setTableAlerts((prev) => ({ ...prev, [tableKey]: true }));
                     setCustomerChatInput("");
                     triggerToast("Message dispatched to Roco Crew dashboard! 💬", "success");
                   }}
@@ -5890,6 +6006,148 @@ export default function App() {
                 >
                   <Send className="w-4 h-4" />
                 </button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* REMOTE SPLIT QR MODAL */}
+      <AnimatePresence>
+        {isQrModalOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 0.85 }}
+              exit={{ opacity: 0 }}
+              onClick={() => {
+                setIsQrModalOpen(false);
+                setSplitQrStep("choose");
+                setJoinSplitInput("");
+              }}
+              className="fixed inset-0 bg-black/90 z-[80]"
+            />
+            <motion.div
+              initial={{ opacity: 0, y: 24, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 24, scale: 0.96 }}
+              className="fixed inset-x-4 top-[10%] max-w-md mx-auto bg-white border-2 border-[#E78A3E] rounded-3xl z-[85] overflow-hidden shadow-2xl"
+            >
+              <div className="p-4 bg-black border-b border-[#E78A3E] flex justify-between items-center">
+                <div>
+                  <h3 className="font-display font-black text-[#E78A3E] text-lg uppercase">Split QR</h3>
+                  <p className="text-[10px] font-mono text-white uppercase">
+                    {splitQrStep === "choose" && "Host or join a live split"}
+                    {splitQrStep === "host" && "Share this QR with your group"}
+                    {splitQrStep === "join" && "Paste a scanned split link"}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsQrModalOpen(false);
+                    setSplitQrStep("choose");
+                    setJoinSplitInput("");
+                  }}
+                  className="p-2 bg-zinc-900 border border-zinc-800 text-zinc-300 rounded-lg"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="p-5 space-y-4">
+                {splitQrStep === "choose" && (
+                  <div className="grid grid-cols-1 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!currentPlayerName && !sessionStorage.getItem("roco_my_session_name")) {
+                          triggerToast("Set your guest name first.", "info");
+                          setIsGuestNameOpen(true);
+                          return;
+                        }
+                        handleHostSplitSession();
+                      }}
+                      className="w-full py-4 bg-[#E78A3E] hover:bg-orange-400 text-black font-black uppercase text-sm rounded-2xl transition-all"
+                    >
+                      Host
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSplitQrStep("join")}
+                      className="w-full py-4 bg-black hover:bg-zinc-900 text-white font-black uppercase text-sm rounded-2xl border border-zinc-800 transition-all"
+                    >
+                      Join Split
+                    </button>
+                    <p className="text-[10px] text-zinc-600 text-center leading-relaxed">
+                      Scan your friend&apos;s split QR with your camera, or paste their link after choosing Join Split.
+                    </p>
+                  </div>
+                )}
+
+                {splitQrStep === "host" && remoteSplitSession && (
+                  <div className="flex flex-col items-center gap-4">
+                    <HalftoneQRCode
+                      text={getSplitJoinUrl(remoteSplitSession.id, REMOTE_TABLE_ID)}
+                      size={200}
+                    />
+                    <p className="text-xs text-zinc-700 text-center">
+                      Friends scan this to join <span className="font-bold">{remoteSplitSession.hostName}</span>&apos;s split.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(getSplitJoinUrl(remoteSplitSession.id, REMOTE_TABLE_ID));
+                        triggerToast("Split invite copied!", "success");
+                      }}
+                      className="w-full py-3 bg-zinc-100 border border-zinc-300 text-black font-black uppercase text-xs rounded-xl"
+                    >
+                      Copy invite link
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsQrModalOpen(false);
+                        setSplitQrStep("choose");
+                      }}
+                      className="w-full py-3 bg-[#E78A3E] text-black font-black uppercase text-xs rounded-xl"
+                    >
+                      Done — orders will sync
+                    </button>
+                  </div>
+                )}
+
+                {splitQrStep === "join" && (
+                  <div className="space-y-3">
+                    <input
+                      value={joinSplitInput}
+                      onChange={(e) => setJoinSplitInput(e.target.value)}
+                      placeholder="Paste split link or session code..."
+                      className="w-full bg-white border border-zinc-300 rounded-xl px-4 py-3 text-sm text-black focus:outline-none focus:border-[#E78A3E] focus:ring-2 focus:ring-[#E78A3E]/30"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!currentPlayerName && !sessionStorage.getItem("roco_my_session_name")) {
+                          triggerToast("Set your guest name first.", "info");
+                          setIsGuestNameOpen(true);
+                          return;
+                        }
+                        handleJoinSplitSession();
+                      }}
+                      className="w-full py-3 bg-[#E78A3E] text-black font-black uppercase text-sm rounded-xl"
+                    >
+                      Join split
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSplitQrStep("choose")}
+                      className="w-full py-2 text-zinc-600 text-xs font-mono uppercase"
+                    >
+                      Back
+                    </button>
+                  </div>
+                )}
               </div>
             </motion.div>
           </>
@@ -6038,10 +6296,10 @@ export default function App() {
                 <div className="absolute inset-0 pointer-events-none opacity-40" style={{ backgroundImage: "radial-gradient(circle at 20% 20%, rgba(255,90,0,0.35), transparent 55%), radial-gradient(circle at 85% 40%, rgba(255,90,0,0.18), transparent 55%)" }} />
                 <div>
                   <h3 className="font-display font-black text-white uppercase tracking-[0.18em] text-sm">
-                    Welcome
+                    How ROCO Works
                   </h3>
                   <p className="text-[10px] font-mono text-zinc-400 uppercase mt-1 tracking-widest">
-                    Get started in under a minute
+                    Complete guest guide
                   </p>
                 </div>
                 <button
@@ -6055,44 +6313,78 @@ export default function App() {
               </div>
 
               <div className="flex-1 overflow-y-auto p-4 text-sm text-zinc-300 leading-relaxed space-y-3">
-                <div className="rounded-2xl p-4 border border-zinc-900 bg-gradient-to-br from-black/70 to-zinc-950/40">
-                  <p className="text-[10px] font-mono uppercase tracking-widest text-[#FF5A00] font-black">
-                    Step 1
-                  </p>
-                  <p className="mt-1 font-display font-black uppercase tracking-wider text-white text-sm">
-                    Choose a name
-                  </p>
-                  <p className="text-[12px] text-zinc-350 mt-1">
-                    After you join a table, you'll be asked what you'd like to be called — so your group can see who ordered what.
-                  </p>
-                </div>
-
-                <div className="rounded-2xl p-4 border border-zinc-900 bg-gradient-to-br from-black/70 to-zinc-950/40">
-                  <p className="text-[10px] font-mono uppercase tracking-widest text-[#FF5A00] font-black">
-                    Step 2
-                  </p>
-                  <p className="mt-1 font-display font-black uppercase tracking-wider text-white text-sm">
-                    Order & track
-                  </p>
-                  <p className="text-[12px] text-zinc-350 mt-1">
-                    Add items to your order, then keep an eye on live status updates as the kitchen prepares your food.
-                  </p>
-                </div>
-
-                <div className="rounded-2xl p-4 border border-zinc-900 bg-gradient-to-br from-black/70 to-zinc-950/40">
-                  <p className="text-[10px] font-mono uppercase tracking-widest text-[#FF5A00] font-black">
-                    Step 3
-                  </p>
-                  <p className="mt-1 font-display font-black uppercase tracking-wider text-white text-sm">
-                    Call waiter / request bill
-                  </p>
-                  <p className="text-[12px] text-zinc-350 mt-1">
-                    Use the shortcuts in the header to summon a waiter or request the bill anytime.
-                  </p>
-                </div>
+                {[
+                  {
+                    step: "Join your table",
+                    title: "Scan QR or open Remote Table",
+                    body: "Scan the QR on your table to join that table's session. No table? Use Remote Table ordering from the home link — your orders route to Remote Table, not a random dine-in table."
+                  },
+                  {
+                    step: "Set your name",
+                    title: "Choose a nickname",
+                    body: "On first visit you'll be asked what to call you. This name appears on the shared bill and in table chat so your group knows who ordered what."
+                  },
+                  {
+                    step: "Browse & order",
+                    title: "Menu, photos & Your Order",
+                    body: "Tap items to add them. Open Your Order to see a staggered card view with photos, realistic prep times per item, quantities, and kitchen notes before you send."
+                  },
+                  {
+                    step: "Speed standard",
+                    title: "Kitchen timer",
+                    body: "Each order gets a realistic prep timer based on what's cooking — drinks ~3 min, burgers ~12 min, ribs/combos up to ~20 min. Beat the timer for rewards; if it expires, ask staff about the apology sundae."
+                  },
+                  {
+                    step: "Track status",
+                    title: "Live order updates",
+                    body: "After sending, watch your order move through Sent → Preparing → Ready → Served. Status appears on the home screen kitchen panel."
+                  },
+                  {
+                    step: "Call staff",
+                    title: "Summon waiter",
+                    body: "Tap Call in the header to ping your waiter. Staff see a high-visibility alert on the floor plan for your table."
+                  },
+                  {
+                    step: "Chat",
+                    title: "Table chat",
+                    body: "Open chat from the header to message your table group or staff. Staff can reply from the table inspector on the floor console."
+                  },
+                  {
+                    step: "Bill & pay",
+                    title: "Request bill & split",
+                    body: "Request Bill from Your Order or the bill modal. View the master bill, split by item or percentage, and track what's paid vs outstanding."
+                  },
+                  {
+                    step: "Book a table",
+                    title: "Reservations",
+                    body: `Book at ${RONDEBOSCH_VENUE.name} (${RONDEBOSCH_VENUE.address}). ${RONDEBOSCH_VENUE.summary}. Choose party size, date, time slot, then pick your seat on the floor map.`
+                  },
+                  {
+                    step: "Rewards",
+                    title: "Stamps & vouchers",
+                    body: "Earn gold stamps per item ordered. Collect 10 for a free draft. Leave a Google review to unlock an R50 voucher code you can apply at checkout."
+                  },
+                  {
+                    step: "Games",
+                    title: "Thunee & arcade",
+                    body: "Open Games from the menu for Thunee card nights and mini-games while you wait. Multiplayer lobbies sync to your table."
+                  }
+                ].map((section) => (
+                  <div key={section.step} className="rounded-2xl p-4 border border-zinc-900 bg-gradient-to-br from-black/70 to-zinc-950/40">
+                    <p className="text-[10px] font-mono uppercase tracking-widest text-[#E78A3E] font-black">
+                      {section.step}
+                    </p>
+                    <p className="mt-1 font-display font-black uppercase tracking-wider text-white text-sm">
+                      {section.title}
+                    </p>
+                    <p className="text-[12px] text-zinc-350 mt-1">
+                      {section.body}
+                    </p>
+                  </div>
+                ))}
 
                 <div className="text-[10px] text-zinc-500 font-mono uppercase tracking-widest text-center pt-1">
-                  Tap anywhere outside to close
+                  Tap outside to close • {RONDEBOSCH_VENUE.summary}
                 </div>
               </div>
             </motion.div>
@@ -6423,7 +6715,10 @@ export default function App() {
                             When is the crusade joining us? ⏰
                           </h3>
                           <p className="text-[10.5px] text-zinc-900 leading-relaxed font-semibold">
-                            Pick an open date on our dispatch register, and select your preferred hour-block for heavy burger snacking.
+                            Pick a date at {RONDEBOSCH_VENUE.name}, {RONDEBOSCH_VENUE.address}. {RONDEBOSCH_VENUE.summary}
+                          </p>
+                          <p className="text-[10px] font-mono text-zinc-700 uppercase tracking-wider">
+                            Selected day: {getHoursLabelForDate(bookingDate)}
                           </p>
 
                           <div className="space-y-3 pt-2">
@@ -6448,8 +6743,8 @@ export default function App() {
                               <label className="block text-[8px] font-mono font-black uppercase text-zinc-900 tracking-wider mb-1.5">
                                 ⏰ HOUR-BLOCK TIMESLOT
                               </label>
-                              <div className="grid grid-cols-3 gap-2">
-                                {["18:00", "18:30", "19:00", "19:30", "20:00", "20:30", "21:00", "21:30", "22:00"].map((t) => (
+                              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-48 overflow-y-auto pr-1">
+                                {getBookingTimeSlots(bookingDate).map((t) => (
                                   <button
                                     key={t}
                                     type="button"
@@ -9380,7 +9675,6 @@ export default function App() {
                   {/* Body Scroll area */}
                   <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-4">
                     <div className="bg-gradient-to-br from-zinc-900 to-black p-4 rounded-xl border border-zinc-800 flex flex-col gap-3.5 relative overflow-hidden shrink-0 min-h-[160px]">
-                      {/* background pattern */}
                       <div className="absolute top-2.5 right-2.5 w-12 h-12 pointer-events-none opacity-[0.03]">
                         <QrCode className="w-12 h-12 text-[#FF5A00]" />
                       </div>
@@ -9391,13 +9685,19 @@ export default function App() {
                             LIVE SPLITTING CONNECT
                           </span>
                           <h4 className="font-sub font-black text-sm text-white uppercase mt-1 px-0.5 flex items-center gap-1.5">
-                            <Users className="w-4 h-4 text-[#FF5A00]" /> Active Table ({sessionMembers.length})
+                            <Users className="w-4 h-4 text-[#FF5A00]" />
+                            {isRemoteTable
+                              ? isRemoteSplitConnected
+                                ? `Split group (${displaySessionMembers.length})`
+                                : "Not connected"
+                              : `Active Table (${displaySessionMembers.length})`}
                           </h4>
                         </div>
 
-                        <button 
+                        <button
                           onClick={() => {
                             playBeep(450, "sine", 0.05);
+                            setSplitQrStep("choose");
                             setIsQrModalOpen(true);
                           }}
                           className="px-3.5 py-2 bg-[#FF5A00] hover:bg-orange-400 text-[#121212] rounded-lg text-[10.5px] font-sub font-black uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer shadow-md active:scale-95 text-center"
@@ -9407,44 +9707,88 @@ export default function App() {
                         </button>
                       </div>
 
-                      {/* Display current active table table split members */}
-                      <div className="flex flex-wrap gap-1.5 items-center bg-black/40 p-2.5 rounded-lg border border-zinc-900">
-                        <span className="text-[9.5px] font-mono text-zinc-500 uppercase font-black">Joined:</span>
-                        {sessionMembers.map((member) => (
-                          <motion.span
-                            key={member}
-                            initial={{ scale: 0.8, opacity: 0 }}
-                            animate={{ scale: 1, opacity: 1 }}
-                            className={`px-2.5 py-1 rounded-full text-[10.5px] font-bold font-sub uppercase flex items-center gap-1 border border-zinc-800 shrink-0 ${
-                              member === "You" 
-                                ? "bg-zinc-800 text-white" 
-                                : "bg-zinc-900/80 text-[#FF5A00]"
-                            }`}
-                          >
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
-                            {member}
-                          </motion.span>
-                        ))}
-                      </div>
+                      {isRemoteTable && !isRemoteSplitConnected ? (
+                        <div className="bg-black/40 p-3 rounded-lg border border-zinc-900">
+                          <p className="text-[10px] text-zinc-400 leading-relaxed">
+                            Scan a friend&apos;s split QR to <span className="text-[#FF5A00] font-bold">Host</span> or{" "}
+                            <span className="text-[#FF5A00] font-bold">Join Split</span>. Orders and the bill sync only after you connect.
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="flex flex-wrap gap-1.5 items-center bg-black/40 p-2.5 rounded-lg border border-zinc-900">
+                          <span className="text-[9.5px] font-mono text-zinc-500 uppercase font-black">Joined:</span>
+                          {displaySessionMembers.length === 0 ? (
+                            <span className="text-[10px] text-zinc-500 italic">No one connected yet</span>
+                          ) : (
+                            displaySessionMembers.map((member) => (
+                              <motion.span
+                                key={member}
+                                initial={{ scale: 0.8, opacity: 0 }}
+                                animate={{ scale: 1, opacity: 1 }}
+                                className={`px-2.5 py-1 rounded-full text-[10.5px] font-bold font-sub uppercase flex items-center gap-1 border border-zinc-800 shrink-0 ${
+                                  member === currentPlayerName
+                                    ? "bg-zinc-800 text-white"
+                                    : "bg-zinc-900/80 text-[#FF5A00]"
+                                }`}
+                              >
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                                {member}
+                                {remoteSplitSession?.hostName === member ? " (host)" : ""}
+                              </motion.span>
+                            ))
+                          )}
+                        </div>
+                      )}
 
-                      {/* Shortcut Panel */}
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => {
-                            const url = getSecureGuestUrl(currentTableId || "12");
-                            navigator.clipboard.writeText(url);
-                            playBeep(600, "sine", 0.08);
-                            setCopiedLink(true);
-                            triggerToast("Table splitting link copied to clipboard!", "success");
-                            setTimeout(() => setCopiedLink(false), 2000);
-                          }}
-                          className="w-full py-2 bg-zinc-950 hover:bg-zinc-900 text-zinc-300 border border-zinc-850 hover:border-zinc-800 uppercase rounded text-[9.5px] font-mono font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-                        >
-                          <Share2 className="w-3.5 h-3.5 text-zinc-500" />
-                          {copiedLink ? "Link Copied!" : "Copy Table Link"}
-                        </button>
-                      </div>
+                      {!isRemoteTable && (
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => {
+                              const url = getSecureGuestUrl(currentTableId || REMOTE_TABLE_ID);
+                              navigator.clipboard.writeText(url);
+                              playBeep(600, "sine", 0.08);
+                              setCopiedLink(true);
+                              triggerToast("Table splitting link copied to clipboard!", "success");
+                              setTimeout(() => setCopiedLink(false), 2000);
+                            }}
+                            className="w-full py-2 bg-zinc-950 hover:bg-zinc-900 text-zinc-300 border border-zinc-850 hover:border-zinc-800 uppercase rounded text-[9.5px] font-mono font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                          >
+                            <Share2 className="w-3.5 h-3.5 text-zinc-500" />
+                            {copiedLink ? "Link Copied!" : "Copy Table Link"}
+                          </button>
+                        </div>
+                      )}
+
+                      {isRemoteTable && isRemoteSplitConnected && remoteSplitSession && (
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => {
+                              const url = getSplitJoinUrl(remoteSplitSession.id, REMOTE_TABLE_ID);
+                              navigator.clipboard.writeText(url);
+                              playBeep(600, "sine", 0.08);
+                              setCopiedLink(true);
+                              triggerToast("Split invite link copied!", "success");
+                              setTimeout(() => setCopiedLink(false), 2000);
+                            }}
+                            className="w-full py-2 bg-zinc-950 hover:bg-zinc-900 text-zinc-300 border border-zinc-850 hover:border-zinc-800 uppercase rounded text-[9.5px] font-mono font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                          >
+                            <Share2 className="w-3.5 h-3.5 text-zinc-500" />
+                            {copiedLink ? "Link Copied!" : "Copy Split Invite"}
+                          </button>
+                        </div>
+                      )}
                     </div>
+
+                    {isRemoteTable && !isRemoteSplitConnected && (
+                      <div className="rounded-xl border border-zinc-300 bg-zinc-50 p-3 text-center">
+                        <p className="text-[11px] font-black uppercase text-zinc-800 tracking-wider">
+                          Connect to sync orders
+                        </p>
+                        <p className="text-[10px] text-zinc-600 mt-1">
+                          You can still order — items appear on the shared bill once you host or join a split.
+                        </p>
+                      </div>
+                    )}
 
                     {billRequestSubmitted && (
                       <div className="rounded-xl border border-[#E78A3E] bg-[#E78A3E]/10 p-3 text-center">
@@ -10153,17 +10497,19 @@ export default function App() {
                     selectedTableId={selectedStaffTable}
                     tablesState={tablesState}
                     tableWaiterAssignments={tableWaiterAssignments}
-                    openOrderCounts={Object.fromEntries(
-                      ROCO_TABLES.map(t => [
-                        t.id,
-                        sharedStaffOrders.filter(o => o.tableId === t.id && o.status !== "Completed").length
-                      ])
-                    )}
-                    openRequestCounts={Object.fromEntries(
-                      ROCO_TABLES.map(t => [
-                        t.id,
-                        serviceRequests.filter(r => r.tableId === t.id && r.status !== "DONE").length
-                      ])
+                    tableNotifications={Object.fromEntries(
+                      ROCO_TABLES.map((t) => {
+                        const reqs = serviceRequests.filter((r) => r.tableId === t.id && r.status !== "DONE");
+                        return [
+                          t.id,
+                          {
+                            openOrders: sharedStaffOrders.filter((o) => o.tableId === t.id && o.status !== "Completed").length,
+                            waiterCalls: reqs.filter((r) => r.type === "WAITER").length,
+                            billRequests: reqs.filter((r) => r.type === "BILL").length,
+                            hasAlert: !!tableAlerts[t.id]
+                          }
+                        ];
+                      })
                     )}
                     onTableSelect={handleOpenStaffTable}
                   />
@@ -10393,7 +10739,9 @@ export default function App() {
 
                     <div className="rounded-xl border border-zinc-200 p-3">
                       <div className="flex items-center justify-between mb-2">
-                        <h4 className="font-black uppercase text-xs text-[#E78A3E]">Table chat</h4>
+                        <h4 className="font-black uppercase text-xs text-[#E78A3E]">
+                          Table chat {tableChat.length > 0 && `(${tableChat.length})`}
+                        </h4>
                         <button type="button" onClick={() => setStaffInspectorChatOpen(v => !v)} className="text-[10px] font-mono uppercase text-zinc-600">{staffInspectorChatOpen ? "Hide" : "Show"}</button>
                       </div>
                       {staffInspectorChatOpen && (
