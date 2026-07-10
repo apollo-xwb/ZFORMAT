@@ -1,0 +1,331 @@
+@import url('https://fonts.googleapis.com/css2?family=Bungee&family=Montserrat:wght@400;700;900&family=Inter:ital,wght@0,300;0,400;0,500;0,700;1,400&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-display: "Twemoji Country Flags", Rocomamas, "Bungee", "Rubik Black", Impact, sans-serif;
+  --font-sub: "Twemoji Country Flags", Rocomamas, "Montserrat", sans-serif;
+  --font-sans: "Inter", sans-serif;
+}
+
+/* Prevent iOS zoom on input focus */
+input,
+textarea,
+select {
+  font-size: 16px;
+}
+
+html, body {
+  background-color: #121212;
+  color: #FFFFFF;
+  font-family: var(--font-sans);
+  overflow-y: auto;
+}
+
+/* Custom rough textured background or grunge styles */
+.grunge-pattern {
+  background-image: 
+    radial-gradient(rgba(255, 90, 0, 0.03) 1px, transparent 1px),
+    radial-gradient(rgba(255, 255, 255, 0.02) 1.5px, transparent 1.5px);
+  background-size: 24px 24px;
+  background-position: 0 0, 12px 12px;
+}
+
+/* Custom brush stroke highlighted text container */
+.brush-stroke {
+  position: relative;
+  display: inline-block;
+  color: #FFFFFF !important; /* Changed from black to white to coordinate with the high energy theme */
+  font-weight: 900;
+  padding: 4px 12px;
+  z-index: 10;
+}
+.brush-stroke::before {
+  content: "";
+  position: absolute;
+  top: 1px;
+  left: -4px;
+  right: -5px;
+  bottom: 2px;
+  background-color: #FF5A00;
+  z-index: -1;
+  transform: rotate(-1.8deg) skewX(-6deg);
+  border-radius: 3px 4px 3px 4px;
+  border-bottom: 2px solid rgba(0,0,0,0.3);
+}
+
+.brush-stroke-sm {
+  position: relative;
+  display: inline-block;
+  color: #FFFFFF !important;
+  font-weight: 800;
+  padding: 1px 6px;
+  z-index: 10;
+}
+.brush-stroke-sm::before {
+  content: "";
+  position: absolute;
+  top: 1px;
+  left: -2px;
+  right: -3px;
+  bottom: 1px;
+  background-color: #FF5A00;
+  z-index: -1;
+  transform: rotate(-1.2deg) skewX(-4deg);
+  border-radius: 1px 2px 1px 2px;
+}
+
+/* Stamp styles */
+.stamp {
+  aspect-ratio: 1;
+  border: 2px dashed rgba(255, 90, 0, 0.3);
+  border-radius: 9999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+}
+
+.stamp.active {
+  border: 2px solid #FF5A00;
+  background: radial-gradient(circle, rgba(255, 90, 0, 0.15) 0%, transparent 75%);
+  color: #FF5A00;
+  transform: scale(1.05) rotate(4deg);
+  filter: drop-shadow(0 0 4px rgba(255, 90, 0, 0.4));
+}
+
+/* Webkit scrollbar customized for heavy dark mode aesthetics */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #111111;
+}
+::-webkit-scrollbar-thumb {
+  background: #2C2C2E;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #FF5A00;
+}
+
+/* CLASSIC THEME CONFIGURATOR ENGINE */
+#rocomamas-os-container {
+  --bg-app: #121212;
+  --bg-card: #1C1C1E;
+  --bg-subcard: #2C2C2E;
+  --bg-secondary: #0A0A0A;
+  --text-primary: #FFFFFF;
+  --text-muted: #A0A0A0;
+  --border-color: #27272A;
+  --border-glow: rgba(255, 90, 0, 0.2);
+}
+
+#rocomamas-os-container.theme-LIGHT {
+  --bg-app: #FAFAFA;
+  --bg-card: #FFFFFF;
+  --bg-subcard: #E4E4E7;
+  --bg-secondary: #F4F4F5;
+  --text-primary: #18181B;
+  --text-muted: #71717A;
+  --border-color: #E4E4E7;
+  --border-glow: rgba(0, 0, 0, 0.05);
+}
+
+#rocomamas-os-container.theme-ORANGE {
+  --bg-app: #FF5A00;
+  --bg-card: #000000;
+  --bg-subcard: #141416;
+  --bg-secondary: #0A0A0A;
+  --text-primary: #FFFFFF;
+  --text-muted: #FFE5D9;
+  --border-color: #FF7A33;
+  --border-glow: rgba(0, 0, 0, 0.5);
+}
+
+/* OVERRIDE INTRUSIONS FOR CLEAN THEME SANITARY HARMONY */
+#rocomamas-os-container {
+  background-color: var(--bg-app) !important;
+  color: var(--text-primary) !important;
+}
+
+#rocomamas-os-container .bg-\[\#121212\],
+#rocomamas-os-container .bg-\[\#121212\]\/95,
+#rocomamas-os-container .bg-\[\#121212\]\/90,
+#rocomamas-os-container .bg-\[\#121212\]\/40,
+#rocomamas-os-container .bg-\[\#121212\]\/30,
+#rocomamas-os-container .bg-neutral-950,
+#rocomamas-os-container .bg-zinc-950,
+#rocomamas-os-container .bg-zinc-950\/80 {
+  background-color: var(--bg-app) !important;
+}
+
+#rocomamas-os-container .bg-\[\#1C1C1E\],
+#rocomamas-os-container .bg-zinc-900,
+#rocomamas-os-container .bg-zinc-900\/60,
+#rocomamas-os-container .bg-zinc-900\/80 {
+  background-color: var(--bg-card) !important;
+}
+
+#rocomamas-os-container .bg-\[\#2C2C2E\],
+#rocomamas-os-container .bg-\[\#2C2C2E\]\/40,
+#rocomamas-os-container .bg-zinc-800 {
+  background-color: var(--bg-subcard) !important;
+}
+
+#rocomamas-os-container .bg-black,
+#rocomamas-os-container .bg-black\/40,
+#rocomamas-os-container .bg-black\/60,
+#rocomamas-os-container .bg-black\/85,
+#rocomamas-os-container .bg-black\/95 {
+  background-color: var(--bg-secondary) !important;
+}
+
+/* BORDERS */
+#rocomamas-os-container .border-zinc-900,
+#rocomamas-os-container .border-zinc-855,
+#rocomamas-os-container .border-zinc-850,
+#rocomamas-os-container .border-zinc-805,
+#rocomamas-os-container .border-zinc-800,
+#rocomamas-os-container .border-zinc-800\/80,
+#rocomamas-os-container .border-black,
+#rocomamas-os-container .border-[#2C2C2E]\/50,
+#rocomamas-os-container .border-zinc-850\/80,
+#rocomamas-os-container .border-zinc-850\/40,
+#rocomamas-os-container .border-black\/80 {
+  border-color: var(--border-color) !important;
+}
+
+/* TEXT */
+#rocomamas-os-container .text-white,
+#rocomamas-os-container .text-zinc-100,
+#rocomamas-os-container .text-zinc-200,
+#rocomamas-os-container .text-zinc-300 {
+  color: var(--text-primary) !important;
+}
+
+#rocomamas-os-container .text-zinc-400,
+#rocomamas-os-container .text-zinc-450,
+#rocomamas-os-container .text-zinc-500,
+#rocomamas-os-container .text-\[\#A0A0A0\] {
+  color: var(--text-muted) !important;
+}
+
+/* HEADS & MAINS */
+#rocomamas-os-container header {
+  background-color: var(--bg-card) !important;
+  border-bottom-color: var(--border-color) !important;
+}
+
+/* INPUTS, TEXTAREAS & SELECTS */
+#rocomamas-os-container input,
+#rocomamas-os-container textarea,
+#rocomamas-os-container select {
+  background-color: var(--bg-subcard) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-color) !important;
+}
+
+/* THE QUICK CATEGORY PILLS */
+#rocomamas-os-container .category-pill-active {
+  background-color: #FF5A00 !important;
+  color: #FFFFFF !important;
+}
+
+/* HOVER / ACTIVE CORRECTIONS FOR ULTRA SMOOTH VIBES */
+#rocomamas-os-container.theme-LIGHT .bg-[#FF5A00] {
+  background-color: #FF5A00 !important;
+  color: #FFFFFF !important;
+}
+
+#rocomamas-os-container.theme-LIGHT .stamp:not(.active) {
+  border-color: rgba(0, 0, 0, 0.1) !important;
+  background-color: rgba(0, 0, 0, 0.03) !important;
+}
+
+#rocomamas-os-container.theme-ORANGE .stamp:not(.active) {
+  border-color: rgba(255, 255, 255, 0.2) !important;
+  background-color: rgba(0, 0, 0, 0.3) !important;
+}
+
+#rocomamas-os-container.theme-LIGHT .bg-slate-900\/50,
+#rocomamas-os-container.theme-LIGHT .bg-zinc-800\/25,
+#rocomamas-os-container.theme-LIGHT .bg-zinc-950\/80 {
+  background-color: var(--bg-secondary) !important;
+}
+
+/* EAT/DRINK CONTROLLER EXTRA POLISH */
+#rocomamas-os-container .font-display.tracking-widest.text-lg:not(.bg-\[\#FF5A00\]) {
+  color: var(--text-muted) !important;
+}
+#rocomamas-os-container .font-display.tracking-widest.text-lg:not(.bg-\[\#FF5A00\]):hover {
+  color: var(--text-primary) !important;
+}
+#rocomamas-os-container .font-display.tracking-widest.text-lg.bg-\[\#FF5A00\] {
+  color: #FFFFFF !important;
+}
+
+/* Elegant faint diagonal stripes background and deep shadows */
+.diagonal-stripes {
+  background-image: repeating-linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.018) 0px,
+    rgba(255, 255, 255, 0.018) 1.5px,
+    transparent 1.5px,
+    transparent 14px
+  );
+}
+
+.diagonal-stripes-orange {
+  background-image: repeating-linear-gradient(
+    135deg,
+    rgba(255, 90, 0, 0.025) 0px,
+    rgba(255, 90, 0, 0.025) 1.5px,
+    transparent 1.5px,
+    transparent 14px
+  );
+}
+
+.shadow-heavy {
+  box-shadow: 0 12px 28px -4px rgba(0, 0, 0, 0.65), 0 4px 10px -2px rgba(0, 0, 0, 0.45) !important;
+}
+
+.shadow-orange-glow {
+  box-shadow: 0 12px 28px -6px rgba(255, 90, 0, 0.28), 0 4px 10px -2px rgba(255, 90, 0, 0.15) !important;
+}
+
+/* Global solid orange geometric texture overrides */
+.bg-\[\#FF5A00\], .orange-textured-geom {
+  position: relative !important;
+}
+
+.bg-\[\#FF5A00\]::before, .orange-textured-geom::before {
+  content: "" !important;
+  position: absolute !important;
+  inset: 0 !important;
+  pointer-events: none !important;
+  opacity: 0.12 !important;
+  background-image: repeating-linear-gradient(
+    45deg,
+    #000000 0px,
+    #000000 2px,
+    transparent 2px,
+    transparent 14px
+  ), repeating-linear-gradient(
+    -45deg,
+    #000000 0px,
+    #000000 2px,
+    transparent 2px,
+    transparent 14px
+  ) !important;
+  z-index: 1 !important;
+  border-radius: inherit !important;
+}
+
+/* For children to stay above the pseudo-element texture layer if needed */
+.bg-\[\#FF5A00\] > *, .orange-textured-geom > * {
+  position: relative !important;
+  z-index: 2 !important;
+}
+
+

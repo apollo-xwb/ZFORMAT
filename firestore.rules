@@ -1,0 +1,31 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Durban Thunee realtime interactive lobbies
+    match /thunee_rooms/{tableId} {
+      allow read, write: if true;
+    }
+
+    // Z-Format pilot: staff console collections (open for kiosk pilot)
+    match /staff_profiles/{profileId} {
+      allow read, write: if true;
+    }
+
+    match /service_requests/{requestId} {
+      allow read, write: if true;
+    }
+
+    match /staff_orders/{orderId} {
+      allow read, write: if true;
+    }
+
+    match /system/{docId} {
+      allow read, write: if true;
+    }
+
+    // default catch-all: deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

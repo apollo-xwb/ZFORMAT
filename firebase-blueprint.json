@@ -1,0 +1,32 @@
+{
+  "entities": {
+    "ThuneeRoom": {
+      "title": "ThuneeRoom",
+      "description": "Real-time state for a Durban Thunee table room",
+      "type": "object",
+      "properties": {
+        "mode": { "type": "string" },
+        "seats": { "type": "array" },
+        "stage": { "type": "string" },
+        "trumpSuit": { "type": "string" },
+        "currentTurn": { "type": "integer" },
+        "playedCards": { "type": "array" },
+        "gameScores": { "type": "object" },
+        "roundScores": { "type": "object" },
+        "tricksWon": { "type": "object" },
+        "allCards": { "type": "object" },
+        "statusText": { "type": "string" },
+        "caller": { "type": "string" },
+        "callThuneeFlag": { "type": "boolean" },
+        "host": { "type": "string" },
+        "lastUpdated": { "type": "integer" }
+      }
+    }
+  },
+  "firestore": {
+    "/thunee_rooms/{tableId}": {
+      "schema": "ThuneeRoom",
+      "description": "Durban Thunee game room states by table ID"
+    }
+  }
+}
