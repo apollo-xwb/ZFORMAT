@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useMemo, useRef } from "react";
+﻿import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { db, auth } from "./firebase";
 import { collection, doc, getDoc, onSnapshot, setDoc, updateDoc, deleteDoc } from "firebase/firestore";
@@ -148,6 +148,8 @@ import {
   type RemoteSplitSession
 } from "./remoteSplit";
 import { appendChatMessage, loadChatMessages, saveChatMessages } from "./chatStore";
+import { omitUndefined } from "./firestoreUtils";
+import { playBeep as rocoPlayBeep, setupRocoAudioUnlock } from "./rocoAudio";
 
 export { ROCO_TABLES, REMOTE_TABLE_ID, formatTableLabel, formatTableShort, getStaffOrderColor };
 export type { TableConfig };
@@ -238,8 +240,7 @@ function SplashKeywords({ playBeep, onComplete }: { playBeep: any, onComplete: (
           return prev;
         }
         try {
-          // Play a rapid diagnostic tiny beep
-          playBeep(440 + prev * 65, "sine", 0.03);
+          // Audio unlocks after the first user gesture — skip splash interval beeps.
         } catch {}
         return prev + 1;
       });
@@ -1322,18 +1323,18 @@ export default function App() {
     const waiter = tableWaiterAssignments[tableId] || getNextAvailableWaiter(tableWaiterAssignments)?.name || "";
     const requestId = `req-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     const assignedProfile = staffProfiles.find(profile => profile.name === waiter);
-    const payload: ServiceRequest = {
+    const payload = omitUndefined({
       id: requestId,
       type,
       tableId,
-      status: "OPEN",
+      status: "OPEN" as const,
       createdAt: Date.now(),
       assignedStaffId: assignedProfile?.id,
       assignedStaffName: assignedProfile?.name,
       note
-    };
+    });
 
-    setServiceRequests(prev => [payload, ...prev]);
+    setServiceRequests(prev => [payload as ServiceRequest, ...prev]);
     try {
       await setDoc(doc(db, "service_requests", requestId), payload);
     } catch (error) {
@@ -1341,9 +1342,9 @@ export default function App() {
     }
   };
 
-  const upsertSharedOrder = async (order: any) => {
+  const upsertSharedOrder = async (order: Record<string, unknown>) => {
     try {
-      await setDoc(doc(db, "staff_orders", order.id), order, { merge: true });
+      await setDoc(doc(db, "staff_orders", String(order.id)), omitUndefined(order), { merge: true });
     } catch (error) {
       console.error(error);
     }
@@ -2915,10 +2916,6 @@ export default function App() {
       
       // Removed mock full-screen warning alerts for a cleaner user experience
       triggerToast(`New Booking Alert: Table ${newest.tableId} reserved! 🎫`, "success");
-      
-      // Haptics play alert chime
-      playBeep(587.33, "sine", 0.12);
-      setTimeout(() => playBeep(698.46, "sine", 0.12), 150);
 
       // Add to known IDs
       setKnownBookingIds(prev => [...prev, ...newBookedItems.map(b => b.id)]);
@@ -2930,6 +2927,10 @@ export default function App() {
       }
     }
   }, [bookings, knownBookingIds]);
+
+  useEffect(() => {
+    setupRocoAudioUnlock();
+  }, []);
 
   useEffect(() => {
     localStorage.setItem("roco_app_mode", appMode);
@@ -3320,28 +3321,9 @@ export default function App() {
   }, [currentTableId, currentPlayerName]);
 
   // Audio synthesize system for industrial tactile feel
-  const playBeep = (freq = 440, type: OscillatorType = "sine", duration = 0.08) => {
-    if (!soundEnabled) return;
-    try {
-      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
-      const osc = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
-      
-      osc.type = type;
-      osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
-      
-      gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
-      
-      osc.connect(gain);
-      gain.connect(audioCtx.destination);
-      
-      osc.start();
-      osc.stop(audioCtx.currentTime + duration);
-    } catch (e) {
-      // AudioContext blocks without initial interaction, ignore
-    }
-  };
+  const playBeep = useCallback((freq = 440, type: OscillatorType = "sine", duration = 0.08) => {
+    rocoPlayBeep(freq, type, duration, soundEnabled);
+  }, [soundEnabled]);
 
   // Trigger Toast Notification Helper
   const triggerToast = (message: string, type: "success" | "info" | "stamp" = "info") => {
@@ -3625,7 +3607,7 @@ export default function App() {
     setHistoricOrders(prev => [newOrder, ...prev]);
 
     const assignedWaiterProfile = staffProfiles.find(profile => profile.name === assignedWaiterName);
-    const liveIncomingOrderForStaff = {
+    const liveIncomingOrderForStaff = omitUndefined({
       id: newOrder.id,
       timestamp: newOrder.timestamp,
       createdAt: newOrder.createdAt,
@@ -3639,11 +3621,11 @@ export default function App() {
       assignedStaffId: assignedWaiterProfile?.id || "",
       assignedStaffName: assignedWaiterName,
       paymentStatus: "UNPAID",
-      notes: newOrder.notes,
+      notes: orderNotes.trim() || undefined,
       timerDuration: maxPrepSeconds,
       timerRemaining: maxPrepSeconds,
       timerExpired: false
-    };
+    });
     setIncomingOrders(prev => [liveIncomingOrderForStaff, ...prev]);
     await upsertSharedOrder(liveIncomingOrderForStaff);
 
@@ -3919,18 +3901,18 @@ export default function App() {
     const waiter = tableWaiterAssignments[currentTableId] || getNextAvailableWaiter(tableWaiterAssignments)?.name || "";
     const assignedProfile = staffProfiles.find(profile => profile.name === waiter);
     const requestId = `req-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-    const payload: ServiceRequest = {
+    const payload = omitUndefined({
       id: requestId,
-      type: "BILL",
+      type: "BILL" as const,
       tableId: currentTableId,
-      status: "OPEN",
+      status: "OPEN" as const,
       createdAt: Date.now(),
       assignedStaffId: assignedProfile?.id,
       assignedStaffName: assignedProfile?.name,
       note
-    };
+    });
 
-    setServiceRequests(prev => [payload, ...prev]);
+    setServiceRequests(prev => [payload as ServiceRequest, ...prev]);
     setPendingBillRequestId(requestId);
     setBillRequestSubmitted(true);
 
@@ -4045,7 +4027,6 @@ export default function App() {
               {/* Keyword flasher component */}
               <SplashKeywords playBeep={playBeep} onComplete={() => {
                 setShowSplash(false);
-                playBeep(880, "sine", 0.08); // high chime on completion
               }} />
 
               {/* Quick skip trigger */}
