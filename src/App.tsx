@@ -148,7 +148,8 @@ import {
   type RemoteSplitSession
 } from "./remoteSplit";
 import { appendChatMessage, loadChatMessages, saveChatMessages } from "./chatStore";
-import { omitUndefined } from "./firestoreUtils";
+import { omitUndefined, sanitizeForFirestore } from "./firestoreUtils";
+import { buildStaffOrderRecord, remoteOrderToHistoric, toFirestoreOrder, type StaffOrderRecord } from "./orderSync";
 import { playBeep as rocoPlayBeep, setupRocoAudioUnlock } from "./rocoAudio";
 
 export { ROCO_TABLES, REMOTE_TABLE_ID, formatTableLabel, formatTableShort, getStaffOrderColor };
@@ -1112,7 +1113,8 @@ export default function App() {
   const [staffResetCurrentPin, setStaffResetCurrentPin] = useState("");
   const [staffResetNewPin, setStaffResetNewPin] = useState("");
   const [serviceRequests, setServiceRequests] = useState<ServiceRequest[]>([]);
-  const [sharedStaffOrders, setSharedStaffOrders] = useState<any[]>([]);
+  const [sharedStaffOrders, setSharedStaffOrders] = useState<StaffOrderRecord[]>([]);
+  const knownStaffOrderIdsRef = useRef<string[]>([]);
 
   const activeStaffProfile = useMemo(
     () => staffProfiles.find(profile => profile.id === activeStaffProfileId) || null,
@@ -1261,10 +1263,10 @@ export default function App() {
     }, error => logFirestorePilotError("service_requests", error));
 
     const unsubOrders = onSnapshot(collection(db, "staff_orders"), snap => {
-      const nextOrders: Array<Record<string, any> & { id: string }> = snap.docs.map(docSnap => ({
+      const nextOrders = snap.docs.map(docSnap => ({
         id: docSnap.id,
-        ...(docSnap.data() as Record<string, any>)
-      }));
+        ...(docSnap.data() as Omit<StaffOrderRecord, "id">)
+      })) as StaffOrderRecord[];
       nextOrders.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
       setSharedStaffOrders(nextOrders);
     }, error => logFirestorePilotError("staff_orders", error));
@@ -1342,16 +1344,18 @@ export default function App() {
     }
   };
 
-  const upsertSharedOrder = async (order: Record<string, unknown>) => {
+  const upsertSharedOrder = async (order: StaffOrderRecord) => {
     try {
-      await setDoc(doc(db, "staff_orders", String(order.id)), omitUndefined(order), { merge: true });
+      await setDoc(doc(db, "staff_orders", order.id), toFirestoreOrder(order), { merge: true });
     } catch (error) {
-      console.error(error);
+      console.error("[ROCO] Failed to sync order to Firestore:", error);
     }
   };
 
   const updateSharedOrderStatus = async (orderId: string, status: HistoricOrder["status"]) => {
-    setSharedStaffOrders(prev => prev.map(order => order.id === orderId ? { ...order, status } : order));
+    const patch = { status, updatedAt: Date.now() };
+
+    setSharedStaffOrders(prev => prev.map(order => order.id === orderId ? { ...order, ...patch } : order));
     setIncomingOrders(prev => prev.map(order => order.id === orderId ? { ...order, status } : order));
     setHistoricOrders(prev => prev.map(order => order.id === orderId ? { ...order, status } : order));
     setOtherTablesOrders(prev => {
@@ -1363,9 +1367,9 @@ export default function App() {
     });
 
     try {
-      await updateDoc(doc(db, "staff_orders", orderId), { status });
+      await updateDoc(doc(db, "staff_orders", orderId), sanitizeForFirestore(patch) as Record<string, unknown>);
     } catch (error) {
-      console.error(error);
+      console.error("[ROCO] Failed to update order status:", error);
     }
   };
 
@@ -2932,6 +2936,48 @@ export default function App() {
     setupRocoAudioUnlock();
   }, []);
 
+  // Keep guest order cards in sync with Firestore status updates from staff.
+  useEffect(() => {
+    const activeTableId = resolveActiveTableId(currentTableId);
+    const remoteForTable = sharedStaffOrders.filter(
+      (order) => String(order.tableId) === String(activeTableId)
+    );
+    if (remoteForTable.length === 0) return;
+
+    setHistoricOrders((prev) => {
+      const prevById = new Map<string, HistoricOrder>(prev.map((order) => [order.id, order]));
+      let changed = false;
+      const next: HistoricOrder[] = [...prev];
+
+      remoteForTable.forEach((remote: StaffOrderRecord) => {
+        const existing = prevById.get(remote.id);
+        if (!existing) {
+          next.unshift(remoteOrderToHistoric(remote));
+          changed = true;
+          return;
+        }
+        if (
+          existing.status !== remote.status ||
+          existing.timerRemaining !== remote.timerRemaining ||
+          existing.timerExpired !== remote.timerExpired
+        ) {
+          const index = next.findIndex((order) => order.id === remote.id);
+          if (index !== -1) {
+            next[index] = {
+              ...existing,
+              status: remote.status,
+              timerRemaining: remote.timerRemaining ?? existing.timerRemaining,
+              timerExpired: remote.timerExpired ?? existing.timerExpired,
+            };
+            changed = true;
+          }
+        }
+      });
+
+      return changed ? next : prev;
+    });
+  }, [sharedStaffOrders, currentTableId]);
+
   useEffect(() => {
     localStorage.setItem("roco_app_mode", appMode);
   }, [appMode]);
@@ -3347,6 +3393,31 @@ export default function App() {
     }, 4000);
   };
 
+  // Alert staff when a new live order lands via Firestore.
+  useEffect(() => {
+    const currentIds = sharedStaffOrders.map((order) => order.id);
+
+    if (appMode !== "STAFF") {
+      knownStaffOrderIdsRef.current = currentIds;
+      return;
+    }
+
+    const known = new Set(knownStaffOrderIdsRef.current);
+    if (knownStaffOrderIdsRef.current.length > 0) {
+      const freshOrders = sharedStaffOrders.filter((order) => !known.has(order.id));
+      if (freshOrders.length > 0) {
+        const latest = freshOrders[0];
+        triggerToast(`New order — ${formatTableLabel(latest.tableId)}`, "success");
+        playBeep(880, "sine", 0.12);
+        setTableAlerts((prev) => ({ ...prev, [latest.tableId]: true }));
+        setHighlightKitchenOrders(true);
+        setTimeout(() => setHighlightKitchenOrders(false), 4500);
+      }
+    }
+
+    knownStaffOrderIdsRef.current = currentIds;
+  }, [sharedStaffOrders, appMode, playBeep]);
+
   // --- Call Waiter ---
   const handleCallWaiter = async () => {
     setWaiterSummoned(true);
@@ -3607,27 +3678,14 @@ export default function App() {
     setHistoricOrders(prev => [newOrder, ...prev]);
 
     const assignedWaiterProfile = staffProfiles.find(profile => profile.name === assignedWaiterName);
-    const liveIncomingOrderForStaff = omitUndefined({
-      id: newOrder.id,
-      timestamp: newOrder.timestamp,
-      createdAt: newOrder.createdAt,
-      items: newOrder.items.map(item => ({
-        menuItem: item.menuItem,
-        quantity: item.quantity
-      })),
-      total: newOrder.total,
-      status: "Sent",
+    const staffOrder = buildStaffOrderRecord({
+      order: newOrder,
       tableId: activeTableId,
-      assignedStaffId: assignedWaiterProfile?.id || "",
+      assignedStaffId: assignedWaiterProfile?.id,
       assignedStaffName: assignedWaiterName,
-      paymentStatus: "UNPAID",
-      notes: orderNotes.trim() || undefined,
-      timerDuration: maxPrepSeconds,
-      timerRemaining: maxPrepSeconds,
-      timerExpired: false
     });
-    setIncomingOrders(prev => [liveIncomingOrderForStaff, ...prev]);
-    await upsertSharedOrder(liveIncomingOrderForStaff);
+    setIncomingOrders(prev => [staffOrder, ...prev]);
+    await upsertSharedOrder(staffOrder);
 
     // Update Stamps: user earns stamp for each item ordered (maximum capped at 10)
     let addedStampsCount = cartTotalItems;
@@ -10658,10 +10716,9 @@ export default function App() {
         <AnimatePresence>
           {selectedStaffTable !== null && appMode === "STAFF" && (() => {
             const tableId = selectedStaffTable;
-            const tableOrders = [
-              ...(tableId === currentTableId ? historicOrders : otherTablesOrders[tableId] || []),
-              ...sharedStaffOrders.filter(o => o.tableId === tableId)
-            ];
+            const tableOrders = sharedStaffOrders
+              .filter((order) => String(order.tableId) === String(tableId))
+              .map((order) => remoteOrderToHistoric(order));
             const tableRequests = serviceRequests.filter(r => r.tableId === tableId && r.status !== "DONE");
             const tableChat = chatMessages.filter(m => String(m.tableId) === String(tableId));
             const hasAlert = tableId === currentTableId ? waiterSummoned : tableAlerts[tableId];

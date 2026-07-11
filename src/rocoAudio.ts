@@ -1,18 +1,24 @@
 let audioCtx: AudioContext | null = null;
 let listenersAttached = false;
+let audioUnlocked = false;
 
-function getAudioContext(): AudioContext | null {
+function createAudioContext(): AudioContext | null {
   if (typeof window === "undefined") return null;
   const AudioCtx = window.AudioContext || (window as Window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
   if (!AudioCtx) return null;
-  if (!audioCtx) {
-    audioCtx = new AudioCtx();
-  }
+  return new AudioCtx();
+}
+
+function getAudioContext(): AudioContext | null {
+  if (!audioUnlocked || !audioCtx) return null;
   return audioCtx;
 }
 
 export async function unlockRocoAudio(): Promise<boolean> {
-  const ctx = getAudioContext();
+  if (!audioCtx) {
+    audioCtx = createAudioContext();
+  }
+  const ctx = audioCtx;
   if (!ctx) return false;
   if (ctx.state === "suspended") {
     try {
@@ -21,7 +27,8 @@ export async function unlockRocoAudio(): Promise<boolean> {
       return false;
     }
   }
-  return ctx.state === "running";
+  audioUnlocked = ctx.state === "running";
+  return audioUnlocked;
 }
 
 export function setupRocoAudioUnlock(): void {
