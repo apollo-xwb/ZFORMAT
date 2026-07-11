@@ -13,6 +13,9 @@ export type StaffOrderRecord = {
   assignedStaffName?: string;
   paymentStatus?: string;
   notes?: string;
+  orderedBy?: string;
+  groupRoundId?: string;
+  isRemoteGroupOrder?: boolean;
   timerDuration?: number;
   timerRemaining?: number;
   timerExpired?: boolean;
@@ -34,8 +37,11 @@ export function buildStaffOrderRecord(input: {
   tableId: string;
   assignedStaffId?: string;
   assignedStaffName?: string;
+  orderedBy?: string;
+  groupRoundId?: string;
+  isRemoteGroupOrder?: boolean;
 }): StaffOrderRecord {
-  const { order, tableId, assignedStaffId, assignedStaffName } = input;
+  const { order, tableId, assignedStaffId, assignedStaffName, orderedBy, groupRoundId, isRemoteGroupOrder } = input;
   return {
     id: order.id,
     timestamp: order.timestamp,
@@ -55,6 +61,9 @@ export function buildStaffOrderRecord(input: {
     timerRemaining: order.timerRemaining,
     timerExpired: order.timerExpired ?? false,
     updatedAt: Date.now(),
+    orderedBy,
+    groupRoundId,
+    isRemoteGroupOrder,
   };
 }
 

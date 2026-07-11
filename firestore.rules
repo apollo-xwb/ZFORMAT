@@ -23,6 +23,10 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    match /group_order_drafts/{sessionId} {
+      allow read, write: if true;
+    }
+
     // default catch-all: deny
     match /{document=**} {
       allow read, write: if false;

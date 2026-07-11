@@ -150,6 +150,19 @@ import {
 import { appendChatMessage, loadChatMessages, saveChatMessages } from "./chatStore";
 import { omitUndefined, sanitizeForFirestore } from "./firestoreUtils";
 import { buildStaffOrderRecord, remoteOrderToHistoric, toFirestoreOrder, type StaffOrderRecord } from "./orderSync";
+import {
+  allMembersLocked,
+  claimGroupRoundSubmission,
+  countLockedMembers,
+  deserializeCartItems,
+  ensureGroupOrderDraft,
+  groupOrderDraftRef,
+  memberDraftItemCount,
+  memberDraftTotal,
+  resetGroupOrderRound,
+  syncMemberGroupDraft,
+  type GroupOrderDraft,
+} from "./groupOrderSync";
 import { playBeep as rocoPlayBeep, setupRocoAudioUnlock } from "./rocoAudio";
 
 export { ROCO_TABLES, REMOTE_TABLE_ID, formatTableLabel, formatTableShort, getStaffOrderColor };
@@ -382,6 +395,9 @@ export default function App() {
   const [splitQrStep, setSplitQrStep] = useState<"choose" | "host" | "join">("choose");
   const [joinSplitInput, setJoinSplitInput] = useState("");
   const [remoteSplitSession, setRemoteSplitSession] = useState<RemoteSplitSession | null>(() => loadJoinedSplitSession());
+  const [groupOrderDraft, setGroupOrderDraft] = useState<GroupOrderDraft | null>(null);
+  const submittingGroupRoundRef = useRef<string | null>(null);
+  const lastGroupRoundIdRef = useRef<string | null>(null);
 
   // Custom QR override states
   const [isCustomQrPanelOpen, setIsCustomQrPanelOpen] = useState(false);
@@ -2572,6 +2588,20 @@ export default function App() {
     ? (remoteSplitSession?.members ?? (currentPlayerName ? [currentPlayerName] : []))
     : sessionMembers;
 
+  const myMemberName = currentPlayerName || sessionStorage.getItem("roco_my_session_name") || "";
+  const myGroupDraft = groupOrderDraft?.members[myMemberName];
+  const isMyGroupOrderLocked = !!myGroupDraft?.locked;
+  const groupLockedCount = groupOrderDraft
+    ? countLockedMembers(groupOrderDraft, displaySessionMembers)
+    : 0;
+  const isGroupOrderReadyToSubmit = !!(
+    remoteSplitSession &&
+    groupOrderDraft &&
+    groupOrderDraft.roundStatus === "building" &&
+    allMembersLocked(groupOrderDraft, displaySessionMembers)
+  );
+  const useRemoteGroupOrderFlow = isRemoteTable && !!remoteSplitSession;
+
   const [isInviteOpen, setIsInviteOpen] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const [highlightKitchenOrders, setHighlightKitchenOrders] = useState(false);
@@ -3144,6 +3174,50 @@ export default function App() {
     }
   }, [currentTableId, currentPlayerName, remoteSplitSession?.id]);
 
+  useEffect(() => {
+    if (!remoteSplitSession) {
+      setGroupOrderDraft(null);
+      return;
+    }
+    void ensureGroupOrderDraft(remoteSplitSession.id);
+    const unsub = onSnapshot(
+      groupOrderDraftRef(remoteSplitSession.id),
+      (snap) => {
+        if (snap.exists()) {
+          setGroupOrderDraft(snap.data() as GroupOrderDraft);
+        } else {
+          setGroupOrderDraft(null);
+        }
+      },
+      (error) => console.error("[ROCO] Group order draft sync failed:", error)
+    );
+    return () => unsub();
+  }, [remoteSplitSession?.id]);
+
+  useEffect(() => {
+    if (!groupOrderDraft?.roundId) return;
+    if (lastGroupRoundIdRef.current && lastGroupRoundIdRef.current !== groupOrderDraft.roundId) {
+      setCart([]);
+      setOrderNotes("");
+    }
+    lastGroupRoundIdRef.current = groupOrderDraft.roundId;
+  }, [groupOrderDraft?.roundId]);
+
+  useEffect(() => {
+    if (!useRemoteGroupOrderFlow || !remoteSplitSession || !myMemberName) return;
+    if (isMyGroupOrderLocked) return;
+    const timer = setTimeout(() => {
+      void syncMemberGroupDraft({
+        sessionId: remoteSplitSession.id,
+        memberName: myMemberName,
+        items: cart,
+        notes: orderNotes,
+        locked: false,
+      });
+    }, 450);
+    return () => clearTimeout(timer);
+  }, [cart, orderNotes, useRemoteGroupOrderFlow, remoteSplitSession?.id, myMemberName, isMyGroupOrderLocked]);
+
   // Handle upcoming bookings and show popups/Browser Notifications
   useEffect(() => {
     if (appMode === "STAFF") {
@@ -3591,6 +3665,10 @@ export default function App() {
 
   // --- Add to Cart ---
   const handleAddToCart = (item: MenuItem) => {
+    if (useRemoteGroupOrderFlow && isMyGroupOrderLocked) {
+      triggerToast("Unlock your order to add more items — or wait for the group to submit.", "info");
+      return;
+    }
     setCart(prevCart => {
       const existing = prevCart.find(c => c.menuItem.id === item.id);
       if (existing) {
@@ -3609,6 +3687,7 @@ export default function App() {
 
   // --- Modify Quantity ---
   const handleUpdateQuantity = (itemId: string, change: number) => {
+    if (useRemoteGroupOrderFlow && isMyGroupOrderLocked) return;
     playBeep(change > 0 ? 580 : 380, "sine", 0.05);
     setCart(prevCart => {
       return prevCart.map(c => {
@@ -3636,8 +3715,148 @@ export default function App() {
     return cart.reduce((sum, item) => sum + item.quantity, 0);
   }, [cart]);
 
+  const submitRemoteGroupRound = async (draft: GroupOrderDraft, memberNames: string[]) => {
+    const activeTableId = REMOTE_TABLE_ID;
+    const assignedWaiterName =
+      tableWaiterAssignments[activeTableId] || getNextAvailableWaiter(tableWaiterAssignments)?.name || "";
+    const assignedWaiterProfile = staffProfiles.find((profile) => profile.name === assignedWaiterName);
+
+    if (activeTableId && !tableWaiterAssignments[activeTableId] && assignedWaiterName) {
+      persistTableAssignments({
+        ...tableWaiterAssignments,
+        [activeTableId]: assignedWaiterName,
+      });
+    }
+
+    let combinedCart: CartItem[] = [];
+    let mySubmittedOrder: HistoricOrder | null = null;
+
+    for (const memberName of memberNames) {
+      const memberDraft = draft.members[memberName];
+      if (!memberDraft) continue;
+      const memberItems = deserializeCartItems(memberDraft.items);
+      if (memberItems.length === 0) continue;
+
+      combinedCart = [...combinedCart, ...memberItems];
+      const memberTotal = memberItems.reduce((sum, item) => sum + item.menuItem.price * item.quantity, 0);
+      const maxPrepSeconds = getOrderPrepSeconds(memberItems);
+      const memberNotes = memberDraft.notes?.trim();
+
+      const newOrder: HistoricOrder = {
+        id: `ord-${memberName.slice(0, 3).toUpperCase()}-${Math.random().toString(36).substr(2, 7).toUpperCase()}`,
+        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        createdAt: Date.now(),
+        items: memberItems,
+        total: memberTotal,
+        status: "Sent",
+        notes: memberNotes ? `${memberName}: ${memberNotes}` : `${memberName}'s remote order`,
+        timerDuration: maxPrepSeconds,
+        timerRemaining: maxPrepSeconds,
+        timerExpired: false,
+      };
+
+      const staffOrder = buildStaffOrderRecord({
+        order: newOrder,
+        tableId: activeTableId,
+        assignedStaffId: assignedWaiterProfile?.id,
+        assignedStaffName: assignedWaiterName,
+        orderedBy: memberName,
+        groupRoundId: draft.roundId,
+        isRemoteGroupOrder: true,
+      });
+
+      if (memberName === myMemberName) {
+        mySubmittedOrder = newOrder;
+      }
+
+      await upsertSharedOrder(staffOrder);
+    }
+
+    if (mySubmittedOrder) {
+      setHistoricOrders((prev) => [mySubmittedOrder!, ...prev]);
+    }
+
+    if (combinedCart.length > 0) {
+      setMasterBillItems((prev) => {
+        const updated = [...prev];
+        combinedCart.forEach((c) => {
+          const index = updated.findIndex((m) => m.name === c.menuItem.name && m.paidCount < m.quantity);
+          if (index !== -1) {
+            updated[index] = {
+              ...updated[index],
+              quantity: updated[index].quantity + c.quantity,
+            };
+          } else {
+            updated.push({
+              id: `item-${Date.now()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
+              name: c.menuItem.name,
+              price: c.menuItem.price,
+              emoji: c.menuItem.emoji,
+              quantity: c.quantity,
+              paidCount: 0,
+            });
+          }
+        });
+        return updated;
+      });
+    }
+
+    if (remoteSplitSession) {
+      await resetGroupOrderRound(remoteSplitSession.id);
+    }
+
+    setCart([]);
+    setOrderNotes("");
+    setIsCartOpen(false);
+    setHighlightKitchenOrders(true);
+    setTimeout(() => setHighlightKitchenOrders(false), 4500);
+    triggerToast(`Group order sent to kitchen — ${memberNames.length} guest${memberNames.length === 1 ? "" : "s"} locked in!`, "success");
+  };
+
+  const handleLockGroupOrder = async () => {
+    if (!remoteSplitSession) {
+      triggerToast("Host or join a split session before ordering.", "info");
+      return;
+    }
+    if (!myMemberName) {
+      triggerToast("Set your guest name first.", "info");
+      setIsGuestNameOpen(true);
+      return;
+    }
+    if (isMyGroupOrderLocked) {
+      triggerToast("You already locked in. Waiting for the rest of your group.", "info");
+      return;
+    }
+
+    await syncMemberGroupDraft({
+      sessionId: remoteSplitSession.id,
+      memberName: myMemberName,
+      items: cart,
+      notes: orderNotes,
+      locked: true,
+    });
+    playBeep(659.25, "sine", 0.1);
+    triggerToast(
+      cart.length === 0
+        ? "Locked in with no items. Waiting for your group..."
+        : "Locked in! Your picks are in the group order.",
+      "success"
+    );
+  };
+
   // --- Send Order To Kitchen ---
   const handleSendOrder = async () => {
+    if (useRemoteGroupOrderFlow) {
+      await handleLockGroupOrder();
+      return;
+    }
+
+    if (isRemoteTable && !remoteSplitSession) {
+      triggerToast("Join a split session to place a remote group order.", "info");
+      setIsBillOpen(true);
+      return;
+    }
+
     if (cart.length === 0) {
       triggerToast("Your basket is empty!", "info");
       return;
@@ -3758,6 +3977,39 @@ export default function App() {
       );
     }, 35000);
   };
+
+  useEffect(() => {
+    if (!useRemoteGroupOrderFlow || !remoteSplitSession || !groupOrderDraft) return;
+    if (groupOrderDraft.roundStatus !== "building") return;
+    if (!isGroupOrderReadyToSubmit) return;
+    if (submittingGroupRoundRef.current === groupOrderDraft.roundId) return;
+
+    submittingGroupRoundRef.current = groupOrderDraft.roundId;
+    const sessionId = remoteSplitSession.id;
+    const members = [...displaySessionMembers];
+
+    void (async () => {
+      try {
+        const claimed = await claimGroupRoundSubmission(sessionId, members);
+        if (!claimed) {
+          submittingGroupRoundRef.current = null;
+          return;
+        }
+        await submitRemoteGroupRound(claimed, members);
+      } catch (error) {
+        console.error("[ROCO] Group order submission failed:", error);
+        submittingGroupRoundRef.current = null;
+        triggerToast("Could not submit the group order. Try locking in again.", "info");
+      }
+    })();
+  }, [
+    useRemoteGroupOrderFlow,
+    remoteSplitSession?.id,
+    groupOrderDraft?.roundId,
+    groupOrderDraft?.roundStatus,
+    isGroupOrderReadyToSubmit,
+    displaySessionMembers,
+  ]);
 
   // --- Interactive Bill Splitting & Slicing Calculations ---
   
@@ -5726,6 +5978,82 @@ export default function App() {
               </div>
 
               <div className="flex-1 overflow-y-auto px-4 py-4 min-h-[150px]">
+                {useRemoteGroupOrderFlow && (
+                  <div className="mb-4 rounded-2xl border-2 border-[#E78A3E] bg-white p-4 shadow-sm">
+                    <div className="flex items-center justify-between gap-2 mb-3">
+                      <div>
+                        <h4 className="font-black uppercase text-sm text-black tracking-wider">Group order</h4>
+                        <p className="text-[10px] font-mono uppercase text-zinc-600 mt-0.5">
+                          {groupLockedCount}/{displaySessionMembers.length} locked in
+                        </p>
+                      </div>
+                      {groupOrderDraft?.roundStatus === "submitting" && (
+                        <span className="text-[10px] font-black uppercase text-[#E78A3E] animate-pulse">Sending...</span>
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      {displaySessionMembers.map((member) => {
+                        const draft = groupOrderDraft?.members[member];
+                        const itemCount = draft ? memberDraftItemCount(draft.items) : 0;
+                        const total = draft ? memberDraftTotal(draft.items) : 0;
+                        const isMe = member === myMemberName;
+                        return (
+                          <div
+                            key={member}
+                            className={`rounded-xl border p-3 ${isMe ? "border-[#E78A3E] bg-[#E78A3E]/10" : "border-zinc-200 bg-[#F7F4EF]"}`}
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span className={`w-2 h-2 rounded-full shrink-0 ${draft?.locked ? "bg-emerald-500" : "bg-zinc-400"}`} />
+                                <span className="font-black uppercase text-xs text-black truncate">
+                                  {member}{isMe ? " (you)" : ""}{remoteSplitSession?.hostName === member ? " • host" : ""}
+                                </span>
+                              </div>
+                              <span className="text-[10px] font-mono uppercase text-zinc-600 shrink-0">
+                                {draft?.locked ? "Locked" : "Choosing"}
+                              </span>
+                            </div>
+                            {itemCount > 0 ? (
+                              <div className="mt-2 space-y-1">
+                                {draft!.items.map((item, idx) => (
+                                  <div key={`${member}-${idx}`} className="flex justify-between text-[11px] text-zinc-700">
+                                    <span>{item.quantity}× {item.menuItem.name}</span>
+                                    <span>R{item.menuItem.price * item.quantity}</span>
+                                  </div>
+                                ))}
+                                <div className="flex justify-between text-xs font-black text-black border-t border-zinc-200 pt-1.5 mt-1">
+                                  <span>Subtotal</span>
+                                  <span>R{total}</span>
+                                </div>
+                              </div>
+                            ) : (
+                              <p className="text-[10px] text-zinc-500 mt-2 italic">
+                                {draft?.locked ? "No items — passed this round" : "Still browsing..."}
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    <p className="text-[10px] text-zinc-600 mt-3 leading-relaxed">
+                      Everyone&apos;s picks sync here live. Lock in when ready — the full group order hits the kitchen once the last person locks in.
+                    </p>
+                  </div>
+                )}
+
+                {isRemoteTable && !remoteSplitSession && (
+                  <div className="mb-4 rounded-2xl border border-dashed border-zinc-300 bg-white p-4 text-center">
+                    <p className="text-xs font-black uppercase text-black">Connect to split first</p>
+                    <p className="text-[10px] text-zinc-600 mt-1">Remote orders are grouped by guest name inside your split session.</p>
+                  </div>
+                )}
+
+                {useRemoteGroupOrderFlow && (
+                  <h4 className="font-black uppercase text-xs text-black tracking-wider mb-2">Your picks</h4>
+                )}
+
                 {cart.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-10 text-center">
                     <div className="w-16 h-16 bg-white rounded-full border border-dashed border-zinc-300 flex items-center justify-center text-zinc-500 mb-3 text-2xl">
@@ -5741,7 +6069,7 @@ export default function App() {
                 ) : (
                   <OrderMasonryGrid
                     items={cart}
-                    onUpdateQuantity={handleUpdateQuantity}
+                    onUpdateQuantity={isMyGroupOrderLocked ? () => undefined : handleUpdateQuantity}
                     resolveImage={getProductResolvedImage}
                   />
                 )}
@@ -5808,6 +6136,7 @@ export default function App() {
                       rows={2}
                       value={orderNotes}
                       onChange={(e) => setOrderNotes(e.target.value)}
+                      disabled={useRemoteGroupOrderFlow && isMyGroupOrderLocked}
                       placeholder="e.g. Medium burger, no onions, extra ice on beer please..."
                       className="w-full bg-[#F7F4EF] text-black placeholder-zinc-400 text-xs rounded-lg p-3 border border-zinc-300 focus:outline-none focus:border-[#E78A3E] focus:ring-1 focus:ring-[#E78A3E]/30 font-sans transition-all resize-none"
                     />
@@ -5815,9 +6144,11 @@ export default function App() {
                 )}
               </div>
 
-              {cart.length > 0 && (
+              {(cart.length > 0 || useRemoteGroupOrderFlow) && (
                 <div className="px-4 py-4 bg-white border-t border-zinc-200 flex flex-col gap-3 shrink-0">
                   {/* Detail pricing list */}
+                  {cart.length > 0 && (
+                  <>
                   <div className="flex flex-col gap-1.5 text-xs text-zinc-600 font-mono">
                     <div className="flex justify-between">
                       <span>Order Subtotal</span>
@@ -5885,6 +6216,8 @@ export default function App() {
                       Review Us on Google for dynamic R50 Voucher!
                     </button>
                   )}
+                  </>
+                  )}
 
                   {/* Call CTAs */}
                   <div className="flex gap-2.5 mt-1">
@@ -5897,9 +6230,25 @@ export default function App() {
 
                     <button
                       onClick={handleSendOrder}
-                      className="flex-[2] py-4 bg-[#E78A3E] hover:bg-[#d67a32] text-black font-sub font-black text-xs uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer shadow-lg"
+                      disabled={
+                        (useRemoteGroupOrderFlow && isMyGroupOrderLocked && !isGroupOrderReadyToSubmit) ||
+                        (isRemoteTable && !remoteSplitSession)
+                      }
+                      className={`flex-[2] py-4 font-sub font-black text-xs uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer shadow-lg ${
+                        useRemoteGroupOrderFlow && isMyGroupOrderLocked
+                          ? "bg-zinc-800 text-zinc-300 cursor-not-allowed"
+                          : "bg-[#E78A3E] hover:bg-[#d67a32] text-black"
+                      } ${isRemoteTable && !remoteSplitSession ? "opacity-50 cursor-not-allowed" : ""}`}
                     >
-                      <Plus className="w-4 h-4 shrink-0" /> Send Order to Kitchen
+                      {isRemoteTable && !remoteSplitSession ? (
+                        <>Join split to order</>
+                      ) : useRemoteGroupOrderFlow && isMyGroupOrderLocked ? (
+                        <>Waiting for group ({groupLockedCount}/{displaySessionMembers.length})</>
+                      ) : useRemoteGroupOrderFlow ? (
+                        <>Lock in my order</>
+                      ) : (
+                        <><Plus className="w-4 h-4 shrink-0" /> Send Order to Kitchen</>
+                      )}
                     </button>
                   </div>
                 </div>
@@ -10461,8 +10810,14 @@ export default function App() {
                     >
                       <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
                         <div>
-                          <p className="text-white font-black uppercase">{formatTableLabel(order.tableId)} • {order.id}</p>
+                          <p className="text-white font-black uppercase">
+                            {formatTableLabel(order.tableId)}
+                            {order.orderedBy ? ` • ${order.orderedBy}` : ""} • {order.id}
+                          </p>
                           <p className="text-zinc-500 text-xs mt-1">
+                            {order.isRemoteGroupOrder && order.orderedBy && (
+                              <span className="text-[#E78A3E] font-bold uppercase">{order.orderedBy} (remote guest) • </span>
+                            )}
                             <span style={{ color: getStaffOrderColor(order.assignedStaffName) }}>{order.assignedStaffName || "Unassigned"}</span>
                             {" • "}{order.status} • {order.paymentStatus || "UNPAID"}
                           </p>
@@ -10816,10 +11171,13 @@ export default function App() {
                       <h4 className="font-black uppercase text-xs mb-2">Orders</h4>
                       {tableOrders.length === 0 ? <p className="text-xs text-zinc-500 italic">No orders for this table.</p> : (
                         <div className="space-y-2 max-h-48 overflow-y-auto">
-                          {tableOrders.map((ord: any) => (
+                          {tableOrders.map((ord) => (
                             <div key={ord.id} className="rounded-xl border border-zinc-200 p-3 text-xs">
-                              <div className="flex justify-between font-black uppercase"><span>#{ord.id}</span><span>{ord.status}</span></div>
-                              <p className="text-zinc-600 mt-1">{ord.items?.map((it: any) => `${it.quantity}x ${it.menuItem?.name || it.name}`).join(", ")}</p>
+                              <div className="flex justify-between font-black uppercase gap-2">
+                                <span>{ord.orderedBy ? `${ord.orderedBy} • ` : ""}#{ord.id}</span>
+                                <span>{ord.status}</span>
+                              </div>
+                              <p className="text-zinc-600 mt-1">{ord.items?.map((it) => `${it.quantity}x ${it.menuItem?.name}`).join(", ")}</p>
                             </div>
                           ))}
                         </div>
