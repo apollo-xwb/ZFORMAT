@@ -165,6 +165,9 @@ import {
 } from "./groupOrderSync";
 import { playBeep as rocoPlayBeep, setupRocoAudioUnlock } from "./rocoAudio";
 
+const ROCO_GOOGLE_REVIEW_URL = "https://share.google/uwYFGZKMKA9eKMYUA";
+const QUICK_DRINK_IDS = ["soda-coke", "soda-sprite", "soda-zero", "bos-peach", "water-still", "shake-oreo"] as const;
+
 export { ROCO_TABLES, REMOTE_TABLE_ID, formatTableLabel, formatTableShort, getStaffOrderColor };
 export type { TableConfig };
 
@@ -395,6 +398,7 @@ export default function App() {
   const [splitQrStep, setSplitQrStep] = useState<"choose" | "host" | "join">("choose");
   const [joinSplitInput, setJoinSplitInput] = useState("");
   const [remoteSplitSession, setRemoteSplitSession] = useState<RemoteSplitSession | null>(() => loadJoinedSplitSession());
+  const [remoteOrderMode, setRemoteOrderMode] = useState<"solo" | "group">("solo");
   const [groupOrderDraft, setGroupOrderDraft] = useState<GroupOrderDraft | null>(null);
   const submittingGroupRoundRef = useRef<string | null>(null);
   const lastGroupRoundIdRef = useRef<string | null>(null);
@@ -2600,7 +2604,7 @@ export default function App() {
     groupOrderDraft.roundStatus === "building" &&
     allMembersLocked(groupOrderDraft, displaySessionMembers)
   );
-  const useRemoteGroupOrderFlow = isRemoteTable && !!remoteSplitSession;
+  const useRemoteGroupOrderFlow = isRemoteTable && !!remoteSplitSession && remoteOrderMode === "group";
 
   const [isInviteOpen, setIsInviteOpen] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
@@ -2618,7 +2622,7 @@ export default function App() {
 
   // Lock body scroll when modals/control center is active
   useEffect(() => {
-    const isModalOpen = isControlMenuOpen || isCustomQrPanelOpen || isBookingModalOpen || isGamesModalOpen || !!selectedDetailItem || showQrPrintSheet || isQrModalOpen || isPosConfigOpen || isTermsOpen || isBillOpen || isHelpOpen || showStaffGate || isGuestNameOpen || isCustomerChatOpen || isCartOpen || !!staffTablePinPrompt || selectedStaffTable !== null;
+    const isModalOpen = isControlMenuOpen || isCustomQrPanelOpen || isBookingModalOpen || isGamesModalOpen || !!selectedDetailItem || showQrPrintSheet || isQrModalOpen || isPosConfigOpen || isTermsOpen || isBillOpen || isHelpOpen || showStaffGate || isGuestNameOpen || isCustomerChatOpen || isCartOpen || isReviewModalOpen || !!staffTablePinPrompt || selectedStaffTable !== null;
     if (isModalOpen) {
       document.body.style.overflow = "hidden";
       document.documentElement.style.overflow = "hidden";
@@ -2630,7 +2634,7 @@ export default function App() {
       document.body.style.overflow = "";
       document.documentElement.style.overflow = "";
     };
-  }, [isControlMenuOpen, isCustomQrPanelOpen, isBookingModalOpen, isGamesModalOpen, selectedDetailItem, showQrPrintSheet, isQrModalOpen, isPosConfigOpen, isTermsOpen, isBillOpen, isHelpOpen, showStaffGate, isGuestNameOpen, isCustomerChatOpen, isCartOpen, staffTablePinPrompt, selectedStaffTable]);
+  }, [isControlMenuOpen, isCustomQrPanelOpen, isBookingModalOpen, isGamesModalOpen, selectedDetailItem, showQrPrintSheet, isQrModalOpen, isPosConfigOpen, isTermsOpen, isBillOpen, isHelpOpen, showStaffGate, isGuestNameOpen, isCustomerChatOpen, isCartOpen, isReviewModalOpen, staffTablePinPrompt, selectedStaffTable]);
   
   const [pendingBillRequestId, setPendingBillRequestId] = useState<string | null>(null);
   const [billRequestSubmitted, setBillRequestSubmitted] = useState(false);
@@ -3851,12 +3855,6 @@ export default function App() {
       return;
     }
 
-    if (isRemoteTable && !remoteSplitSession) {
-      triggerToast("Join a split session to place a remote group order.", "info");
-      setIsBillOpen(true);
-      return;
-    }
-
     if (cart.length === 0) {
       triggerToast("Your basket is empty!", "info");
       return;
@@ -3897,11 +3895,14 @@ export default function App() {
     setHistoricOrders(prev => [newOrder, ...prev]);
 
     const assignedWaiterProfile = staffProfiles.find(profile => profile.name === assignedWaiterName);
+    const guestLabel = myMemberName || "Guest";
     const staffOrder = buildStaffOrderRecord({
       order: newOrder,
       tableId: activeTableId,
       assignedStaffId: assignedWaiterProfile?.id,
       assignedStaffName: assignedWaiterName,
+      orderedBy: isRemoteTable ? guestLabel : undefined,
+      isRemoteGroupOrder: useRemoteGroupOrderFlow,
     });
     setIncomingOrders(prev => [staffOrder, ...prev]);
     await upsertSharedOrder(staffOrder);
@@ -5230,10 +5231,10 @@ export default function App() {
                         } else {
                           // Match old static ones or synthesize
                           if (currentSpec.id === "spec-1") {
-                            const item = menuItems.find(m => m.id === "drink-5");
+                            const item = menuItems.find(m => m.id === "fries-shoestring-reg");
                             if (item) {
                               handleAddToCart(item);
-                              triggerToast("Sunrise Mimosa added!", "success");
+                              triggerToast("Regular Shoestring Fries added!", "success");
                             }
                           } else if (currentSpec.id === "spec-2") {
                             const item = menuItems.find(m => m.id === "eat-2");
@@ -5632,6 +5633,46 @@ export default function App() {
               );
             })}
           </div>
+
+          <div className="rounded-xl border border-zinc-800 bg-[#1C1C1E] p-2.5">
+            <p className="text-[9px] font-mono uppercase tracking-widest text-[#E78A3E] font-black mb-2 px-0.5">
+              Quick drinks — tap to add
+            </p>
+            <div className="flex gap-1.5 overflow-x-auto scrollbar-none pb-0.5">
+              {QUICK_DRINK_IDS.map((drinkId) => {
+                const drink = menuItems.find((m) => m.id === drinkId);
+                if (!drink) return null;
+                return (
+                  <button
+                    key={drinkId}
+                    type="button"
+                    onClick={() => {
+                      handleAddToCart(drink);
+                      triggerToast(`Added ${drink.name}`, "success");
+                    }}
+                    className="shrink-0 px-3 py-2 rounded-lg bg-white/5 border border-zinc-800 hover:border-[#E78A3E] text-left transition-all"
+                  >
+                    <span className="text-sm leading-none">{drink.emoji}</span>
+                    <span className="block text-[9px] font-black uppercase text-white mt-1 max-w-[88px] truncate">
+                      {drink.name.replace(" 300ml", "").replace(" G-Shake", "")}
+                    </span>
+                    <span className="block text-[9px] font-mono text-[#E78A3E] mt-0.5">R{drink.price}</span>
+                  </button>
+                );
+              })}
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveCategory("DRINK");
+                  setActiveSubcategory("all");
+                  playBeep(500, "triangle", 0.05);
+                }}
+                className="shrink-0 px-3 py-2 rounded-lg bg-[#E78A3E]/15 border border-[#E78A3E]/40 text-[9px] font-black uppercase text-[#E78A3E] self-stretch min-w-[72px]"
+              >
+                All drinks →
+              </button>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -5978,6 +6019,49 @@ export default function App() {
               </div>
 
               <div className="flex-1 overflow-y-auto px-4 py-4 min-h-[150px]">
+                {isRemoteTable && (
+                  <div className="mb-4 rounded-2xl border border-zinc-200 bg-white p-3 shadow-sm">
+                    <p className="text-[10px] font-mono uppercase tracking-widest text-zinc-600 font-black mb-2">
+                      How are you ordering?
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRemoteOrderMode("solo");
+                          playBeep(480, "sine", 0.05);
+                        }}
+                        className={`py-2.5 px-3 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all ${
+                          remoteOrderMode === "solo"
+                            ? "bg-[#E78A3E] border-[#E78A3E] text-black"
+                            : "bg-[#F7F4EF] border-zinc-300 text-zinc-700 hover:border-[#E78A3E]"
+                        }`}
+                      >
+                        Just me
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRemoteOrderMode("group");
+                          playBeep(480, "sine", 0.05);
+                        }}
+                        className={`py-2.5 px-3 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all ${
+                          remoteOrderMode === "group"
+                            ? "bg-black border-[#E78A3E] text-[#E78A3E]"
+                            : "bg-[#F7F4EF] border-zinc-300 text-zinc-700 hover:border-[#E78A3E]"
+                        }`}
+                      >
+                        Group order
+                      </button>
+                    </div>
+                    <p className="text-[10px] text-zinc-600 mt-2 leading-relaxed">
+                      {remoteOrderMode === "solo"
+                        ? "Send your order straight to the kitchen — no split session needed."
+                        : "Everyone locks in their picks; the full order sends when the last person locks in."}
+                    </p>
+                  </div>
+                )}
+
                 {useRemoteGroupOrderFlow && (
                   <div className="mb-4 rounded-2xl border-2 border-[#E78A3E] bg-white p-4 shadow-sm">
                     <div className="flex items-center justify-between gap-2 mb-3">
@@ -6043,10 +6127,10 @@ export default function App() {
                   </div>
                 )}
 
-                {isRemoteTable && !remoteSplitSession && (
+                {isRemoteTable && remoteOrderMode === "group" && !remoteSplitSession && (
                   <div className="mb-4 rounded-2xl border border-dashed border-zinc-300 bg-white p-4 text-center">
-                    <p className="text-xs font-black uppercase text-black">Connect to split first</p>
-                    <p className="text-[10px] text-zinc-600 mt-1">Remote orders are grouped by guest name inside your split session.</p>
+                    <p className="text-xs font-black uppercase text-black">Host or join a split for group orders</p>
+                    <p className="text-[10px] text-zinc-600 mt-1">Scan a split QR from the bill panel, or switch to &quot;Just me&quot; to order on your own.</p>
                   </div>
                 )}
 
@@ -6079,12 +6163,13 @@ export default function App() {
                   const hasEatItems = cart.some(c => c.menuItem.category === "EAT");
                   const hasDrinkOnly = !hasEatItems;
 
-                  // Define pairing targets
+                  const friesItem = menuItems.find(m => m.id === "fries-shoestring-reg");
+                  const drinkItem = menuItems.find(m => m.id === "soda-coke") || menuItems.find(m => m.id === "soda-sprite");
                   const upsellItem = hasDrinkOnly
-                    ? { id: "eat-brekkie-1", name: "Bang for Buck Brekkie", price: 45, emoji: "🍳", category: "EAT" as const, description: "2 eggs, 2 bacon rashers chips & toast package deal." }
-                    : { id: "drink-5", name: "Sunrise Mimosa", price: 45, emoji: "🥂", category: "DRINK" as const, description: "Bubbling dry sparkling wine & sweet cold-pressed orange juice." };
+                    ? friesItem
+                    : drinkItem;
 
-                  // If they already have this upsell item in the cart, don't show it to prevent clutter
+                  if (!upsellItem) return null;
                   const alreadyInCart = cart.some(c => c.menuItem.id === upsellItem.id);
                   if (alreadyInCart) return null;
 
@@ -6093,7 +6178,7 @@ export default function App() {
                       <div className="flex items-center gap-1.5">
                         <Sparkles className="w-3.5 h-3.5 text-[#FF5A00] animate-pulse" />
                         <span className="text-[10px] font-mono uppercase tracking-widest text-[#FF5A00] font-black">
-                          Chef's Recommended Pairing
+                          {hasDrinkOnly ? "Add a side?" : "Thirsty? Add a drink"}
                         </span>
                       </div>
 
@@ -6101,10 +6186,10 @@ export default function App() {
                         <div className="flex items-center gap-2.5">
                           <span className="text-xl shrink-0">{upsellItem.emoji}</span>
                           <div>
-                            <h5 className="font-sub font-black text-white text-11px uppercase leading-none tracking-wide">
+                            <h5 className="font-sub font-black text-black text-11px uppercase leading-none tracking-wide">
                               {upsellItem.name}
                             </h5>
-                            <p className="text-[10px] text-zinc-500 leading-tight mt-0.5 line-clamp-1 max-w-[190px]">
+                            <p className="text-[10px] text-zinc-600 leading-tight mt-0.5 line-clamp-1 max-w-[190px]">
                               {upsellItem.description}
                             </p>
                           </div>
@@ -6232,16 +6317,16 @@ export default function App() {
                       onClick={handleSendOrder}
                       disabled={
                         (useRemoteGroupOrderFlow && isMyGroupOrderLocked && !isGroupOrderReadyToSubmit) ||
-                        (isRemoteTable && !remoteSplitSession)
+                        (isRemoteTable && remoteOrderMode === "group" && !remoteSplitSession)
                       }
                       className={`flex-[2] py-4 font-sub font-black text-xs uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer shadow-lg ${
                         useRemoteGroupOrderFlow && isMyGroupOrderLocked
                           ? "bg-zinc-800 text-zinc-300 cursor-not-allowed"
                           : "bg-[#E78A3E] hover:bg-[#d67a32] text-black"
-                      } ${isRemoteTable && !remoteSplitSession ? "opacity-50 cursor-not-allowed" : ""}`}
+                      } ${isRemoteTable && remoteOrderMode === "group" && !remoteSplitSession ? "opacity-50 cursor-not-allowed" : ""}`}
                     >
-                      {isRemoteTable && !remoteSplitSession ? (
-                        <>Join split to order</>
+                      {isRemoteTable && remoteOrderMode === "group" && !remoteSplitSession ? (
+                        <>Join split for group order</>
                       ) : useRemoteGroupOrderFlow && isMyGroupOrderLocked ? (
                         <>Waiting for group ({groupLockedCount}/{displaySessionMembers.length})</>
                       ) : useRemoteGroupOrderFlow ? (
@@ -6536,6 +6621,92 @@ export default function App() {
                     </button>
                   </div>
                 )}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* GOOGLE REVIEW VOUCHER MODAL */}
+      <AnimatePresence>
+        {isReviewModalOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 0.75 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsReviewModalOpen(false)}
+              className="fixed inset-0 bg-black/90 z-[9920] backdrop-blur-sm cursor-pointer"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.97, y: 18 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.97, y: 18 }}
+              transition={{ type: "spring", damping: 24, stiffness: 230 }}
+              className="fixed inset-x-4 top-[18%] max-w-[420px] mx-auto bg-white border-2 border-[#E78A3E] rounded-3xl z-[9925] overflow-hidden shadow-2xl grunge-pattern"
+              role="dialog"
+              aria-modal="true"
+              aria-label="Google Review voucher"
+            >
+              <div className="p-4 bg-black border-b border-[#E78A3E] flex items-center justify-between">
+                <div>
+                  <h3 className="font-display font-black text-[#E78A3E] uppercase tracking-widest text-sm flex items-center gap-2">
+                    <Star className="w-4 h-4 fill-[#E78A3E] text-transparent" />
+                    Review &amp; Save R50
+                  </h3>
+                  <p className="text-[10px] font-mono text-white uppercase mt-1">
+                    Leave a Google review, then claim your voucher
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsReviewModalOpen(false)}
+                  className="p-2 bg-zinc-900 border border-zinc-800 text-zinc-300 hover:text-white rounded-lg transition-colors cursor-pointer"
+                  aria-label="Close review modal"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="p-5 space-y-4 text-sm text-zinc-900">
+                <p className="leading-relaxed">
+                  Had a great time at ROCO? Tap below to open our Google review page. After you&apos;ve posted your review, come back and tap &quot;I&apos;ve reviewed&quot; to unlock your <span className="font-black text-[#E78A3E]">R50 voucher</span>.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    playBeep(520, "sine", 0.08);
+                    window.open(ROCO_GOOGLE_REVIEW_URL, "_blank", "noopener,noreferrer");
+                  }}
+                  className="w-full py-3.5 bg-[#E78A3E] hover:bg-[#d67a32] text-black font-black uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-2"
+                >
+                  <Star className="w-4 h-4 fill-black text-black" />
+                  Open Google Review
+                </button>
+              </div>
+
+              <div className="p-4 border-t border-[#E78A3E]/30 bg-white flex flex-col gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    playBeep(659, "sine", 0.1);
+                    const code = `ROCO-REVIEW-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+                    setCouponCode(code);
+                    localStorage.setItem("roco_applied_coupon_code", code);
+                    setIsReviewModalOpen(false);
+                    triggerToast("R50 voucher unlocked! Apply it before you send your order.", "success");
+                  }}
+                  className="w-full py-3 bg-black hover:bg-zinc-900 text-[#E78A3E] font-black uppercase tracking-wider rounded-xl transition-all border border-[#E78A3E]"
+                >
+                  I&apos;ve reviewed — give me R50
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsReviewModalOpen(false)}
+                  className="w-full py-2 text-zinc-500 hover:text-zinc-800 text-[10px] font-mono uppercase tracking-wider transition-colors"
+                >
+                  Maybe later
+                </button>
               </div>
             </motion.div>
           </>
