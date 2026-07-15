@@ -1,6 +1,10 @@
 import React, { useRef, useEffect, useState } from "react";
 import QRCode from "qrcode";
-import { ROCO_STAMP_LOGO_URL } from "../qrConfig";
+import {
+  ROCO_STAMP_LOGO_LOCAL_URL,
+  ROCO_STAMP_LOGO_URL,
+  loadCanvasLogoImage,
+} from "../qrConfig";
 
 interface HalftoneQRCodeProps {
   text: string;
@@ -23,9 +27,9 @@ export const HalftoneQRCode: React.FC<HalftoneQRCodeProps> = ({
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [printDataUrl, setPrintDataUrl] = useState<string | null>(null);
+  const [logoOnCanvas, setLogoOnCanvas] = useState(false);
   const centerLogoSrc = src || ROCO_STAMP_LOGO_URL;
-  // Only embed uploaded / data URLs onto the canvas (CORS-safe for print). Remote logos stay as HTML overlay.
-  const canvasLogoSrc = src && src.startsWith("data:") ? src : undefined;
+  const screenLogoSrc = src || ROCO_STAMP_LOGO_LOCAL_URL;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -58,24 +62,13 @@ export const HalftoneQRCode: React.FC<HalftoneQRCodeProps> = ({
         const effectiveGridSize = mSize + margin * 2;
         const cellSize = size / effectiveGridSize;
 
-        let img: HTMLImageElement | null = null;
-        if (canvasLogoSrc) {
-          await new Promise<void>((resolve) => {
-            const tempImg = new Image();
-            tempImg.onload = () => {
-              img = tempImg;
-              resolve();
-            };
-            tempImg.onerror = () => resolve();
-            tempImg.src = canvasLogoSrc;
-          });
-        }
-
+        const img = await loadCanvasLogoImage(centerLogoSrc);
         if (!active) return;
 
+        const hasCanvasLogo = !!img;
+        setLogoOnCanvas(hasCanvasLogo);
         const centerStart = Math.floor(mSize / 2) - Math.floor(mSize * 0.16);
         const centerEnd = Math.floor(mSize / 2) + Math.floor(mSize * 0.16);
-        const clearCenter = !!(canvasLogoSrc && img) || !canvasLogoSrc;
 
         for (let r = 0; r < mSize; r++) {
           for (let c = 0; c < mSize; c++) {
@@ -85,9 +78,8 @@ export const HalftoneQRCode: React.FC<HalftoneQRCodeProps> = ({
             const x = (c + margin) * cellSize;
             const y = (r + margin) * cellSize;
 
-            // Keep central quiet zone for the visual logo overlay
             if (
-              clearCenter &&
+              hasCanvasLogo &&
               r >= centerStart &&
               r <= centerEnd &&
               c >= centerStart &&
@@ -114,7 +106,7 @@ export const HalftoneQRCode: React.FC<HalftoneQRCodeProps> = ({
           }
         }
 
-        if (canvasLogoSrc && img) {
+        if (hasCanvasLogo && img) {
           const logoSize = size * 0.24;
           const logoX = (size - logoSize) / 2;
           const logoY = (size - logoSize) / 2;
@@ -153,7 +145,7 @@ export const HalftoneQRCode: React.FC<HalftoneQRCodeProps> = ({
     return () => {
       active = false;
     };
-  }, [text, canvasLogoSrc, size, colorDark, colorLight, onDataUrl]);
+  }, [text, centerLogoSrc, size, colorDark, colorLight, onDataUrl]);
 
   return (
     <div
@@ -172,21 +164,23 @@ export const HalftoneQRCode: React.FC<HalftoneQRCodeProps> = ({
           aria-hidden
         />
       )}
-      {/* Visual center art (screen) — restored brand badge */}
-      <div
-        className="absolute rounded-full bg-white border border-[#FF5A00] flex items-center justify-center shadow-lg overflow-hidden p-[1.5px] z-10 pointer-events-none qr-center-logo-screen"
-        style={{
-          width: `${size * 0.28}px`,
-          height: `${size * 0.28}px`,
-        }}
-      >
-        <img
-          src={centerLogoSrc}
-          alt="ROCO center art"
-          className="w-full h-full object-cover rounded-full"
-          referrerPolicy="no-referrer"
-        />
-      </div>
+      {/* Fallback screen overlay when canvas logo could not be embedded */}
+      {!logoOnCanvas && (
+        <div
+          className="absolute rounded-full bg-white border border-[#FF5A00] flex items-center justify-center shadow-lg overflow-hidden p-[1.5px] z-10 pointer-events-none qr-center-logo-screen"
+          style={{
+            width: `${size * 0.28}px`,
+            height: `${size * 0.28}px`,
+          }}
+        >
+          <img
+            src={screenLogoSrc}
+            alt="ROCO center art"
+            className="w-full h-full object-cover rounded-full"
+            referrerPolicy="no-referrer"
+          />
+        </div>
+      )}
     </div>
   );
 };

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
+﻿import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { db, auth } from "./firebase";
 import { collection, doc, getDoc, onSnapshot, setDoc, updateDoc, deleteDoc } from "firebase/firestore";
@@ -204,6 +204,13 @@ import {
 } from "./tableSittingHistory";
 import { archiveStaffProfile, DEFAULT_STAFF_PIN } from "./staffArchive";
 import { ClaimCodeScannerModal } from "./components/ClaimCodeScannerModal";
+import { BillRequestSummary } from "./components/BillRequestSummary";
+import {
+  buildBillRequestDetails,
+  formatBillRequestStaffSummary,
+  resolveBillRequestDetails,
+  type BillRequestDetails,
+} from "./billRequest";
 
 const ROCO_GOOGLE_REVIEW_URL = "https://share.google/uwYFGZKMKA9eKMYUA";
 const QUICK_DRINK_IDS = ["soda-coke", "soda-sprite", "soda-zero", "bos-peach", "water-still", "shake-oreo"] as const;
@@ -234,6 +241,7 @@ interface ServiceRequest {
   assignedStaffId?: string;
   assignedStaffName?: string;
   note?: string;
+  billDetails?: BillRequestDetails;
 }
 
 const DEFAULT_GENERAL_PROFILE: StaffProfile = {
@@ -2799,6 +2807,7 @@ export default function App() {
   
   const [pendingBillRequestId, setPendingBillRequestId] = useState<string | null>(null);
   const [billRequestSubmitted, setBillRequestSubmitted] = useState(false);
+  const [submittedBillDetails, setSubmittedBillDetails] = useState<BillRequestDetails | null>(null);
 
   const [tableAlerts, setTableAlerts] = useState<Record<string, boolean>>(() => {
     try {
@@ -4464,6 +4473,17 @@ export default function App() {
     triggerToast("Your bill has been settled by staff. Thank you!", "success");
   }, [serviceRequests, pendingBillRequestId, currentTableId]);
 
+  useEffect(() => {
+    if (!pendingBillRequestId) return;
+    const request = serviceRequests.find((r) => r.id === pendingBillRequestId);
+    if (!request) return;
+    const details = resolveBillRequestDetails({
+      note: request.note,
+      billDetails: request.billDetails,
+    });
+    if (details) setSubmittedBillDetails(details);
+  }, [pendingBillRequestId, serviceRequests]);
+
   // Update item selection share inside checklist
   const handleUpdateItemShare = (itemId: string, delta: number) => {
     const item = masterBillItems.find(m => m.id === itemId);
@@ -4576,6 +4596,7 @@ export default function App() {
     setCustomAmountInput("");
     setBillRequestSubmitted(false);
     setPendingBillRequestId(null);
+    setSubmittedBillDetails(null);
     setIsBillOpen(true);
   };
 
@@ -4590,9 +4611,20 @@ export default function App() {
     }
 
     playBeep(520, "sine", 0.08);
-    const splitLabel = billSplitMode === "EQUAL" ? "equal split" : billSplitMode === "ITEMS" ? "by item" : "custom amount";
-    const tipNote = currentPayTipAmount > 0 ? ` • Tip R${currentPayTipAmount.toFixed(0)}` : "";
-    const note = `Request: R${currentPayFinalAmount.toFixed(2)} (${splitLabel})${tipNote}`;
+    const billDetails = buildBillRequestDetails({
+      splitMode: billSplitMode,
+      guestSubtotal: currentPaySubtotal,
+      tipAmount: currentPayTipAmount,
+      tipPercent: selectedTipPercent,
+      tableTotal: billOriginalTotal,
+      tableRemaining: billRemainingTotal,
+      tableAlreadyPaid: billAlreadyPaidTotal,
+      splitCount: billSplitMode === "EQUAL" ? splitCount : undefined,
+      masterBillItems,
+      itemSharesToPay: billSplitMode === "ITEMS" ? itemSharesToPay : undefined,
+      guestName: myMemberName || currentPlayerName || undefined,
+    });
+    const note = formatBillRequestStaffSummary(billDetails);
 
     const waiter = tableWaiterAssignments[currentTableId] || getNextAvailableWaiter(tableWaiterAssignments)?.name || "";
     const assignedProfile = staffProfiles.find(profile => profile.name === waiter);
@@ -4605,16 +4637,18 @@ export default function App() {
       createdAt: Date.now(),
       assignedStaffId: assignedProfile?.id,
       assignedStaffName: assignedProfile?.name,
-      note
+      note,
+      billDetails,
     });
 
     setServiceRequests(prev => [payload as ServiceRequest, ...prev]);
     setPendingBillRequestId(requestId);
     setBillRequestSubmitted(true);
+    setSubmittedBillDetails(billDetails);
 
     try {
       await setDoc(doc(db, "service_requests", requestId), payload);
-      triggerToast(`Bill request sent for ${formatTableLabel(currentTableId)}. Staff will settle at the table.`, "success");
+      triggerToast(`Bill request sent: ${formatBillRequestStaffSummary(billDetails)}. Staff will settle at your table.`, "success");
     } catch (error) {
       console.error(error);
       triggerToast("Could not send bill request. Try again.", "info");
@@ -10842,13 +10876,20 @@ export default function App() {
                     )}
 
                     {billRequestSubmitted && (
-                      <div className="rounded-xl border border-[#E78A3E] bg-[#E78A3E]/10 p-3 text-center">
-                        <p className="text-[11px] font-black uppercase text-black tracking-wider">
+                      <div className="rounded-xl border border-[#E78A3E] bg-[#E78A3E]/10 p-3">
+                        <p className="text-[11px] font-black uppercase text-black tracking-wider text-center">
                           Bill request sent — awaiting staff
                         </p>
-                        <p className="text-[10px] text-zinc-700 mt-1">
-                          Staff will settle at your table. You will be notified when marked paid.
+                        <p className="text-[10px] text-zinc-700 mt-1 text-center">
+                          Staff see your split choice and payment amount below. You will be notified when marked paid.
                         </p>
+                        {submittedBillDetails && (
+                          <BillRequestSummary
+                            billDetails={submittedBillDetails}
+                            variant="guest"
+                            className="mt-3"
+                          />
+                        )}
                       </div>
                     )}
 
@@ -11453,12 +11494,17 @@ export default function App() {
                   <div className="space-y-3">
                     {serviceRequests.filter(request => request.status !== "DONE").slice(0, 5).map(request => (
                       <div key={request.id} className="rounded-2xl bg-black/50 border border-zinc-800 p-4">
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
+                        <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3">
+                          <div className="min-w-0 flex-1">
                             <p className="text-white font-bold uppercase text-sm">{formatTableLabel(request.tableId)} • {request.type === "BILL" ? "Bill requested" : "Waiter requested"}</p>
                             <p className="text-zinc-500 text-xs mt-1">{request.assignedStaffName ? `Assigned to ${request.assignedStaffName}` : "Awaiting assignment"}</p>
+                            {request.type === "BILL" ? (
+                              <BillRequestSummary note={request.note} billDetails={request.billDetails} variant="staff" />
+                            ) : (
+                              <p className="text-zinc-400 text-xs mt-2">{request.note || "Guest requested waiter assistance at the table."}</p>
+                            )}
                           </div>
-                          <div className="flex gap-2">
+                          <div className="flex gap-2 shrink-0">
                             <button
                               onClick={async () => {
                                 await updateDoc(doc(db, "service_requests", request.id), { status: "ACKNOWLEDGED" });
@@ -11680,10 +11726,15 @@ export default function App() {
                 <h3 className="text-white font-black uppercase text-sm mb-4">Service requests</h3>
                 <div className="space-y-3">
                   {serviceRequests.map(request => (
-                    <div key={request.id} className="rounded-2xl bg-black/40 border border-zinc-800 p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                      <div>
+                    <div key={request.id} className="rounded-2xl bg-black/40 border border-zinc-800 p-4 flex flex-col md:flex-row md:items-start md:justify-between gap-3">
+                      <div className="min-w-0 flex-1">
                         <p className="text-white font-black uppercase">{formatTableLabel(request.tableId)} • {request.type === "BILL" ? "Bill requested" : "Waiter requested"}</p>
-                        <p className="text-zinc-500 text-xs mt-1">{request.note || "No extra note"} • {request.assignedStaffName || "No waiter assigned"}</p>
+                        <p className="text-zinc-500 text-xs mt-1">{request.assignedStaffName || "No waiter assigned"} • {request.status}</p>
+                        {request.type === "BILL" ? (
+                          <BillRequestSummary note={request.note} billDetails={request.billDetails} variant="staff" />
+                        ) : (
+                          <p className="text-zinc-400 text-xs mt-2">{request.note || "No extra note"}</p>
+                        )}
                       </div>
                       <div className="flex flex-wrap gap-2">
                         {(["OPEN", "ACKNOWLEDGED", "DONE"] as ServiceRequestStatus[]).map(status => (
@@ -12033,9 +12084,18 @@ export default function App() {
                       <div className="space-y-2">
                         <h4 className="font-black uppercase text-xs">Open requests</h4>
                         {tableRequests.map(req => (
-                          <div key={req.id} className="rounded-xl border border-zinc-200 p-3 flex justify-between items-center gap-2">
-                            <span className="text-xs font-bold uppercase">{req.type === "BILL" ? "Bill" : "Waiter"}</span>
-                            <button type="button" onClick={async () => { await updateDoc(doc(db, "service_requests", req.id), { status: "DONE" }); triggerToast("Request closed.", "success"); }} className="px-2 py-1 bg-[#E78A3E] text-black rounded text-[10px] font-black uppercase">Done</button>
+                          <div key={req.id} className="rounded-xl border border-zinc-200 p-3 space-y-2">
+                            <div className="flex justify-between items-start gap-2">
+                              <div>
+                                <span className="text-xs font-bold uppercase">{req.type === "BILL" ? "Bill request" : "Waiter call"}</span>
+                                {req.type === "BILL" ? (
+                                  <BillRequestSummary note={req.note} billDetails={req.billDetails} variant="guest" />
+                                ) : (
+                                  <p className="text-[10px] text-zinc-600 mt-1">{req.note || "Guest needs assistance"}</p>
+                                )}
+                              </div>
+                              <button type="button" onClick={async () => { await updateDoc(doc(db, "service_requests", req.id), { status: "DONE" }); triggerToast("Request closed.", "success"); }} className="px-2 py-1 bg-[#E78A3E] text-black rounded text-[10px] font-black uppercase shrink-0">Done</button>
+                            </div>
                           </div>
                         ))}
                       </div>
