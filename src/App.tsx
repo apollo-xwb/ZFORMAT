@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { db, auth } from "./firebase";
 import { collection, doc, getDoc, onSnapshot, setDoc, updateDoc, deleteDoc } from "firebase/firestore";
@@ -111,11 +111,23 @@ import {
   KeyRound,
   Eye,
   EyeOff,
-  Globe
+  Globe,
+  LogIn,
+  LogOut,
+  ScanLine,
+  History
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { ThuneeFullscreenApp } from "./components/ThuneeFullscreenApp";
 import { HalftoneQRCode } from "./components/HalftoneQRCode";
+import {
+  CUSTOM_QR_STORAGE_KEY,
+  QR_OVERLAY_STORAGE_KEY,
+  ROCO_BRAND_LOGO_URL,
+  fileToDataUrl,
+  readStoredCustomQrs,
+  readStoredQrOverlays,
+} from "./qrConfig";
 import { StaffFloorBlueprint } from "./components/StaffFloorBlueprint";
 import { OrderMasonryGrid } from "./components/OrderMasonryGrid";
 import { MenuItem, CartItem, HistoricOrder, MasterBillItem } from "./types";
@@ -164,6 +176,34 @@ import {
   type GroupOrderDraft,
 } from "./groupOrderSync";
 import { playBeep as rocoPlayBeep, setupRocoAudioUnlock } from "./rocoAudio";
+import {
+  fetchSplitSession,
+  listenSplitBill,
+  listenSplitSession,
+  mergeCartIntoBillItems,
+  upsertSplitBillItems,
+  upsertSplitSession,
+} from "./splitBillSync";
+import {
+  buildClaimPayload,
+  buildPilotSummaryText,
+  downloadOrderPass,
+  downloadOrderPassPdf,
+  downloadOrderPassPng,
+  downloadTextFile,
+  generateClaimCode,
+  parseClaimPayload,
+  type PassFormat,
+} from "./orderPass";
+import {
+  buildSittingFromOrders,
+  listenTableSittings,
+  saveTableSitting,
+  sittingsForWaiter,
+  type TableSittingRecord,
+} from "./tableSittingHistory";
+import { archiveStaffProfile, DEFAULT_STAFF_PIN } from "./staffArchive";
+import { ClaimCodeScannerModal } from "./components/ClaimCodeScannerModal";
 
 const ROCO_GOOGLE_REVIEW_URL = "https://share.google/uwYFGZKMKA9eKMYUA";
 const QUICK_DRINK_IDS = ["soda-coke", "soda-sprite", "soda-zero", "bos-peach", "water-still", "shake-oreo"] as const;
@@ -402,37 +442,29 @@ export default function App() {
   const [groupOrderDraft, setGroupOrderDraft] = useState<GroupOrderDraft | null>(null);
   const submittingGroupRoundRef = useRef<string | null>(null);
   const lastGroupRoundIdRef = useRef<string | null>(null);
+  const skipSplitBillEchoRef = useRef(false);
+  const [lastOrderPassId, setLastOrderPassId] = useState<string | null>(null);
 
   // Custom QR override states
-  const [isCustomQrPanelOpen, setIsCustomQrPanelOpen] = useState(false);
-  const [customQrs, setCustomQrs] = useState<Record<string, string>>(() => {
-    try {
-      const saved = localStorage.getItem("roco_custom_qrs");
-      return saved ? JSON.parse(saved) : {};
-    } catch {
-      return {};
-    }
-  });
+  const [qrCustomizeOpen, setQrCustomizeOpen] = useState(false);
+  const [customQrs, setCustomQrs] = useState<Record<string, string>>(readStoredCustomQrs);
+  const [qrOverlayImages, setQrOverlayImages] = useState<Record<string, string>>(readStoredQrOverlays);
 
-  // Automatically persist custom QR codes when updated
   useEffect(() => {
-    localStorage.setItem("roco_custom_qrs", JSON.stringify(customQrs));
+    localStorage.setItem(CUSTOM_QR_STORAGE_KEY, JSON.stringify(customQrs));
   }, [customQrs]);
+
+  useEffect(() => {
+    localStorage.setItem(QR_OVERLAY_STORAGE_KEY, JSON.stringify(qrOverlayImages));
+  }, [qrOverlayImages]);
 
   const [showQrPrintSheet, setShowQrPrintSheet] = useState(false);
-  const [pastedUrls, setPastedUrls] = useState<Record<string, string>>({});
   const [qrPrintTheme, setQrPrintTheme] = useState<"ORANGE" | "DARK" | "MINIMAL" | "LIGHT">("ORANGE");
 
-  // Synchronize pasted URL inputs when customQrs loads
-  useEffect(() => {
-    const urls: Record<string, string> = {};
-    Object.keys(customQrs).forEach((key) => {
-      if (customQrs[key] && !customQrs[key].startsWith("data:")) {
-        urls[key] = customQrs[key];
-      }
-    });
-    setPastedUrls(urls);
-  }, [customQrs]);
+  const openQrPrintSheet = useCallback((withCustomize = false) => {
+    setQrCustomizeOpen(withCustomize);
+    setShowQrPrintSheet(true);
+  }, []);
 
   // Helper: Copy dynamic full URL for a table
   const handleCopyUrl = (tableId: string) => {
@@ -467,24 +499,51 @@ export default function App() {
     playBeep(520, "sine", 0.05);
   };
 
-  // Helper: Handle file upload for custom QR code
-  const handleQrUpload = (tableId: string, event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleQrUpload = async (tableId: string, event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const base64Data = e.target?.result as string;
-        if (base64Data) {
-          setCustomQrs((prev) => ({
-            ...prev,
-            [tableId]: base64Data,
-          }));
-          triggerToast(`Custom QR for Table ${tableId} saved! 🎨`, "success");
-          playBeep(600, "sine", 0.08);
-        }
-      };
-      reader.readAsDataURL(file);
+    if (!file) return;
+    try {
+      const base64Data = await fileToDataUrl(file);
+      setCustomQrs((prev) => ({ ...prev, [tableId]: base64Data }));
+      triggerToast(`Custom QR image mapped to ${formatTableLabel(tableId)}`, "success");
+      playBeep(600, "sine", 0.08);
+    } catch {
+      triggerToast("Could not read that image file.", "info");
     }
+    event.target.value = "";
+  };
+
+  const handleBatchQrUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    try {
+      const base64Data = await fileToDataUrl(file);
+      const batch: Record<string, string> = {};
+      ROCO_TABLES.forEach((table) => {
+        batch[table.id] = base64Data;
+      });
+      setCustomQrs(batch);
+      triggerToast("Same QR image applied to all tables — replace per-table uploads for unique codes", "success");
+      playBeep(600, "sine", 0.08);
+    } catch {
+      triggerToast("Could not read that image file.", "info");
+    }
+    event.target.value = "";
+  };
+
+  const handleClearTableQr = (tableId: string) => {
+    setCustomQrs((prev) => {
+      const next = { ...prev };
+      delete next[tableId];
+      return next;
+    });
+    triggerToast(`Reset ${formatTableLabel(tableId)} to system QR`, "info");
+  };
+
+  const handleRestoreAllQrs = () => {
+    setCustomQrs({});
+    setQrOverlayImages({});
+    triggerToast("All tables restored to system halftone QR codes", "info");
   };
 
   // Dynamic state representing the physical Table ID we are sitting at (defaults to 12)
@@ -583,7 +642,7 @@ export default function App() {
         if (unlocked && savedProfileId) {
           setActiveStaffProfileId(savedProfileId);
           setAppMode("STAFF");
-          setStaffWorkspace("tables");
+          // Do not force workspace here — polling was resetting every tab back to Floor layout
         }
         return;
       }
@@ -990,6 +1049,21 @@ export default function App() {
   // Splash Screen & First-time onboarding states
   const [showSplash, setShowSplash] = useState(true);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
+  const [isClaimScannerOpen, setIsClaimScannerOpen] = useState(false);
+  const [isTableHistoryOpen, setIsTableHistoryOpen] = useState(false);
+  const [tableHistoryTableId, setTableHistoryTableId] = useState<string | null>(null);
+  const [passFormatChoiceOrder, setPassFormatChoiceOrder] = useState<HistoricOrder | null>(null);
+  const [pendingPassFormat, setPendingPassFormat] = useState<PassFormat>("pdf");
+  const [passDownloadPrompt, setPassDownloadPrompt] = useState<{
+    order: HistoricOrder;
+    tableId: string;
+    orderedBy?: string;
+    assignedStaffName?: string;
+    isRemote?: boolean;
+    isGroup?: boolean;
+    groupRoundId?: string;
+    claimCode?: string;
+  } | null>(null);
   const [isGuestNameOpen, setIsGuestNameOpen] = useState(() => {
     try {
       return !localStorage.getItem("roco_guest_name_confirmed");
@@ -1134,6 +1208,8 @@ export default function App() {
   const [staffResetNewPin, setStaffResetNewPin] = useState("");
   const [serviceRequests, setServiceRequests] = useState<ServiceRequest[]>([]);
   const [sharedStaffOrders, setSharedStaffOrders] = useState<StaffOrderRecord[]>([]);
+  const [tableSittings, setTableSittings] = useState<TableSittingRecord[]>([]);
+  const [expandedSittingId, setExpandedSittingId] = useState<string | null>(null);
   const knownStaffOrderIdsRef = useRef<string[]>([]);
 
   const activeStaffProfile = useMemo(
@@ -1186,11 +1262,7 @@ export default function App() {
       const saved = localStorage.getItem("roco_table_assignments");
       if (saved) return JSON.parse(saved);
     } catch {}
-    return {
-      "10": "Roco Crew (Grill Champion)",
-      "11": "Lerato (Floor Lead)",
-      "14": "Roco Crew (Grill Champion)"
-    };
+    return {};
   });
 
   const [academyActiveModule, setAcademyActiveModule] = useState<string>("efficiency");
@@ -1298,11 +1370,16 @@ export default function App() {
       }
     }, error => logFirestorePilotError("tableAssignments", error));
 
+    const unsubSittings = listenTableSittings((records) => {
+      setTableSittings(records);
+    });
+
     return () => {
       unsubProfiles();
       unsubRequests();
       unsubOrders();
       unsubAssignments();
+      unsubSittings();
     };
   }, []);
 
@@ -1314,10 +1391,12 @@ export default function App() {
     }
   }, [activeStaffProfile, staffWorkspace]);
 
-  const getNextAvailableWaiter = (assignments: Record<string, string>) => {
-    const availableProfiles = staffProfiles.filter(profile => profile.onShift && profile.role === "general");
+  const getNextAvailableWaiter = (assignments: Record<string, string>): StaffProfile | null => {
+    const availableProfiles = staffProfiles.filter(
+      profile => profile.role === "general" && profile.onShift && profile.id !== "admin-root" && profile.name !== "General"
+    );
     if (availableProfiles.length === 0) {
-      return staffProfiles.find(profile => profile.onShift) || null;
+      return DEFAULT_GENERAL_PROFILE;
     }
 
     const counts = availableProfiles.reduce((acc, profile) => {
@@ -1373,15 +1452,32 @@ export default function App() {
   };
 
   const updateSharedOrderStatus = async (orderId: string, status: HistoricOrder["status"]) => {
-    const patch = { status, updatedAt: Date.now() };
+    const existing = sharedStaffOrders.find(o => o.id === orderId);
+    if (
+      existing &&
+      (existing.status === "Completed" || existing.status === "Paid" || (existing as any).paymentStatus === "PAID")
+    ) {
+      if (!window.confirm("This order was already marked paid/completed. Are you sure you want to update it again?")) {
+        return;
+      }
+    }
+
+    const paymentStatus =
+      status === "Paid" || status === "Completed"
+        ? "PAID"
+        : (existing as any)?.paymentStatus === "PAID"
+          ? "PAID"
+          : "UNPAID";
+
+    const patch = { status, paymentStatus, updatedAt: Date.now() };
 
     setSharedStaffOrders(prev => prev.map(order => order.id === orderId ? { ...order, ...patch } : order));
-    setIncomingOrders(prev => prev.map(order => order.id === orderId ? { ...order, status } : order));
-    setHistoricOrders(prev => prev.map(order => order.id === orderId ? { ...order, status } : order));
+    setIncomingOrders(prev => prev.map(order => order.id === orderId ? { ...order, ...patch } : order));
+    setHistoricOrders(prev => prev.map(order => order.id === orderId ? { ...order, ...patch } : order));
     setOtherTablesOrders(prev => {
       const next: Record<string, any[]> = {};
       Object.entries(prev as Record<string, any[]>).forEach(([tableId, orders]) => {
-        next[tableId] = orders.map(order => order.id === orderId ? { ...order, status } : order);
+        next[tableId] = orders.map(order => order.id === orderId ? { ...order, ...patch } : order);
       });
       return next;
     });
@@ -1446,22 +1542,46 @@ export default function App() {
     triggerToast(`Message sent to ${formatTableLabel(selectedStaffTable)}`, "success");
   };
 
-  const handleHostSplitSession = () => {
+  const handleHostSplitSession = async () => {
     const name = currentPlayerName || sessionStorage.getItem("roco_my_session_name") || "Guest";
     const session = createSplitSession(name, REMOTE_TABLE_ID);
     setRemoteSplitSession(session);
     setSplitQrStep("host");
     playBeep(520, "sine", 0.06);
+    try {
+      await upsertSplitSession(session);
+      await upsertSplitBillItems({
+        sessionId: session.id,
+        tableId: session.tableId,
+        hostName: session.hostName,
+        members: session.members,
+        items: [],
+      });
+    } catch (error) {
+      console.error("[ROCO] Failed to publish split session:", error);
+    }
   };
 
-  const handleJoinSplitSession = () => {
+  const handleJoinSplitSession = async () => {
     const sessionId = parseSplitIdFromValue(joinSplitInput);
     if (!sessionId) {
       triggerToast("Paste a valid split link or session code.", "info");
       return;
     }
     const name = currentPlayerName || sessionStorage.getItem("roco_my_session_name") || "Guest";
-    const session = joinSplitSession(sessionId, name);
+    let session = joinSplitSession(sessionId, name);
+    if (!session) {
+      try {
+        const remote = await fetchSplitSession(sessionId);
+        if (remote) {
+          const members = remote.members.includes(name) ? remote.members : [...remote.members, name];
+          session = { ...remote, members };
+          saveSplitSession(session);
+        }
+      } catch (error) {
+        console.error("[ROCO] Failed to fetch split session:", error);
+      }
+    }
     if (!session) {
       triggerToast("Split session not found. Ask your host to share their QR.", "info");
       return;
@@ -1472,6 +1592,11 @@ export default function App() {
     setJoinSplitInput("");
     playBeep(520, "sine", 0.06);
     triggerToast(`Joined split with ${session.hostName}`, "success");
+    try {
+      await upsertSplitSession(session);
+    } catch (error) {
+      console.error("[ROCO] Failed to sync joined split:", error);
+    }
   };
 
   const handleStaffLogin = () => {
@@ -1541,14 +1666,12 @@ export default function App() {
 
   const handleCreateStaffProfile = async () => {
     const normalizedName = normalizeStaffName(staffCreateName);
-    const normalizedPin = normalizePin(staffCreatePin);
+    const rawPin = normalizePin(staffCreatePin);
+    const usingDefaultPin = !rawPin;
+    const normalizedPin = usingDefaultPin ? DEFAULT_STAFF_PIN : rawPin;
 
     if (!normalizedName) {
       triggerToast("Enter a staff name.", "info");
-      return;
-    }
-    if (!normalizedPin) {
-      triggerToast("Enter a PIN.", "info");
       return;
     }
 
@@ -1557,7 +1680,7 @@ export default function App() {
       return;
     }
 
-    if (isWeakStaffPin(normalizedPin)) {
+    if (!usingDefaultPin && isWeakStaffPin(normalizedPin)) {
       triggerToast("That PIN is too weak. Choose a less predictable PIN.", "info");
       return;
     }
@@ -1577,19 +1700,17 @@ export default function App() {
       return;
     }
 
-    if (normalizedPin.includes(" ")) {
-      triggerToast("Enter a name and PIN first.", "info");
-      return;
-    }
+    // Regular staff by default — only admins explicitly choosing "Admin" get elevated.
+    const role: StaffRole = staffCreateRole === "admin" ? "admin" : "general";
 
     const id = `staff-${normalizedName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${Date.now().toString().slice(-4)}`;
     const payload: StaffProfile = {
       id,
       name: normalizedName,
       pin: normalizedPin,
-      role: staffCreateRole,
+      role,
       onShift: true,
-      mustChangePin: false
+      mustChangePin: true
     };
 
     try {
@@ -1597,10 +1718,50 @@ export default function App() {
       setStaffCreateName("");
       setStaffCreatePin("");
       setStaffCreateRole("general");
-      triggerToast(`Created ${payload.role} profile for ${payload.name}`, "success");
+      triggerToast(
+        usingDefaultPin
+          ? `Created ${payload.role} profile for ${payload.name} • Default PIN ${DEFAULT_STAFF_PIN} (they should change it)`
+          : `Created ${payload.role} profile for ${payload.name}`,
+        "success"
+      );
     } catch (error) {
       console.error(error);
       triggerToast("Failed to create staff profile.", "info");
+    }
+  };
+
+  const handleDeleteStaffProfile = async (profile: StaffProfile) => {
+    if (profile.id === "admin-root") {
+      triggerToast("The default General/admin profile can't be deleted.", "info");
+      return;
+    }
+    if (!window.confirm(`Delete staff profile "${profile.name}"? This will archive their record and remove table assignments.`)) {
+      return;
+    }
+    try {
+      await archiveStaffProfile({ profile, archivedBy: activeStaffProfile?.name });
+      await deleteDoc(doc(db, "staff_profiles", profile.id));
+
+      if (activeStaffProfileId === profile.id) {
+        handleStaffLogout();
+      }
+
+      const nextAssignments = { ...tableWaiterAssignments };
+      let assignmentsChanged = false;
+      Object.entries(nextAssignments).forEach(([tableId, waiterName]) => {
+        if (waiterName === profile.name) {
+          delete nextAssignments[tableId];
+          assignmentsChanged = true;
+        }
+      });
+      if (assignmentsChanged) {
+        await persistTableAssignments(nextAssignments);
+      }
+
+      triggerToast(`Removed ${profile.name} from staff.`, "success");
+    } catch (error) {
+      console.error(error);
+      triggerToast("Failed to delete staff profile.", "info");
     }
   };
 
@@ -2622,7 +2783,7 @@ export default function App() {
 
   // Lock body scroll when modals/control center is active
   useEffect(() => {
-    const isModalOpen = isControlMenuOpen || isCustomQrPanelOpen || isBookingModalOpen || isGamesModalOpen || !!selectedDetailItem || showQrPrintSheet || isQrModalOpen || isPosConfigOpen || isTermsOpen || isBillOpen || isHelpOpen || showStaffGate || isGuestNameOpen || isCustomerChatOpen || isCartOpen || isReviewModalOpen || !!staffTablePinPrompt || selectedStaffTable !== null;
+    const isModalOpen = isControlMenuOpen || isBookingModalOpen || isGamesModalOpen || !!selectedDetailItem || showQrPrintSheet || isQrModalOpen || isPosConfigOpen || isTermsOpen || isBillOpen || isHelpOpen || showStaffGate || isGuestNameOpen || isCustomerChatOpen || isCartOpen || isReviewModalOpen || !!staffTablePinPrompt || selectedStaffTable !== null;
     if (isModalOpen) {
       document.body.style.overflow = "hidden";
       document.documentElement.style.overflow = "hidden";
@@ -2634,7 +2795,7 @@ export default function App() {
       document.body.style.overflow = "";
       document.documentElement.style.overflow = "";
     };
-  }, [isControlMenuOpen, isCustomQrPanelOpen, isBookingModalOpen, isGamesModalOpen, selectedDetailItem, showQrPrintSheet, isQrModalOpen, isPosConfigOpen, isTermsOpen, isBillOpen, isHelpOpen, showStaffGate, isGuestNameOpen, isCustomerChatOpen, isCartOpen, isReviewModalOpen, staffTablePinPrompt, selectedStaffTable]);
+  }, [isControlMenuOpen, isBookingModalOpen, isGamesModalOpen, selectedDetailItem, showQrPrintSheet, isQrModalOpen, isPosConfigOpen, isTermsOpen, isBillOpen, isHelpOpen, showStaffGate, isGuestNameOpen, isCustomerChatOpen, isCartOpen, isReviewModalOpen, staffTablePinPrompt, selectedStaffTable]);
   
   const [pendingBillRequestId, setPendingBillRequestId] = useState<string | null>(null);
   const [billRequestSubmitted, setBillRequestSubmitted] = useState(false);
@@ -3171,11 +3332,35 @@ export default function App() {
     const name = currentPlayerName || sessionStorage.getItem("roco_my_session_name");
     if (!name) return;
     if (remoteSplitSession?.id === splitId) return;
-    const joined = joinSplitSession(splitId, name);
-    if (joined) {
-      setRemoteSplitSession(joined);
-      triggerToast(`Joined ${joined.hostName}'s split session`, "success");
-    }
+
+    let cancelled = false;
+    void (async () => {
+      let session = joinSplitSession(splitId, name);
+      if (!session) {
+        try {
+          const remote = await fetchSplitSession(splitId);
+          if (remote) {
+            const members = remote.members.includes(name) ? remote.members : [...remote.members, name];
+            session = { ...remote, members };
+            saveSplitSession(session);
+          }
+        } catch (error) {
+          console.error("[ROCO] Failed to fetch split session from URL:", error);
+        }
+      }
+      if (cancelled || !session) return;
+      setRemoteSplitSession(session);
+      triggerToast(`Joined ${session.hostName}'s split session`, "success");
+      try {
+        await upsertSplitSession(session);
+      } catch (error) {
+        console.error("[ROCO] Failed to sync URL join split:", error);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [currentTableId, currentPlayerName, remoteSplitSession?.id]);
 
   useEffect(() => {
@@ -3265,6 +3450,32 @@ export default function App() {
 
   useEffect(() => {
     if (!remoteSplitSession) return;
+    const unsubSession = listenSplitSession(remoteSplitSession.id, (session) => {
+      if (!session) return;
+      setRemoteSplitSession((prev) => {
+        if (!prev || prev.id !== session.id) return prev;
+        if (
+          prev.hostName === session.hostName &&
+          prev.members.join("|") === session.members.join("|")
+        ) {
+          return prev;
+        }
+        saveSplitSession(session);
+        return session;
+      });
+    });
+    const unsubBill = listenSplitBill(remoteSplitSession.id, (items) => {
+      skipSplitBillEchoRef.current = true;
+      setMasterBillItems((prev) => (JSON.stringify(prev) === JSON.stringify(items) ? prev : items));
+    });
+    return () => {
+      unsubSession();
+      unsubBill();
+    };
+  }, [remoteSplitSession?.id]);
+
+  useEffect(() => {
+    if (!remoteSplitSession) return;
     const billKey = getSplitBillStorageKey(remoteSplitSession.id);
     const syncBill = () => {
       try {
@@ -3282,10 +3493,8 @@ export default function App() {
       if (e.key === billKey) syncBill();
     };
     window.addEventListener("storage", onStorage);
-    const interval = setInterval(syncBill, 2000);
     return () => {
       window.removeEventListener("storage", onStorage);
-      clearInterval(interval);
     };
   }, [remoteSplitSession?.id]);
 
@@ -3298,11 +3507,8 @@ export default function App() {
         ? getSplitBillStorageKey(remoteSplitSession.id)
         : `roco_master_bill_${currentTableId}`;
 
-    if (currentTableId === REMOTE_TABLE_ID && !remoteSplitSession) {
-      setMasterBillItems([]);
-      return;
-    }
-
+    // Remote solo guests (no split session/host) still get a persistent bill,
+    // keyed the same as a normal table (`roco_master_bill_14`), so it survives reloads.
     try {
       const savedBill = localStorage.getItem(billKey);
       if (savedBill) {
@@ -3334,10 +3540,9 @@ export default function App() {
     }
   }, [currentTableId, remoteSplitSession?.id, currentPlayerName]);
 
-  // Persist master bill when modified
+  // Persist master bill when modified (+ live Firestore push for remote splits)
   useEffect(() => {
     if (!currentTableId) return;
-    if (currentTableId === REMOTE_TABLE_ID && !remoteSplitSession) return;
 
     const billKey =
       currentTableId === REMOTE_TABLE_ID && remoteSplitSession
@@ -3345,7 +3550,24 @@ export default function App() {
         : `roco_master_bill_${currentTableId}`;
 
     localStorage.setItem(billKey, JSON.stringify(masterBillItems));
-  }, [masterBillItems, currentTableId, remoteSplitSession?.id]);
+
+    if (remoteSplitSession && currentTableId === REMOTE_TABLE_ID) {
+      if (skipSplitBillEchoRef.current) {
+        skipSplitBillEchoRef.current = false;
+        return;
+      }
+      const timer = window.setTimeout(() => {
+        void upsertSplitBillItems({
+          sessionId: remoteSplitSession.id,
+          tableId: remoteSplitSession.tableId,
+          hostName: remoteSplitSession.hostName,
+          members: remoteSplitSession.members,
+          items: masterBillItems,
+        }).catch((error) => console.error("[ROCO] Split bill sync failed:", error));
+      }, 250);
+      return () => window.clearTimeout(timer);
+    }
+  }, [masterBillItems, currentTableId, remoteSplitSession?.id, remoteSplitSession?.hostName, remoteSplitSession?.members, remoteSplitSession?.tableId]);
 
   // Persist session members when modified (dine-in tables only)
   useEffect(() => {
@@ -3512,37 +3734,170 @@ export default function App() {
   };
 
   // --- Staff View Handler methods ---
-  const handleMarkAllServedForTable = (tableId: string) => {
-    playBeep(587.33, "sine", 0.08); // D5
-    setTimeout(() => playBeep(698.46, "sine", 0.12), 65); // F5
+  const handleMarkAllServedForTable = async (tableId: string) => {
+    playBeep(587.33, "sine", 0.08);
+    setTimeout(() => playBeep(698.46, "sine", 0.12), 65);
 
-    if (tableId === currentTableId) {
-      setHistoricOrders(prev => {
-        const next = prev.map(o => {
-          if (o.status === "Sent" || o.status === "Preparing") {
-            return { ...o, status: "Served" as const };
-          }
-          return o;
-        });
-        return next;
-      });
-    } else {
-      setOtherTablesOrders(prev => {
-        const currentOrders = prev[tableId] || [];
-        const nextOrders = currentOrders.map(o => {
-          if (o.status === "Sent" || o.status === "Preparing") {
-            return { ...o, status: "Served" };
-          }
-          return o;
-        });
-        return {
-          ...prev,
-          [tableId]: nextOrders
-        };
-      });
+    const activeStatuses: HistoricOrder["status"][] = ["Sent", "Preparing", "Ready"];
+    const targets = sharedStaffOrders.filter(
+      (order) => String(order.tableId) === String(tableId) && activeStatuses.includes(order.status)
+    );
+
+    if (targets.length === 0) {
+      triggerToast("No active kitchen tickets to mark served.", "info");
+      return;
     }
 
-    triggerToast(`Served all pending orders to Table ${tableId}! 🍔🍻`, "success");
+    await Promise.all(targets.map((order) => updateSharedOrderStatus(order.id, "Served")));
+    triggerToast(`Marked ${targets.length} order${targets.length === 1 ? "" : "s"} served on ${formatTableLabel(tableId)}`, "success");
+  };
+
+  const handleClearTableForNewParty = async (tableId: string) => {
+    const openOrders = sharedStaffOrders.filter(
+      (order) => String(order.tableId) === String(tableId) && order.status !== "Completed"
+    );
+    const waiterName =
+      tableWaiterAssignments[tableId] ||
+      activeStaffProfile?.name ||
+      openOrders.find((o) => o.assignedStaffName)?.assignedStaffName ||
+      "Unassigned";
+    const waiterProfile = staffProfiles.find((p) => p.name === waiterName);
+
+    const confirmed = window.confirm(
+      `Clear ${formatTableLabel(tableId)} for a new party?\n\n` +
+        `This archives ${openOrders.length} order(s) under ${waiterName}, marks tickets completed, resets the bill, and sets the table Available.`
+    );
+    if (!confirmed) return;
+
+    playBeep(523, "sine", 0.08);
+
+    try {
+      if (openOrders.length > 0) {
+        const sitting = buildSittingFromOrders({
+          tableId,
+          waiterName,
+          waiterStaffId: waiterProfile?.id,
+          clearedBy: activeStaffProfile?.name || waiterName,
+          orders: openOrders,
+        });
+        await saveTableSitting(sitting);
+
+        setWaitersList((prev) =>
+          prev.map((w) => {
+            if (w.name !== waiterName) return w;
+            const detailHistory = {
+              sittingId: sitting.id,
+              orderId: sitting.id,
+              tableId,
+              itemsCount: sitting.itemCount,
+              prepTimeSeconds: 0,
+              deliveryTimeSeconds: 0,
+              onTime: true,
+              total: sitting.total,
+              guestNames: sitting.guestNames,
+              items: sitting.orders.flatMap((o) =>
+                o.items.map((item) => `${item.quantity}× ${item.name}`)
+              ),
+              clearedAt: sitting.clearedAt,
+            };
+            return {
+              ...w,
+              history: [detailHistory, ...(w.history || [])],
+            };
+          })
+        );
+
+        await Promise.all(openOrders.map((order) => updateSharedOrderStatus(order.id, "Completed")));
+      }
+
+      const billKey = `roco_master_bill_${tableId}`;
+      localStorage.removeItem(billKey);
+      localStorage.removeItem(`roco_session_members_${tableId}`);
+      if (String(currentTableId) === String(tableId)) {
+        setMasterBillItems([]);
+        setSessionMembers([]);
+        setHistoricOrders([]);
+      }
+
+      setTablesState((prev) => ({ ...prev, [tableId]: "Available" }));
+      setTableAlerts((prev) => {
+        const next = { ...prev };
+        delete next[tableId];
+        return next;
+      });
+      if (tableId === currentTableId) {
+        setWaiterSummoned(false);
+      }
+
+      const openRequests = serviceRequests.filter(
+        (r) => String(r.tableId) === String(tableId) && r.status !== "DONE"
+      );
+      await Promise.all(
+        openRequests.map((r) => updateDoc(doc(db, "service_requests", r.id), { status: "DONE" }))
+      );
+
+      setChatMessages((prev) => prev.filter((m) => String(m.tableId) !== String(tableId)));
+
+      const nextAssignments = { ...tableWaiterAssignments };
+      delete nextAssignments[tableId];
+      await persistTableAssignments(nextAssignments);
+
+      triggerToast(
+        openOrders.length > 0
+          ? `${formatTableLabel(tableId)} cleared — sitting saved to ${waiterName}'s record.`
+          : `${formatTableLabel(tableId)} cleared and ready for a new party.`,
+        "success"
+      );
+      setSelectedStaffTable(null);
+
+      const stillOpenElsewhere = sharedStaffOrders.some(
+        (order) => String(order.tableId) !== String(tableId) && order.status !== "Completed"
+      );
+      const allOtherTablesAvailable = ROCO_TABLES.every(
+        (table) => table.id === tableId || (tablesState[table.id] || "Available") === "Available"
+      );
+      if (!stillOpenElsewhere && allOtherTablesAvailable) {
+        await handleClearAllTableAssignments();
+      }
+    } catch (error) {
+      console.error("[ROCO] Clear table failed:", error);
+      triggerToast("Could not clear the table. Try again.", "info");
+    }
+  };
+
+  const handleClearAllTableAssignments = async () => {
+    const allTablesAvailable = ROCO_TABLES.every((table) => (tablesState[table.id] || "Available") === "Available");
+    const noOpenOrders = sharedStaffOrders.every((order) => order.status === "Completed");
+    if (!allTablesAvailable || !noOpenOrders) return;
+    if (Object.keys(tableWaiterAssignments).length === 0) return;
+    await persistTableAssignments({});
+  };
+
+  const handleCopyPilotSummary = (order: StaffOrderRecord) => {
+    const text = buildPilotSummaryText({
+      orderId: order.id,
+      tableId: order.tableId,
+      orderedBy: order.orderedBy,
+      assignedStaffName: order.assignedStaffName,
+      items: order.items.map((item) => ({
+        quantity: item.quantity,
+        menuItem: {
+          id: item.menuItem.id,
+          name: item.menuItem.name,
+          price: item.menuItem.price,
+          emoji: item.menuItem.emoji,
+          category: item.menuItem.category,
+          description: "",
+        },
+      })),
+      total: order.total,
+      notes: order.notes,
+      isRemoteGroupOrder: order.isRemoteGroupOrder,
+    });
+    navigator.clipboard.writeText(text);
+    downloadTextFile(`pilot-${order.id}.txt`, text);
+    playBeep(520, "sine", 0.06);
+    triggerToast("Pilot POS summary copied + downloaded. Enter it into Pilot, then update status here.", "success");
   };
 
   const handleAcceptIncomingOrder = (order: any) => {
@@ -3565,7 +3920,7 @@ export default function App() {
     setIncomingOrders(prev => prev.filter(o => o.id !== order.id));
 
     // Update Staff profile history
-    const assignedWaiter = tableWaiterAssignments[order.tableId] || "Zoe (Shake Master)";
+    const assignedWaiter = tableWaiterAssignments[order.tableId] || "General";
     setWaitersList(prev => prev.map(w => {
       if (w.name === assignedWaiter) {
         const itemHistory = {
@@ -3734,6 +4089,7 @@ export default function App() {
 
     let combinedCart: CartItem[] = [];
     let mySubmittedOrder: HistoricOrder | null = null;
+    let mySubmittedClaimCode: string | undefined;
 
     for (const memberName of memberNames) {
       const memberDraft = draft.members[memberName];
@@ -3745,6 +4101,7 @@ export default function App() {
       const memberTotal = memberItems.reduce((sum, item) => sum + item.menuItem.price * item.quantity, 0);
       const maxPrepSeconds = getOrderPrepSeconds(memberItems);
       const memberNotes = memberDraft.notes?.trim();
+      const memberClaimCode = generateClaimCode();
 
       const newOrder: HistoricOrder = {
         id: `ord-${memberName.slice(0, 3).toUpperCase()}-${Math.random().toString(36).substr(2, 7).toUpperCase()}`,
@@ -3767,42 +4124,34 @@ export default function App() {
         orderedBy: memberName,
         groupRoundId: draft.roundId,
         isRemoteGroupOrder: true,
+        claimCode: memberClaimCode,
       });
 
       if (memberName === myMemberName) {
         mySubmittedOrder = newOrder;
+        mySubmittedClaimCode = memberClaimCode;
       }
+      setIncomingOrders(prev => [staffOrder, ...prev]);
 
       await upsertSharedOrder(staffOrder);
     }
 
     if (mySubmittedOrder) {
       setHistoricOrders((prev) => [mySubmittedOrder!, ...prev]);
+      openPassDownloadPrompt({
+        order: mySubmittedOrder,
+        tableId: activeTableId,
+        orderedBy: myMemberName || "Guest",
+        assignedStaffName: assignedWaiterName,
+        isRemote: true,
+        isGroup: true,
+        groupRoundId: draft.roundId,
+        claimCode: mySubmittedClaimCode,
+      });
     }
 
     if (combinedCart.length > 0) {
-      setMasterBillItems((prev) => {
-        const updated = [...prev];
-        combinedCart.forEach((c) => {
-          const index = updated.findIndex((m) => m.name === c.menuItem.name && m.paidCount < m.quantity);
-          if (index !== -1) {
-            updated[index] = {
-              ...updated[index],
-              quantity: updated[index].quantity + c.quantity,
-            };
-          } else {
-            updated.push({
-              id: `item-${Date.now()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
-              name: c.menuItem.name,
-              price: c.menuItem.price,
-              emoji: c.menuItem.emoji,
-              quantity: c.quantity,
-              paidCount: 0,
-            });
-          }
-        });
-        return updated;
-      });
+      setMasterBillItems((prev) => mergeCartIntoBillItems(prev, combinedCart));
     }
 
     if (remoteSplitSession) {
@@ -3814,7 +4163,7 @@ export default function App() {
     setIsCartOpen(false);
     setHighlightKitchenOrders(true);
     setTimeout(() => setHighlightKitchenOrders(false), 4500);
-    triggerToast(`Group order sent to kitchen — ${memberNames.length} guest${memberNames.length === 1 ? "" : "s"} locked in!`, "success");
+    triggerToast(`Group order sent to kitchen — ${memberNames.length} guest${memberNames.length === 1 ? "" : "s"} locked in! Choose PDF or PNG for your claim pass.`, "success");
   };
 
   const handleLockGroupOrder = async () => {
@@ -3846,6 +4195,45 @@ export default function App() {
         : "Locked in! Your picks are in the group order.",
       "success"
     );
+  };
+
+  const openPassDownloadPrompt = (payload: {
+    order: HistoricOrder;
+    tableId: string;
+    orderedBy?: string;
+    assignedStaffName?: string;
+    isRemote?: boolean;
+    isGroup?: boolean;
+    groupRoundId?: string;
+    claimCode?: string;
+  }) => {
+    setPassDownloadPrompt(payload);
+    setPendingPassFormat("pdf");
+    setLastOrderPassId(payload.order.id);
+    window.setTimeout(() => {
+      downloadOrderPassPdf(payload).catch((error) => console.error("[ROCO] Pass PDF auto-download failed:", error));
+    }, 400);
+  };
+
+  const handleRedownloadOrderPass = (order: HistoricOrder) => {
+    const activeTableId = resolveActiveTableId(currentTableId);
+    const guestLabel = myMemberName || currentPlayerName || sessionStorage.getItem("roco_my_session_name") || "Guest";
+    const assignedWaiterName = activeTableId
+      ? (tableWaiterAssignments[activeTableId] || "")
+      : "";
+    const knownClaimCode =
+      incomingOrders.find((o) => o.id === order.id)?.claimCode ||
+      sharedStaffOrders.find((o) => o.id === order.id)?.claimCode;
+    openPassDownloadPrompt({
+      order,
+      tableId: activeTableId,
+      orderedBy: guestLabel,
+      assignedStaffName: assignedWaiterName || undefined,
+      isRemote: true,
+      isGroup: !!remoteSplitSession && remoteOrderMode === "group",
+      groupRoundId: groupOrderDraft?.roundId,
+      claimCode: knownClaimCode,
+    });
   };
 
   // --- Send Order To Kitchen ---
@@ -3896,6 +4284,7 @@ export default function App() {
 
     const assignedWaiterProfile = staffProfiles.find(profile => profile.name === assignedWaiterName);
     const guestLabel = myMemberName || "Guest";
+    const claimCode = isRemoteTable ? generateClaimCode() : undefined;
     const staffOrder = buildStaffOrderRecord({
       order: newOrder,
       tableId: activeTableId,
@@ -3903,6 +4292,7 @@ export default function App() {
       assignedStaffName: assignedWaiterName,
       orderedBy: isRemoteTable ? guestLabel : undefined,
       isRemoteGroupOrder: useRemoteGroupOrderFlow,
+      claimCode,
     });
     setIncomingOrders(prev => [staffOrder, ...prev]);
     await upsertSharedOrder(staffOrder);
@@ -3926,32 +4316,22 @@ export default function App() {
     
     setStamps(newStampsVal);
     
-    const canSyncSplitBill = activeTableId !== REMOTE_TABLE_ID || !!remoteSplitSession;
+    // Remote solo guests sync their own local bill immediately too — no host required.
+    const canSyncSplitBill = true;
     if (canSyncSplitBill) {
-      setMasterBillItems(prev => {
-        const updated = [...prev];
-        cart.forEach(c => {
-          const index = updated.findIndex(m => m.name === c.menuItem.name && m.paidCount < m.quantity);
-          if (index !== -1) {
-            updated[index] = {
-              ...updated[index],
-              quantity: updated[index].quantity + c.quantity
-            };
-          } else {
-            updated.push({
-              id: `item-${Date.now()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
-              name: c.menuItem.name,
-              price: c.menuItem.price,
-              emoji: c.menuItem.emoji,
-              quantity: c.quantity,
-              paidCount: 0
-            });
-          }
-        });
-        return updated;
+      setMasterBillItems((prev) => mergeCartIntoBillItems(prev, cart));
+    }
+
+    if (isRemoteTable) {
+      openPassDownloadPrompt({
+        order: newOrder,
+        tableId: activeTableId,
+        orderedBy: guestLabel,
+        assignedStaffName: assignedWaiterName,
+        isRemote: true,
+        isGroup: false,
+        claimCode,
       });
-    } else if (activeTableId === REMOTE_TABLE_ID) {
-      triggerToast("Order sent! Host or join a split to sync the bill with your group.", "info");
     }
 
     setCart([]);
@@ -3962,9 +4342,14 @@ export default function App() {
       setHighlightKitchenOrders(false);
     }, 4500);
 
-    triggerToast(`Order sent to ${formatTableLabel(activeTableId)}! Roco Crew will bring your drinks/food shortly.`, "success");
+    triggerToast(
+      isRemoteTable
+        ? `Order sent! Choose PDF or PNG for your claim pass — find it again under Active Kitchen Orders.`
+        : `Order sent to ${formatTableLabel(activeTableId)}! Roco Crew will bring your drinks/food shortly.`,
+      "success"
+    );
 
-    // Fast-mock status upgrade timers
+    // Fast-mock status upgrade timers (guest view only — staff controls Firestore status)
     const orderId = newOrder.id;
     setTimeout(() => {
       setHistoricOrders(prev => 
@@ -4873,6 +5258,18 @@ export default function App() {
           <div className="flex items-center gap-1.5">
             <button
               type="button"
+              onClick={() => {
+                playBeep(560, "sine", 0.06);
+                setIsHelpOpen(true);
+              }}
+              className="cursor-pointer px-2.5 py-1 border border-[#E78A3E]/50 bg-[#E78A3E]/10 rounded-md font-sub font-black text-[10px] uppercase tracking-wider flex items-center gap-1 text-[#E78A3E] hover:bg-[#E78A3E] hover:text-black transition-all duration-300 transform active:scale-95 font-bold"
+              title="How ROCO works"
+            >
+              <HelpCircle className="w-2.5 h-2.5" />
+              <span>How to</span>
+            </button>
+            <button
+              type="button"
               onClick={() => setIsTermsOpen(true)}
               className="cursor-pointer px-2.5 py-1 border border-zinc-800 bg-zinc-900 rounded-md font-sub font-black text-[10px] uppercase tracking-wider flex items-center gap-1 text-zinc-400 hover:text-white hover:border-zinc-700 transition-all duration-300 transform active:scale-95 font-bold"
               title="Terms & Conditions"
@@ -4919,35 +5316,46 @@ export default function App() {
         </div>
       </header>
 
-      {/* Scrolling specials announcement ticker */}
-      {specials.length > 0 && (
-        <div className="mx-3 mt-2 rounded-xl border border-zinc-900 bg-black/55 overflow-hidden">
-          <style>{`
-            @keyframes rocoMarquee {
-              0% { transform: translateX(100%); }
-              100% { transform: translateX(-100%); }
-            }
-          `}</style>
-          <div className="py-1.5 px-3 text-[10px] font-mono uppercase tracking-widest text-[#FF5A00] whitespace-nowrap">
-            <div
-              style={{
-                display: "inline-block",
-                paddingLeft: "100%",
-                animation: "rocoMarquee 22s linear infinite",
-              }}
-            >
-              {specials
-                .filter((s) => s && (s.title || s.deal || s.description))
-                .map((s) => {
-                  const title = (s.title || "Special").toString().trim();
-                  const deal = (s.deal || "").toString().trim();
-                  return deal ? `${title} — ${deal}` : title;
-                })
-                .join("   •   ")}
+      {/* Scrolling specials announcement ticker — always renders, never blank */}
+      {(() => {
+        const FALLBACK_ANNOUNCEMENTS = [
+          "Welcome to ROCO Rondebosch",
+          "Smashburgers • Loaded Shakes • Wings",
+          "Remote order & collect available",
+          "Scan your table QR to get started",
+          "Ask staff about today's specials",
+        ];
+        const specialStrings = specials
+          .filter((s) => s && (s.title || s.deal || s.description))
+          .map((s) => {
+            const title = (s.title || "Special").toString().trim();
+            const deal = (s.deal || "").toString().trim();
+            return deal ? `${title} — ${deal}` : title;
+          });
+        const marqueeItems = specialStrings.length > 0 ? specialStrings : FALLBACK_ANNOUNCEMENTS;
+        const marqueeText = marqueeItems.join("   •   ");
+        return (
+          <div className="mx-3 mt-2 rounded-xl border border-zinc-900 bg-black/55 overflow-hidden min-h-[26px]">
+            <style>{`
+              @keyframes rocoMarquee {
+                0% { transform: translateX(0%); }
+                100% { transform: translateX(-50%); }
+              }
+            `}</style>
+            <div className="py-1.5 px-3 text-[10px] font-mono uppercase tracking-widest text-[#FF5A00] whitespace-nowrap overflow-hidden">
+              <div
+                className="inline-flex"
+                style={{
+                  animation: "rocoMarquee 26s linear infinite",
+                }}
+              >
+                <span className="pr-8">{marqueeText}</span>
+                <span className="pr-8">{marqueeText}</span>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* DYNAMIC TOP KITCHEN LIVE TRACKER */}
       {(() => {
@@ -5006,7 +5414,7 @@ export default function App() {
                 
                 {/* Designated Server Info */}
                 <p className="text-[9.5px] text-zinc-400 font-mono mt-1">
-                  Designated Server: <strong className="text-emerald-400 font-black">{tableWaiterAssignments[currentTableId] || "Zoe (Shake Master)"} ⚡</strong>
+                  Designated Server: <strong className="text-emerald-400 font-black">{tableWaiterAssignments[currentTableId] || "General"} ⚡</strong>
                 </p>
 
                 {/* VISUAL TIMER COUNTDOWN AND COMPENSATION TRIGGER */}
@@ -5041,7 +5449,7 @@ export default function App() {
                     </div>
                     {activeKitchenOrders[0].timerRemaining === 0 ? (
                       <p className="text-[8.5px] leading-tight text-white font-black uppercase mt-0.5 animate-bounce text-center bg-red-950/40 py-1 rounded border border-red-950/80">
-                        🎁 TIMER DEFEATED! Claim your free Apology Ice Cream Sundae from {tableWaiterAssignments[currentTableId]?.split(" ")[0] || "Zoe"}! 🍦
+                        🎁 TIMER DEFEATED! Claim your free Apology Ice Cream Sundae from {tableWaiterAssignments[currentTableId]?.split(" ")[0] || "General"}! 🍦
                       </p>
                     ) : (
                       <p className="text-[8px] text-zinc-500 font-mono italic">
@@ -5908,6 +6316,17 @@ export default function App() {
                   </span>
                   
                   {/* Status pills */}
+                  {isRemoteTable && lastOrderPassId === order.id && (
+                    <button
+                      type="button"
+                      onClick={() => handleRedownloadOrderPass(order)}
+                      className="flex items-center gap-1 px-2 py-1 rounded border border-[#E78A3E]/40 bg-[#E78A3E]/10 text-[10px] font-mono font-bold uppercase text-[#E78A3E] hover:bg-[#E78A3E] hover:text-black transition-colors"
+                    >
+                      <Download className="w-3 h-3" />
+                      Pass
+                    </button>
+                  )}
+
                   <span className={`px-2.5 py-1 rounded text-[10px] font-mono font-bold tracking-widest uppercase ${
                     order.status === "Sent" 
                       ? "bg-zinc-800 text-zinc-400 border border-zinc-750" 
@@ -6056,9 +6475,68 @@ export default function App() {
                     </div>
                     <p className="text-[10px] text-zinc-600 mt-2 leading-relaxed">
                       {remoteOrderMode === "solo"
-                        ? "Send your order straight to the kitchen — no split session needed."
+                        ? "Send your order straight to the kitchen. Connect below so the shared bill updates live when others order too."
                         : "Everyone locks in their picks; the full order sends when the last person locks in."}
                     </p>
+                  </div>
+                )}
+
+                {isRemoteTable && (
+                  <div className="mb-4 bg-gradient-to-br from-zinc-900 to-black p-4 rounded-xl border border-zinc-800 flex flex-col gap-3.5 relative overflow-hidden">
+                    <div className="absolute top-2.5 right-2.5 w-12 h-12 pointer-events-none opacity-[0.03]">
+                      <QrCode className="w-12 h-12 text-[#FF5A00]" />
+                    </div>
+                    <div className="flex justify-between items-center gap-2">
+                      <div>
+                        <span className="text-[10px] font-mono tracking-widest text-[#FF5A00] uppercase font-black bg-[#FF5A00]/10 px-2.5 py-0.5 rounded">
+                          LIVE SPLITTING CONNECT
+                        </span>
+                        <h4 className="font-sub font-black text-sm text-white uppercase mt-1 px-0.5 flex items-center gap-1.5">
+                          <Users className="w-4 h-4 text-[#FF5A00]" />
+                          {isRemoteSplitConnected
+                            ? `Split group (${displaySessionMembers.length})`
+                            : "Not connected"}
+                        </h4>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          playBeep(450, "sine", 0.05);
+                          setSplitQrStep("choose");
+                          setIsQrModalOpen(true);
+                        }}
+                        className="px-3.5 py-2 bg-[#FF5A00] hover:bg-orange-400 text-[#121212] rounded-lg text-[10.5px] font-sub font-black uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer shadow-md active:scale-95 shrink-0"
+                      >
+                        <QrCode className="w-3.5 h-3.5" />
+                        Scan QR Code
+                      </button>
+                    </div>
+                    {isRemoteSplitConnected && remoteSplitSession ? (
+                      <>
+                        <div className="flex flex-wrap gap-1.5 items-center bg-black/40 p-2.5 rounded-lg border border-zinc-900">
+                          <span className="text-[9.5px] font-mono text-zinc-500 uppercase font-black">Joined:</span>
+                          {displaySessionMembers.map((member) => (
+                            <span
+                              key={member}
+                              className={`px-2.5 py-1 rounded-full text-[10.5px] font-bold font-sub uppercase flex items-center gap-1 border border-zinc-800 shrink-0 ${
+                                member === currentPlayerName ? "bg-zinc-800 text-white" : "bg-zinc-900/80 text-[#FF5A00]"
+                              }`}
+                            >
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                              {member}
+                              {remoteSplitSession.hostName === member ? " (host)" : ""}
+                            </span>
+                          ))}
+                        </div>
+                        <p className="text-[10px] text-zinc-400 leading-relaxed">
+                          Solo orders on this split update the shared bill instantly for everyone connected.
+                        </p>
+                      </>
+                    ) : (
+                      <p className="text-[10px] text-zinc-400 leading-relaxed">
+                        Host or join a split so companions see your order on the live bill — you can still send a solo kitchen ticket without it.
+                      </p>
+                    )}
                   </div>
                 )}
 
@@ -6498,13 +6976,13 @@ export default function App() {
                 setSplitQrStep("choose");
                 setJoinSplitInput("");
               }}
-              className="fixed inset-0 bg-black/90 z-[80]"
+              className="fixed inset-0 bg-black/90 z-[9948]"
             />
             <motion.div
               initial={{ opacity: 0, y: 24, scale: 0.96 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 24, scale: 0.96 }}
-              className="fixed inset-x-4 top-[10%] max-w-md mx-auto bg-white border-2 border-[#E78A3E] rounded-3xl z-[85] overflow-hidden shadow-2xl"
+              className="fixed inset-x-4 top-[10%] max-w-md mx-auto bg-white border-2 border-[#E78A3E] rounded-3xl z-[9950] overflow-hidden shadow-2xl"
             >
               <div className="p-4 bg-black border-b border-[#E78A3E] flex justify-between items-center">
                 <div>
@@ -6872,6 +7350,19 @@ export default function App() {
               </div>
 
               <div className="flex-1 overflow-y-auto p-4 text-sm text-zinc-300 leading-relaxed space-y-3">
+                <div className={`rounded-2xl p-4 border ${isRemoteTable ? "border-[#E78A3E] bg-[#E78A3E]/10" : "border-zinc-900 bg-gradient-to-br from-black/70 to-zinc-950/40"}`}>
+                  <p className="text-[10px] font-mono uppercase tracking-widest text-[#E78A3E] font-black">
+                    {isRemoteTable ? "Remote table guide" : "Dine-in guide"}
+                  </p>
+                  <p className="mt-1 font-display font-black uppercase tracking-wider text-white text-sm">
+                    {isRemoteTable ? "Solo orders, claim codes & collection" : "Table service, from seated to served"}
+                  </p>
+                  <p className="text-[12px] text-zinc-300 mt-1">
+                    {isRemoteTable
+                      ? "Remote Table orders don't need a host — your shared bill updates live even when you order solo. After you send an order you'll get a 4-digit claim code and a downloadable pass (choose PDF or PNG). Show the pass QR or read out your code to staff at collection. Lost it? Re-download anytime from Active Kitchen Orders below."
+                      : "Scan the QR at your table to join that table's session — your orders route straight to your seat. Roco Crew is assigned automatically; call them anytime with the header Call button, and request your bill or split it whenever you're ready."}
+                  </p>
+                </div>
                 {[
                   {
                     step: "Join your table",
@@ -10269,8 +10760,9 @@ export default function App() {
                       {isRemoteTable && !isRemoteSplitConnected ? (
                         <div className="bg-black/40 p-3 rounded-lg border border-zinc-900">
                           <p className="text-[10px] text-zinc-400 leading-relaxed">
-                            Scan a friend&apos;s split QR to <span className="text-[#FF5A00] font-bold">Host</span> or{" "}
-                            <span className="text-[#FF5A00] font-bold">Join Split</span>. Orders and the bill sync only after you connect.
+                            Ordering solo — your bill updates live below. Want to split with friends? Scan a split QR to{" "}
+                            <span className="text-[#FF5A00] font-bold">Host</span> or{" "}
+                            <span className="text-[#FF5A00] font-bold">Join Split</span> and share one synced bill.
                           </p>
                         </div>
                       ) : (
@@ -10341,10 +10833,10 @@ export default function App() {
                     {isRemoteTable && !isRemoteSplitConnected && (
                       <div className="rounded-xl border border-zinc-300 bg-zinc-50 p-3 text-center">
                         <p className="text-[11px] font-black uppercase text-zinc-800 tracking-wider">
-                          Connect to sync orders
+                          Solo bill — updates live
                         </p>
                         <p className="text-[10px] text-zinc-600 mt-1">
-                          You can still order — items appear on the shared bill once you host or join a split.
+                          Items appear on your bill below as soon as you order. Host or join a split anytime to share one bill with friends.
                         </p>
                       </div>
                     )}
@@ -10417,15 +10909,15 @@ export default function App() {
 
                     {billRemainingTotal <= 0 ? (
                       /* Fully settled receipt block */
-                      <div className="flex flex-col items-center justify-center py-8 text-center bg-zinc-900/30 rounded-xl border border-emerald-500/10 p-4">
-                        <div className="w-14 h-14 bg-emerald-950/40 rounded-full border border-emerald-500/20 flex items-center justify-center text-emerald-400 mb-3 text-2xl">
+                      <div className="flex flex-col items-center justify-center py-8 text-center bg-[#F7F4EF] rounded-xl border border-emerald-600/30 p-4">
+                        <div className="w-14 h-14 bg-emerald-100 rounded-full border border-emerald-500/40 flex items-center justify-center text-emerald-700 mb-3 text-2xl">
                           💳
                         </div>
-                        <h4 className="font-sub font-black text-white text-base uppercase tracking-wider">
+                        <h4 className="font-sub font-black text-black text-base uppercase tracking-wider">
                           Fully Settled!
                         </h4>
-                        <p className="text-xs text-zinc-500 max-w-[280px] mt-1 italic">
-                          This bill is fully sorted. Roco Crew is happy, the kitchen is ready. You're set!
+                        <p className="text-xs text-black max-w-[280px] mt-1">
+                          This bill is fully sorted. Roco Crew is happy, the kitchen is ready. You&apos;re set!
                         </p>
                       </div>
                     ) : (
@@ -10833,6 +11325,17 @@ export default function App() {
                   {label}
                 </button>
               ))}
+              <button
+                onClick={() => {
+                  playBeep(600, "sine", 0.06);
+                  setIsClaimScannerOpen(true);
+                  setStaffSidebarOpen(false);
+                }}
+                className="w-full text-left px-3 py-3 rounded-2xl border text-sm font-bold transition-all bg-[#E78A3E]/10 text-[#E78A3E] border-[#E78A3E]/40 hover:bg-[#E78A3E] hover:text-black flex items-center gap-2"
+              >
+                <ScanLine className="w-4 h-4" />
+                Scan claim
+              </button>
             </nav>
 
             <div className="pt-2 border-t border-zinc-800 flex flex-col gap-2">
@@ -10856,6 +11359,51 @@ export default function App() {
           </aside>
 
           <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
+            {/* ALWAYS-VISIBLE CLOCK IN/OUT + CLAIM SCANNER BAR */}
+            {activeStaffProfile && (
+              <div className="shrink-0 p-3 md:p-4 pb-0">
+                <div className="rounded-2xl bg-[#1C1C1E] border border-[#E78A3E]/40 p-3 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${activeStaffProfile.onShift ? "bg-emerald-400 animate-pulse" : "bg-zinc-600"}`} />
+                    <div className="min-w-0">
+                      <p className="text-white font-black uppercase text-sm truncate">{activeStaffProfile.name}</p>
+                      <p className="text-zinc-500 text-[10px] uppercase font-mono">{activeStaffProfile.onShift ? "Currently clocked in" : "Currently clocked out"}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const action = activeStaffProfile.onShift ? "OUT" : "IN";
+                        if (!window.confirm(`Clock ${action} as ${activeStaffProfile.name}?`)) return;
+                        playBeep(activeStaffProfile.onShift ? 300 : 620, "sine", 0.08);
+                        handleToggleStaffShift(activeStaffProfile);
+                      }}
+                      className={`flex-1 sm:flex-initial px-5 py-3 rounded-2xl font-black uppercase text-sm flex items-center justify-center gap-2 transition-all active:scale-95 ${
+                        activeStaffProfile.onShift
+                          ? "bg-red-950/40 text-red-300 border border-red-500/30 hover:bg-red-950/60"
+                          : "bg-[#E78A3E] text-black hover:bg-[#d67a32]"
+                      }`}
+                    >
+                      {activeStaffProfile.onShift ? <LogOut className="w-4 h-4" /> : <LogIn className="w-4 h-4" />}
+                      {activeStaffProfile.onShift ? "Clock Out" : "Clock In"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        playBeep(600, "sine", 0.06);
+                        setIsClaimScannerOpen(true);
+                      }}
+                      className="px-4 py-3 rounded-2xl bg-black/50 border border-[#E78A3E]/40 text-[#E78A3E] font-black uppercase text-xs flex items-center gap-2 hover:bg-[#E78A3E] hover:text-black transition-all active:scale-95"
+                      title="Scan a guest's claim code"
+                    >
+                      <ScanLine className="w-4 h-4" />
+                      Scan claim
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
             {staffWorkspace !== "tables" && (
             <div className="shrink-0 p-4 md:p-6 pb-0">
             <div className="bg-[#1C1C1E] border border-zinc-800/80 rounded-3xl p-5 shadow-2xl">
@@ -10963,8 +11511,13 @@ export default function App() {
 
             {staffWorkspace === "orders" && (
               <div className="bg-[#1C1C1E] border border-zinc-800 rounded-3xl p-5">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-white font-black uppercase text-sm">Live orders</h3>
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
+                  <div>
+                    <h3 className="text-white font-black uppercase text-sm">Live orders</h3>
+                    <p className="text-[10px] text-zinc-500 mt-1 max-w-xl">
+                      Copy a Pilot summary, punch lines into Pilot POS manually, then keep this ticket moving: Sent → Preparing → Ready → Served.
+                    </p>
+                  </div>
                   <span className="text-[10px] font-mono text-[#FF5A00] uppercase">{sharedStaffOrders.length} synced</span>
                 </div>
                 <div className="space-y-3">
@@ -10973,10 +11526,12 @@ export default function App() {
                       No orders have been submitted yet.
                     </div>
                   )}
-                  {sharedStaffOrders.map(order => (
+                  {sharedStaffOrders.map(order => {
+                    const needsStatusUpdate = order.status === "Sent" || order.status === "Preparing" || order.status === "Ready";
+                    return (
                     <div
                       key={order.id}
-                      className="rounded-3xl bg-black/40 border border-zinc-800 p-4"
+                      className={`rounded-3xl bg-black/40 border border-zinc-800 p-4 ${order.status === "Completed" ? "opacity-50" : ""}`}
                       style={{ borderLeftWidth: 4, borderLeftColor: getStaffOrderColor(order.assignedStaffName) }}
                     >
                       <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-3">
@@ -10986,13 +11541,22 @@ export default function App() {
                             {order.orderedBy ? ` • ${order.orderedBy}` : ""} • {order.id}
                           </p>
                           <p className="text-zinc-500 text-xs mt-1">
-                            {order.isRemoteGroupOrder && order.orderedBy && (
-                              <span className="text-[#E78A3E] font-bold uppercase">{order.orderedBy} (remote guest) • </span>
+                            {(order.isRemoteGroupOrder || String(order.tableId) === REMOTE_TABLE_ID) && (
+                              <span className="text-[#E78A3E] font-bold uppercase">
+                                {order.isRemoteGroupOrder ? "Remote split guest" : "Remote solo"}
+                                {order.orderedBy ? ` • ${order.orderedBy}` : ""} •{" "}
+                              </span>
                             )}
                             <span style={{ color: getStaffOrderColor(order.assignedStaffName) }}>{order.assignedStaffName || "Unassigned"}</span>
-                            {" • "}{order.status} • {order.paymentStatus || "UNPAID"}
+                            {" • "}{order.status} •{" "}
+                            {order.status === "Completed" || order.status === "Paid" ? "PAID" : (order.paymentStatus || "UNPAID")}
                           </p>
                           {order.notes && <p className="text-amber-400 text-xs mt-2">Note: {order.notes}</p>}
+                          {needsStatusUpdate && (
+                            <p className="text-[10px] text-[#E78A3E] font-mono uppercase mt-2 tracking-wider">
+                              Reminder: update status after you enter this into Pilot
+                            </p>
+                          )}
                         </div>
                         <div className="text-white font-black">R{order.total}</div>
                       </div>
@@ -11005,9 +11569,17 @@ export default function App() {
                         ))}
                       </div>
                       <div className="mt-4 flex flex-wrap gap-2">
-                        {(["Preparing", "Ready", "Served", "Paid", "Completed"] as HistoricOrder["status"][]).map(status => (
+                        <button
+                          type="button"
+                          onClick={() => handleCopyPilotSummary(order)}
+                          className="px-3 py-2 rounded-xl text-xs font-black uppercase border bg-[#E78A3E]/15 border-[#E78A3E]/50 text-[#E78A3E]"
+                        >
+                          Pilot summary
+                        </button>
+                        {(["Sent", "Preparing", "Ready", "Served", "Paid", "Completed"] as HistoricOrder["status"][]).map(status => (
                           <button
                             key={status}
+                            type="button"
                             onClick={() => updateSharedOrderStatus(order.id, status)}
                             className={`px-3 py-2 rounded-xl text-xs font-black uppercase border ${
                               order.status === status
@@ -11018,9 +11590,19 @@ export default function App() {
                             {status}
                           </button>
                         ))}
+                        {needsStatusUpdate && (
+                          <button
+                            type="button"
+                            onClick={() => updateSharedOrderStatus(order.id, "Served")}
+                            className="px-3 py-2 rounded-xl text-xs font-black uppercase bg-[#E78A3E] text-black border border-[#E78A3E]"
+                          >
+                            Mark served
+                          </button>
+                        )}
                       </div>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -11038,18 +11620,29 @@ export default function App() {
                     <button
                       type="button"
                       onClick={() => {
-                        playBeep(523, "sine", 0.06);
-                        setIsCustomQrPanelOpen(true);
+                        playBeep(600, "sine", 0.06);
+                        setIsClaimScannerOpen(true);
                       }}
-                      className="px-3 py-2 rounded-xl bg-[#E78A3E] text-black text-[10px] font-black uppercase tracking-wider"
+                      className="px-3 py-2 rounded-xl bg-[#E78A3E]/10 border border-[#E78A3E]/50 text-[#E78A3E] text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 hover:bg-[#E78A3E] hover:text-black transition-colors"
                     >
-                      QR & Export
+                      <ScanLine className="w-3.5 h-3.5" />
+                      Scan claim
                     </button>
                     <button
                       type="button"
                       onClick={() => {
                         playBeep(523, "sine", 0.06);
-                        setShowQrPrintSheet(true);
+                        openQrPrintSheet(true);
+                      }}
+                      className="px-3 py-2 rounded-xl bg-[#E78A3E] text-black text-[10px] font-black uppercase tracking-wider"
+                    >
+                      Customize QRs
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        playBeep(523, "sine", 0.06);
+                        openQrPrintSheet(false);
                       }}
                       className="px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-300 text-[10px] font-black uppercase"
                     >
@@ -11122,7 +11715,7 @@ export default function App() {
             )}
 
             {staffWorkspace === "team" && (
-              <div className="grid xl:grid-cols-[1.2fr_0.8fr] gap-4">
+              <div className="grid xl:grid-cols-[1fr_1fr] gap-4">
                 <div className="bg-[#1C1C1E] border border-zinc-800 rounded-3xl p-5">
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-white font-black uppercase text-sm">Staff profiles</h3>
@@ -11134,39 +11727,121 @@ export default function App() {
                         <div>
                           <p className="text-white font-black uppercase">{profile.name}</p>
                           <p className="text-zinc-500 text-xs">{profile.role} • {profile.onShift ? "on shift" : "off shift"}</p>
+                          <p className="text-[10px] text-[#E78A3E] font-mono uppercase mt-1">
+                            {sittingsForWaiter(tableSittings, profile.name).length} tables served on record
+                          </p>
                         </div>
-                        <button
-                          onClick={() => handleToggleStaffShift(profile)}
-                          className={`px-3 py-2 rounded-xl text-xs font-black uppercase ${
-                            profile.onShift
-                              ? "bg-emerald-950/40 text-emerald-300 border border-emerald-500/20"
-                              : "bg-zinc-900 text-zinc-300 border border-zinc-700"
-                          }`}
-                        >
-                          {profile.onShift ? "Clock out" : "Clock in"}
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => handleToggleStaffShift(profile)}
+                            className={`px-3 py-2 rounded-xl text-xs font-black uppercase ${
+                              profile.onShift
+                                ? "bg-emerald-950/40 text-emerald-300 border border-emerald-500/20"
+                                : "bg-zinc-900 text-zinc-300 border border-zinc-700"
+                            }`}
+                          >
+                            {profile.onShift ? "Clock out" : "Clock in"}
+                          </button>
+                          {activeStaffProfile?.role === "admin" && profile.id !== "admin-root" && (
+                            <button
+                              onClick={() => handleDeleteStaffProfile(profile)}
+                              className="px-3 py-2 rounded-xl text-xs font-black uppercase bg-red-950/40 text-red-300 border border-red-500/30"
+                              title="Delete staff profile"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
+
+                  <div className="mt-6 pt-4 border-t border-zinc-800">
+                    <h3 className="text-white font-black uppercase text-sm mb-2">Admin tools</h3>
+                    {activeStaffProfile?.role === "admin" ? (
+                      <div className="space-y-3">
+                        <input value={staffCreateName} onChange={(e) => setStaffCreateName(e.target.value)} placeholder="Staff name" className="w-full bg-[#121212] border border-zinc-800 rounded-xl px-3 py-3 text-white" />
+                        <input value={staffCreatePin} onChange={(e) => setStaffCreatePin(e.target.value)} placeholder={`PIN (blank = default ${DEFAULT_STAFF_PIN})`} className="w-full bg-[#121212] border border-zinc-800 rounded-xl px-3 py-3 text-white" />
+                        <p className="text-[10px] text-zinc-500 -mt-1">Leave PIN blank to auto-assign the default staff PIN ({DEFAULT_STAFF_PIN}). New staff must change it on first login.</p>
+                        <select value={staffCreateRole} onChange={(e) => setStaffCreateRole(e.target.value as StaffRole)} className="w-full bg-[#121212] border border-zinc-800 rounded-xl px-3 py-3 text-white">
+                          <option value="general">Regular staff</option>
+                          <option value="admin">Admin</option>
+                        </select>
+                        <button onClick={handleCreateStaffProfile} className="w-full px-3 py-3 rounded-2xl bg-[#FF5A00] text-black font-black uppercase">Create profile</button>
+                      </div>
+                    ) : (
+                      <div className="rounded-2xl bg-black/30 border border-dashed border-zinc-800 p-5 text-center text-zinc-500">
+                        Only admin profiles can create new staff accounts.
+                      </div>
+                    )}
+                  </div>
                 </div>
 
-                <div className="bg-[#1C1C1E] border border-zinc-800 rounded-3xl p-5 space-y-4">
-                  <h3 className="text-white font-black uppercase text-sm">Admin tools</h3>
-                  {activeStaffProfile?.role === "admin" ? (
-                    <>
-                      <input value={staffCreateName} onChange={(e) => setStaffCreateName(e.target.value)} placeholder="Staff name" className="w-full bg-[#121212] border border-zinc-800 rounded-xl px-3 py-3 text-white" />
-                      <input value={staffCreatePin} onChange={(e) => setStaffCreatePin(e.target.value)} placeholder="PIN" className="w-full bg-[#121212] border border-zinc-800 rounded-xl px-3 py-3 text-white" />
-                      <select value={staffCreateRole} onChange={(e) => setStaffCreateRole(e.target.value as StaffRole)} className="w-full bg-[#121212] border border-zinc-800 rounded-xl px-3 py-3 text-white">
-                        <option value="general">General staff</option>
-                        <option value="admin">Admin</option>
-                      </select>
-                      <button onClick={handleCreateStaffProfile} className="w-full px-3 py-3 rounded-2xl bg-[#FF5A00] text-black font-black uppercase">Create profile</button>
-                    </>
-                  ) : (
-                    <div className="rounded-2xl bg-black/30 border border-dashed border-zinc-800 p-5 text-center text-zinc-500">
-                      Only admin profiles can create new staff accounts.
+                <div className="bg-[#1C1C1E] border border-zinc-800 rounded-3xl p-5">
+                  <div className="flex items-center justify-between mb-3 gap-2">
+                    <div>
+                      <h3 className="text-white font-black uppercase text-sm">Waiter service history</h3>
+                      <p className="text-[10px] text-zinc-500 mt-1">
+                        Every cleared table sitting — guest tickets and items — stays on the waiter&apos;s record.
+                      </p>
                     </div>
-                  )}
+                    <span className="text-[10px] font-mono text-[#E78A3E] uppercase shrink-0">{tableSittings.length} sittings</span>
+                  </div>
+                  <div className="space-y-3 max-h-[70vh] overflow-y-auto">
+                    {tableSittings.length === 0 && (
+                      <div className="rounded-2xl bg-black/30 border border-dashed border-zinc-800 p-8 text-center text-zinc-500 text-sm">
+                        No cleared sittings yet. Use <span className="text-[#E78A3E] font-bold">Clear table</span> on a table inspector when the party leaves.
+                      </div>
+                    )}
+                    {tableSittings.map((sitting) => {
+                      const open = expandedSittingId === sitting.id;
+                      return (
+                        <div key={sitting.id} className="rounded-2xl bg-black/40 border border-zinc-800 overflow-hidden">
+                          <button
+                            type="button"
+                            onClick={() => setExpandedSittingId(open ? null : sitting.id)}
+                            className="w-full text-left p-4 flex items-start justify-between gap-3"
+                          >
+                            <div>
+                              <p className="text-white font-black uppercase text-sm">
+                                {formatTableLabel(sitting.tableId)} • {sitting.waiterName}
+                              </p>
+                              <p className="text-zinc-500 text-[10px] font-mono uppercase mt-1">
+                                {new Date(sitting.clearedAt).toLocaleString()} • {sitting.orderCount} order{sitting.orderCount === 1 ? "" : "s"} • {sitting.itemCount} items
+                              </p>
+                              {sitting.guestNames.length > 0 && (
+                                <p className="text-[#E78A3E] text-[10px] uppercase font-bold mt-1">
+                                  Guests: {sitting.guestNames.join(", ")}
+                                </p>
+                              )}
+                            </div>
+                            <span className="text-white font-black shrink-0">R{sitting.total}</span>
+                          </button>
+                          {open && (
+                            <div className="px-4 pb-4 space-y-2 border-t border-zinc-900 pt-3">
+                              {sitting.orders.map((order) => (
+                                <div key={order.orderId} className="rounded-xl bg-[#121212] border border-zinc-900 p-3">
+                                  <div className="flex justify-between gap-2 text-[10px] font-mono uppercase text-zinc-400">
+                                    <span>{order.orderedBy ? `${order.orderedBy} • ` : ""}{order.orderId}</span>
+                                    <span>R{order.total}</span>
+                                  </div>
+                                  <ul className="mt-2 space-y-1">
+                                    {order.items.map((item, idx) => (
+                                      <li key={`${order.orderId}-${idx}`} className="flex justify-between text-xs text-zinc-300">
+                                        <span>{item.quantity}× {item.name}</span>
+                                        <span>R{item.price * item.quantity}</span>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                  {order.notes && <p className="text-amber-400 text-[10px] mt-2">Note: {order.notes}</p>}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             )}
@@ -11181,14 +11856,14 @@ export default function App() {
                   <div className="flex flex-wrap gap-2">
                     <button
                       type="button"
-                      onClick={() => setIsCustomQrPanelOpen(true)}
+                      onClick={() => openQrPrintSheet(true)}
                       className="px-4 py-3 rounded-2xl bg-[#E78A3E] text-black font-black uppercase text-xs"
                     >
-                      QR customizer & exporter
+                      Customize table QRs
                     </button>
                     <button
                       type="button"
-                      onClick={() => setShowQrPrintSheet(true)}
+                      onClick={() => openQrPrintSheet(false)}
                       className="px-4 py-3 rounded-2xl bg-zinc-900 border border-zinc-800 text-zinc-300 font-black uppercase text-xs"
                     >
                       Printable QR sheet
@@ -11210,10 +11885,10 @@ export default function App() {
                 <div className="bg-[#1C1C1E] border border-zinc-800 rounded-3xl p-5 space-y-4">
                   <h3 className="text-white font-black uppercase text-sm">Tools</h3>
                   <div className="flex flex-wrap gap-2">
-                    <button type="button" onClick={() => setIsCustomQrPanelOpen(true)} className="px-4 py-3 rounded-2xl bg-[#E78A3E] text-black font-black uppercase text-xs">
-                      QR & table exporter
+                    <button type="button" onClick={() => openQrPrintSheet(true)} className="px-4 py-3 rounded-2xl bg-[#E78A3E] text-black font-black uppercase text-xs">
+                      Customize table QRs
                     </button>
-                    <button type="button" onClick={() => setShowQrPrintSheet(true)} className="px-4 py-3 rounded-2xl bg-zinc-900 border border-zinc-800 text-zinc-300 font-black uppercase text-xs">
+                    <button type="button" onClick={() => openQrPrintSheet(false)} className="px-4 py-3 rounded-2xl bg-zinc-900 border border-zinc-800 text-zinc-300 font-black uppercase text-xs">
                       Print QR cards
                     </button>
                   </div>
@@ -11242,13 +11917,21 @@ export default function App() {
         <AnimatePresence>
           {selectedStaffTable !== null && appMode === "STAFF" && (() => {
             const tableId = selectedStaffTable;
-            const tableOrders = sharedStaffOrders
-              .filter((order) => String(order.tableId) === String(tableId))
-              .map((order) => remoteOrderToHistoric(order));
+            const tableStaffOrders = sharedStaffOrders.filter((order) => String(order.tableId) === String(tableId));
+            const tableActiveOrders = tableStaffOrders.filter((order) => order.status !== "Completed");
+            const tableSittingsForTable = tableSittings.filter((s) => String(s.tableId) === String(tableId));
             const tableRequests = serviceRequests.filter(r => r.tableId === tableId && r.status !== "DONE");
             const tableChat = chatMessages.filter(m => String(m.tableId) === String(tableId));
             const hasAlert = tableId === currentTableId ? waiterSummoned : tableAlerts[tableId];
-            const hasActiveOrders = tableOrders.some(o => o.status === "Sent" || o.status === "Preparing" || o.status === "Ready");
+            const hasActiveOrders = tableStaffOrders.some(o => o.status === "Sent" || o.status === "Preparing" || o.status === "Ready");
+            const splitGuests = Array.from(
+              new Set(
+                tableStaffOrders
+                  .map((o) => o.orderedBy)
+                  .filter((name): name is string => !!name)
+              )
+            );
+            const isRemoteStaffTable = String(tableId) === REMOTE_TABLE_ID;
 
             return (
               <>
@@ -11272,6 +11955,26 @@ export default function App() {
                       <div className="rounded-xl border border-red-300 bg-red-50 p-3 flex items-center justify-between gap-2">
                         <span className="text-red-700 text-xs font-black uppercase">Waiter requested</span>
                         <button type="button" onClick={() => handleResolveAlertForTable(tableId)} className="px-3 py-1.5 bg-red-600 text-white rounded-lg text-[10px] font-black uppercase">Resolve</button>
+                      </div>
+                    )}
+
+                    {isRemoteStaffTable && (
+                      <div className="rounded-xl border border-[#E78A3E] bg-[#E78A3E]/10 p-3">
+                        <p className="text-[10px] font-mono uppercase tracking-widest text-[#E78A3E] font-black">Remote / split prep</p>
+                        <p className="text-xs text-black mt-1">
+                          Guests may order solo or as a group. Check guest names on each ticket before you fire Pilot lines.
+                        </p>
+                        {splitGuests.length > 0 ? (
+                          <div className="flex flex-wrap gap-1.5 mt-2">
+                            {splitGuests.map((guest) => (
+                              <span key={guest} className="px-2 py-1 rounded-full bg-black text-[#E78A3E] text-[10px] font-black uppercase">
+                                {guest}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-[10px] text-zinc-600 mt-2 italic">No named remote guests on open tickets yet.</p>
+                        )}
                       </div>
                     )}
 
@@ -11339,32 +12042,69 @@ export default function App() {
                     )}
 
                     <div>
-                      <h4 className="font-black uppercase text-xs mb-2">Orders</h4>
-                      {tableOrders.length === 0 ? <p className="text-xs text-zinc-500 italic">No orders for this table.</p> : (
-                        <div className="space-y-2 max-h-48 overflow-y-auto">
-                          {tableOrders.map((ord) => (
-                            <div key={ord.id} className="rounded-xl border border-zinc-200 p-3 text-xs">
-                              <div className="flex justify-between font-black uppercase gap-2">
-                                <span>{ord.orderedBy ? `${ord.orderedBy} • ` : ""}#{ord.id}</span>
-                                <span>{ord.status}</span>
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="font-black uppercase text-xs">Orders</h4>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setTableHistoryTableId(tableId);
+                            setIsTableHistoryOpen(true);
+                          }}
+                          className="px-2.5 py-1.5 rounded-lg bg-zinc-900 text-white text-[9px] font-black uppercase flex items-center gap-1"
+                        >
+                          <History className="w-3 h-3" />
+                          Table history{tableSittingsForTable.length > 0 ? ` (${tableSittingsForTable.length})` : ""}
+                        </button>
+                      </div>
+                      <p className="text-[10px] text-zinc-600 mb-2">
+                        Enter each Pilot summary into Pilot POS, then tap Mark served when the ticket is delivered. When the party leaves, tap <span className="font-black text-black">Clear table</span> to archive the sitting on the waiter&apos;s record and free the table.
+                      </p>
+                      {tableActiveOrders.length === 0 ? <p className="text-xs text-zinc-500 italic">No active orders for this table.</p> : (
+                        <div className="space-y-2 max-h-64 overflow-y-auto">
+                          {tableActiveOrders.map((ord) => {
+                            const active = ord.status === "Sent" || ord.status === "Preparing" || ord.status === "Ready";
+                            return (
+                              <div key={ord.id} className="rounded-xl border border-zinc-200 p-3 text-xs space-y-2">
+                                <div className="flex justify-between font-black uppercase gap-2">
+                                  <span>{ord.orderedBy ? `${ord.orderedBy} • ` : ""}#{ord.id}</span>
+                                  <span>{ord.status}</span>
+                                </div>
+                                <p className="text-zinc-600">{ord.items?.map((it) => `${it.quantity}x ${it.menuItem?.name}`).join(", ")}</p>
+                                <div className="flex flex-wrap gap-1.5">
+                                  <button type="button" onClick={() => handleCopyPilotSummary(ord)} className="px-2 py-1 rounded-lg bg-zinc-900 text-white text-[9px] font-black uppercase">Pilot summary</button>
+                                  {active && (
+                                    <button type="button" onClick={() => updateSharedOrderStatus(ord.id, "Served")} className="px-2 py-1 rounded-lg bg-[#E78A3E] text-black text-[9px] font-black uppercase">Mark served</button>
+                                  )}
+                                  <button type="button" onClick={() => updateSharedOrderStatus(ord.id, "Preparing")} className="px-2 py-1 rounded-lg border border-zinc-300 text-[9px] font-black uppercase">Preparing</button>
+                                  <button type="button" onClick={() => updateSharedOrderStatus(ord.id, "Ready")} className="px-2 py-1 rounded-lg border border-zinc-300 text-[9px] font-black uppercase">Ready</button>
+                                </div>
                               </div>
-                              <p className="text-zinc-600 mt-1">{ord.items?.map((it) => `${it.quantity}x ${it.menuItem?.name}`).join(", ")}</p>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       )}
                     </div>
 
                     <div className="flex justify-center py-2">
-                      <HalftoneQRCode text={getSecureGuestUrl(tableId)} size={120} />
+                      <HalftoneQRCode
+                        text={getSecureGuestUrl(tableId)}
+                        size={120}
+                      />
                     </div>
                   </div>
 
                   <div className="p-4 bg-zinc-50 border-t border-zinc-200 flex flex-wrap gap-2">
                     {hasActiveOrders && (
-                      <button type="button" onClick={() => { handleMarkAllServedForTable(tableId); }} className="flex-1 py-3 bg-[#E78A3E] text-black font-black uppercase text-xs rounded-xl">Mark served</button>
+                      <button type="button" onClick={() => { void handleMarkAllServedForTable(tableId); }} className="flex-1 py-3 bg-[#E78A3E] text-black font-black uppercase text-xs rounded-xl">Mark all served</button>
                     )}
-                    <button type="button" onClick={() => { setCurrentTableId(tableId); setAppMode("CUSTOMER"); setSelectedStaffTable(null); }} className="flex-1 py-3 bg-black text-white font-black uppercase text-xs rounded-xl">Guest view</button>
+                    <button
+                      type="button"
+                      onClick={() => { void handleClearTableForNewParty(tableId); }}
+                      className="flex-1 py-3 bg-black text-[#E78A3E] border border-[#E78A3E] font-black uppercase text-xs rounded-xl"
+                    >
+                      Clear table
+                    </button>
+                    <button type="button" onClick={() => { setCurrentTableId(tableId); setAppMode("CUSTOMER"); setSelectedStaffTable(null); }} className="flex-1 py-3 bg-zinc-900 text-white font-black uppercase text-xs rounded-xl">Guest view</button>
                     <button type="button" onClick={() => setSelectedStaffTable(null)} className="flex-1 py-3 border border-zinc-300 text-zinc-700 font-black uppercase text-xs rounded-xl">Close</button>
                   </div>
                 </motion.div>
@@ -11373,55 +12113,173 @@ export default function App() {
           })()}
         </AnimatePresence>
 
-        {/* CUSTOM QR MANAGEMENT MODAL */}
+        {/* TABLE HISTORY MODAL — cleared sittings for a specific table */}
         <AnimatePresence>
-          {isCustomQrPanelOpen && (
-            <>
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 0.85 }} exit={{ opacity: 0 }} onClick={() => setIsCustomQrPanelOpen(false)} className="fixed inset-0 bg-black/95 z-[130]" />
-              <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 24 }} className="fixed inset-x-3 top-[5%] bottom-[5%] max-w-3xl mx-auto bg-[#1C1C1E] border-2 border-[#E78A3E] rounded-3xl z-[135] flex flex-col overflow-hidden">
-                <div className="p-4 bg-black border-b border-[#E78A3E] flex justify-between items-center">
-                  <div>
-                    <h4 className="text-[#E78A3E] font-black uppercase text-sm flex items-center gap-2"><QrCode className="w-5 h-5" /> Table QR & exporter</h4>
-                    <p className="text-[10px] text-zinc-500 font-mono uppercase mt-1">Copy links, upload custom QR, print cards</p>
+          {isTableHistoryOpen && tableHistoryTableId !== null && (() => {
+            const tableId = tableHistoryTableId;
+            const records = tableSittings
+              .filter((s) => String(s.tableId) === String(tableId))
+              .sort((a, b) => b.clearedAt - a.clearedAt);
+            return (
+              <>
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 0.85 }}
+                  exit={{ opacity: 0 }}
+                  onClick={() => setIsTableHistoryOpen(false)}
+                  className="fixed inset-0 bg-black/85 z-[160]"
+                />
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95, y: 16 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95, y: 16 }}
+                  className="fixed inset-x-3 top-[6%] bottom-[6%] sm:inset-x-6 max-w-2xl mx-auto bg-white border-2 border-[#E78A3E] rounded-3xl z-[165] overflow-hidden flex flex-col shadow-2xl"
+                >
+                  <div className="p-4 bg-black border-b border-[#E78A3E] flex justify-between items-center gap-3">
+                    <div>
+                      <h3 className="font-display font-black text-[#E78A3E] text-lg uppercase">
+                        {formatTableLabel(tableId)} history
+                      </h3>
+                      <p className="text-[10px] font-mono text-white uppercase">{records.length} cleared sitting{records.length === 1 ? "" : "s"}</p>
+                    </div>
+                    <button type="button" onClick={() => setIsTableHistoryOpen(false)} className="p-2 bg-zinc-900 border border-zinc-800 text-zinc-300 rounded-lg">
+                      <X className="w-4 h-4" />
+                    </button>
                   </div>
-                  <button type="button" onClick={() => setIsCustomQrPanelOpen(false)} className="p-2 text-zinc-400 hover:text-white"><X className="w-4 h-4" /></button>
-                </div>
-                <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                  <div className="flex flex-wrap gap-2">
-                    <button type="button" onClick={() => setShowQrPrintSheet(true)} className="px-4 py-2 bg-[#E78A3E] text-black font-black uppercase text-xs rounded-xl flex items-center gap-2"><Printer className="w-4 h-4" /> Print sheet</button>
-                    <button type="button" onClick={() => { setCustomQrs({}); triggerToast("QR defaults restored.", "info"); }} className="px-4 py-2 bg-zinc-900 border border-zinc-800 text-zinc-400 text-xs rounded-xl uppercase font-black">Restore defaults</button>
-                  </div>
-                  {ROCO_TABLES.map(table => {
-                    const tableId = table.id;
-                    const hasCustom = !!customQrs[tableId];
-                    return (
-                      <div key={tableId} className="rounded-2xl border border-zinc-800 bg-black/40 p-3 flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
-                        <div>
-                          <p className="text-white font-black uppercase text-sm">{formatTableLabel(tableId)}</p>
-                          <p className="text-[10px] text-zinc-500">{hasCustom ? "Custom QR active" : "System halftone QR"}</p>
+                  <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-white text-black">
+                    {records.length === 0 && (
+                      <p className="text-sm text-zinc-500 italic text-center py-8">No cleared sittings recorded for this table yet.</p>
+                    )}
+                    {records.map((record) => (
+                      <div key={record.id} className="rounded-xl border border-zinc-200 p-3 space-y-1.5">
+                        <div className="flex justify-between items-start gap-2">
+                          <div>
+                            <p className="font-black uppercase text-xs">{record.waiterName}</p>
+                            <p className="text-[10px] text-zinc-500 font-mono">
+                              {new Date(record.clearedAt).toLocaleString()}
+                            </p>
+                          </div>
+                          <p className="font-black text-sm">R{record.total}</p>
                         </div>
-                        <div className="flex flex-wrap gap-2">
-                          <button type="button" onClick={() => handleCopyUrl(tableId)} className="px-3 py-1.5 bg-zinc-900 border border-zinc-800 text-[10px] font-black uppercase text-zinc-300 rounded-lg">Copy link</button>
-                          <label className="px-3 py-1.5 bg-[#E78A3E]/15 border border-[#E78A3E]/40 text-[10px] font-black uppercase text-[#E78A3E] rounded-lg cursor-pointer">
-                            Upload<input type="file" accept="image/*" className="hidden" onChange={e => handleQrUpload(tableId, e)} />
-                          </label>
-                        </div>
+                        {record.guestNames.length > 0 && (
+                          <p className="text-[10px] text-zinc-600">Guests: {record.guestNames.join(", ")}</p>
+                        )}
+                        <p className="text-[10px] text-zinc-600">{record.orderCount} order(s) • {record.itemCount} item(s)</p>
                       </div>
-                    );
-                  })}
+                    ))}
+                  </div>
+                </motion.div>
+              </>
+            );
+          })()}
+        </AnimatePresence>
+
+        {/* CLAIM CODE SCANNER MODAL */}
+        <ClaimCodeScannerModal
+          open={isClaimScannerOpen}
+          onClose={() => setIsClaimScannerOpen(false)}
+          onResolved={({ orderId, claimCode }) => {
+            const candidateOrders = sharedStaffOrders.filter(
+              (order) => String(order.tableId) === REMOTE_TABLE_ID && order.status !== "Completed"
+            );
+            const match = orderId
+              ? candidateOrders.find((order) => order.id === orderId) ||
+                candidateOrders.find((order) => order.claimCode === claimCode)
+              : candidateOrders.find((order) => order.claimCode === claimCode);
+
+            if (!match) {
+              playBeep(180, "sawtooth", 0.25);
+              triggerToast("Invalid or expired claim code.", "info");
+              return;
+            }
+
+            const nextStatus: HistoricOrder["status"] = match.status === "Ready" ? "Served" : "Ready";
+            void updateSharedOrderStatus(match.id, nextStatus);
+            updateDoc(doc(db, "staff_orders", match.id), { claimVerifiedAt: Date.now() }).catch((error) =>
+              console.error("[ROCO] Failed to record claim verification:", error)
+            );
+            playBeep(660, "sine", 0.1);
+            triggerToast(`Claim verified for ${match.orderedBy || "guest"} • order marked ${nextStatus}.`, "success");
+            setIsClaimScannerOpen(false);
+          }}
+        />
+
+        {/* PASS FORMAT CHOICE MODAL — shown right after sending a remote order */}
+        <AnimatePresence>
+          {passDownloadPrompt && (
+            <>
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 0.85 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setPassDownloadPrompt(null)}
+                className="fixed inset-0 bg-black/85 z-[9970]"
+              />
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 16 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 16 }}
+                className="fixed inset-x-4 top-1/2 -translate-y-1/2 max-w-sm mx-auto bg-white border-2 border-[#E78A3E] rounded-3xl z-[9975] overflow-hidden shadow-2xl"
+              >
+                <div className="p-4 bg-black border-b border-[#E78A3E] flex justify-between items-center gap-3">
+                  <div>
+                    <h3 className="font-display font-black text-[#E78A3E] uppercase text-sm">Claim pass ready</h3>
+                    {passDownloadPrompt.claimCode && (
+                      <p className="text-[10px] font-mono text-white uppercase mt-1">Claim code {passDownloadPrompt.claimCode}</p>
+                    )}
+                  </div>
+                  <button type="button" onClick={() => setPassDownloadPrompt(null)} className="p-2 bg-zinc-900 border border-zinc-800 text-zinc-300 rounded-lg">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+                <div className="p-4 space-y-3">
+                  <p className="text-xs text-zinc-600">
+                    Choose PDF or PNG. Your PDF pass is already downloading — find your passes again anytime under Active Kitchen Orders.
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        await downloadOrderPassPdf(passDownloadPrompt);
+                        setPendingPassFormat("pdf");
+                      }}
+                      className="flex-1 py-3 rounded-xl bg-[#E78A3E] text-black font-black uppercase text-xs"
+                    >
+                      Download PDF
+                    </button>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        await downloadOrderPassPng(passDownloadPrompt);
+                        setPendingPassFormat("png");
+                      }}
+                      className="flex-1 py-3 rounded-xl bg-black text-white font-black uppercase text-xs"
+                    >
+                      Download PNG
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setPassDownloadPrompt(null)}
+                    className="w-full py-2.5 rounded-xl border border-zinc-300 text-zinc-600 font-black uppercase text-xs"
+                  >
+                    Done
+                  </button>
                 </div>
               </motion.div>
             </>
           )}
         </AnimatePresence>
 
-    {/* FULL SCREEN DYNAMIC PRINTABLE QR COVER SHEET */}
+        {/* CUSTOM QR MANAGEMENT MODAL — merged into printable QR sheet */}
+
+    {showQrPrintSheet && createPortal(
     <AnimatePresence>
-      {showQrPrintSheet && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
+          id="roco-print-sheet-root"
           className="fixed inset-0 bg-white text-black z-[99999] overflow-y-auto font-sans p-6 print-container"
         >
           {/* Print Control Bar - Hidden during window.print() */}
@@ -11459,11 +12317,25 @@ export default function App() {
               ))}
             </div>
 
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2 justify-end">
+              <button
+                type="button"
+                onClick={() => {
+                  setQrCustomizeOpen((open) => !open);
+                  playBeep(480, "sine", 0.05);
+                }}
+                className={`px-4 py-2 font-mono text-xs font-black uppercase rounded-lg tracking-wider cursor-pointer border ${
+                  qrCustomizeOpen
+                    ? "bg-[#E78A3E] text-black border-[#E78A3E]"
+                    : "bg-zinc-900 border-zinc-800 text-zinc-300 hover:text-white"
+                }`}
+              >
+                Customize QRs
+              </button>
               <button
                 onClick={() => {
                   playBeep(523, "sine", 0.08);
-                  window.print();
+                  window.setTimeout(() => window.print(), 400);
                 }}
                 className="px-4 py-2 bg-[#FF5A00] hover:bg-orange-400 text-black font-mono text-xs font-black uppercase rounded-lg tracking-wider cursor-pointer shadow-md"
               >
@@ -11473,6 +12345,7 @@ export default function App() {
                 onClick={() => {
                   playBeep(330, "triangle", 0.05);
                   setShowQrPrintSheet(false);
+                  setQrCustomizeOpen(false);
                 }}
                 className="px-4 py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 font-mono text-xs font-bold uppercase rounded-lg cursor-pointer"
               >
@@ -11480,6 +12353,79 @@ export default function App() {
               </button>
             </div>
           </div>
+
+          {qrCustomizeOpen && (
+            <div className="no-print max-w-4xl mx-auto mb-8 rounded-2xl border-2 border-[#E78A3E] bg-[#1C1C1E] text-white overflow-hidden">
+              <div className="p-4 bg-black border-b border-[#E78A3E] flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h4 className="text-[#E78A3E] font-black uppercase text-sm flex items-center gap-2">
+                    <Sliders className="w-4 h-4" /> Upload printed QR images
+                  </h4>
+                  <p className="text-[10px] text-zinc-500 font-mono uppercase mt-1">
+                    Paste each table&apos;s slug into your QR maker, export the image, then upload it here so print cards use your finished code
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <label className="px-3 py-2 bg-[#E78A3E] text-black text-[10px] font-black uppercase rounded-lg cursor-pointer flex items-center gap-1.5">
+                    <Upload className="w-3.5 h-3.5" />
+                    Batch upload QR
+                    <input type="file" accept="image/*" className="hidden" onChange={handleBatchQrUpload} />
+                  </label>
+                  <button type="button" onClick={handleRestoreAllQrs} className="px-3 py-2 bg-zinc-900 border border-zinc-800 text-zinc-400 text-[10px] font-black uppercase rounded-lg">
+                    Restore all defaults
+                  </button>
+                </div>
+              </div>
+              <div className="p-4 grid gap-3 sm:grid-cols-2">
+                {ROCO_TABLES.map((table) => {
+                  const tableId = table.id;
+                  const hasCustom = !!customQrs[tableId];
+                  return (
+                    <div key={tableId} className="rounded-xl border border-zinc-800 bg-black/50 p-3 space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <p className="text-white font-black uppercase text-sm">{formatTableLabel(tableId)}</p>
+                          <p className="text-[10px] text-zinc-500 font-mono mt-0.5">
+                            {hasCustom ? "Uploaded QR image" : "System QR (with center art)"}
+                          </p>
+                        </div>
+                        <div className="w-14 h-14 rounded-lg border border-zinc-800 bg-white flex items-center justify-center overflow-hidden shrink-0">
+                          {hasCustom ? (
+                            <img src={customQrs[tableId]} alt="" className="w-full h-full object-contain" />
+                          ) : (
+                            <HalftoneQRCode
+                              text={getSecureGuestUrl(tableId)}
+                              size={52}
+                              colorDark="#FF5A00"
+                              colorLight="#FFFFFF"
+                            />
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        <button type="button" onClick={() => handleCopySlug(tableId)} className="px-2 py-1 bg-zinc-900 border border-zinc-800 text-[9px] font-black uppercase text-zinc-300 rounded-md">
+                          Copy slug
+                        </button>
+                        <button type="button" onClick={() => handleCopyUrl(tableId)} className="px-2 py-1 bg-zinc-900 border border-zinc-800 text-[9px] font-black uppercase text-zinc-300 rounded-md">
+                          Copy link
+                        </button>
+                        <label className="px-2 py-1 bg-[#E78A3E] text-black text-[9px] font-black uppercase rounded-md cursor-pointer">
+                          Upload QR
+                          <input type="file" accept="image/*" className="hidden" onChange={(e) => handleQrUpload(tableId, e)} />
+                        </label>
+                        {hasCustom && (
+                          <button type="button" onClick={() => handleClearTableQr(tableId)} className="px-2 py-1 bg-red-950/40 border border-red-500/30 text-[9px] font-black uppercase text-red-300 rounded-md">
+                            Reset
+                          </button>
+                        )}
+                      </div>
+                      <p className="text-[9px] text-zinc-600 font-mono break-all">slug: table={tableId}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Printable sheet container structure */}
           <div className="max-w-4xl mx-auto grid grid-cols-1 sm:grid-cols-2 gap-6 print-grid">
@@ -11525,7 +12471,7 @@ export default function App() {
                   {/* RocoMamas Combined Brand Logo - Larger and transparent background */}
                   <div className="flex flex-col items-center justify-center relative z-10 mb-3 mt-4">
                     <img 
-                      src="https://www.rocomamas.co.ke/images//logo-combined.png"
+                      src={ROCO_BRAND_LOGO_URL}
                       alt="RocoMamas Brand Logo"
                       className="h-14 w-auto object-contain drop-shadow-[0_3px_6px_rgba(0,0,0,0.2)]"
                       referrerPolicy="no-referrer"
@@ -11571,7 +12517,6 @@ export default function App() {
                     ) : (
                       <HalftoneQRCode 
                         text={guestUrl}
-                        src="https://static-prod.dineplan.com/restaurant/restaurants/logos/logo_4118.png?d=1714983479"
                         size={160}
                         colorDark={isMinimalTheme ? "#000000" : "#FF5A00"}
                         colorLight={isDarkTheme ? "#050505" : "#FFFFFF"}
@@ -11579,7 +12524,6 @@ export default function App() {
                     )}
                   </div>
 
-                  {/* RocoMamas skull logo emblem - now underneath the QR code */}
                   <div className={`w-9 h-9 rounded-full flex items-center justify-center p-1.5 border-2 shadow-sm shrink-0 transition-all duration-300 relative z-10 mb-4 ${
                     isDarkTheme 
                       ? "bg-zinc-900 border-zinc-800" 
@@ -11588,8 +12532,8 @@ export default function App() {
                         : "bg-white border-[#FF5A00]"
                   }`}>
                     <img 
-                      src="https://static-prod.dineplan.com/restaurant/restaurants/logos/logo_4118.png?d=1714983479"
-                      alt="RocoMamas Skull"
+                      src={ROCO_BRAND_LOGO_URL}
+                      alt="RocoMamas"
                       className="w-full h-full object-contain"
                       referrerPolicy="no-referrer"
                     />
@@ -11622,12 +12566,14 @@ export default function App() {
 
           {/* Print Mode CSS styles */}
           <style>{`
+            .qr-canvas-print {
+              display: none;
+            }
             @media print {
               @page {
                 size: auto;
                 margin: 10mm !important;
               }
-              /* Enforce exact background colors, images, and border colors for printing */
               * {
                 -webkit-print-color-adjust: exact !important;
                 print-color-adjust: exact !important;
@@ -11642,22 +12588,14 @@ export default function App() {
                 min-height: auto !important;
                 overflow: visible !important;
               }
-              /* Hide the entire main layout container and everything else except the print container */
-              #rocomamas-os-container,
-              .no-print,
-              div[class*="z-[9920]"],
-              div[class*="z-[9940]"],
-              div[class*="z-[9945]"],
-              div[class*="backdrop-blur"] {
+              body > *:not(#roco-print-sheet-root) {
                 display: none !important;
               }
-              .print-container {
+              #roco-print-sheet-root {
                 display: block !important;
-                position: relative !important;
-                left: auto !important;
-                top: auto !important;
-                right: auto !important;
-                bottom: auto !important;
+                position: absolute !important;
+                left: 0 !important;
+                top: 0 !important;
                 width: 100% !important;
                 height: auto !important;
                 min-height: auto !important;
@@ -11667,10 +12605,20 @@ export default function App() {
                 overflow: visible !important;
                 transform: none !important;
                 opacity: 1 !important;
-                z-index: auto !important;
+                z-index: 1 !important;
               }
               .no-print {
                 display: none !important;
+              }
+              .qr-canvas-screen {
+                display: none !important;
+              }
+              .qr-center-logo-screen {
+                display: none !important;
+              }
+              .qr-canvas-print {
+                display: block !important;
+                position: relative !important;
               }
               .print-grid {
                 display: grid !important;
@@ -11684,7 +12632,6 @@ export default function App() {
                 box-shadow: none !important;
                 margin-bottom: 25px !important;
               }
-              /* Theme specifs for printing to ensure high contrast & background accuracy */
               .print-card.bg-zinc-950 {
                 background-color: #09090b !important;
                 color: #ffffff !important;
@@ -11697,8 +12644,9 @@ export default function App() {
             }
           `}</style>
         </motion.div>
-      )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
+    )}
         </>
       )}
       </div>

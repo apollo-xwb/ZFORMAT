@@ -27,6 +27,22 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    match /split_sessions/{sessionId} {
+      allow read, write: if true;
+    }
+
+    match /split_bills/{sessionId} {
+      allow read, write: if true;
+    }
+
+    match /table_sittings/{sittingId} {
+      allow read, write: if true;
+    }
+
+    match /staff_archives/{archiveId} {
+      allow read, write: if true;
+    }
+
     // default catch-all: deny
     match /{document=**} {
       allow read, write: if false;
