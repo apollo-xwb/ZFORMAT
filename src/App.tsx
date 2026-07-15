@@ -212,6 +212,57 @@ import {
   type BillRequestDetails,
 } from "./billRequest";
 
+const MY_ORDER_IDS_KEY = "roco_my_kitchen_order_ids";
+
+function readMyOrderIds(): Set<string> {
+  try {
+    const saved = sessionStorage.getItem(MY_ORDER_IDS_KEY);
+    if (!saved) return new Set();
+    const parsed = JSON.parse(saved);
+    return new Set(Array.isArray(parsed) ? parsed.map(String) : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function rememberMyOrderId(orderId: string) {
+  if (!orderId) return;
+  const next = readMyOrderIds();
+  next.add(orderId);
+  try {
+    sessionStorage.setItem(MY_ORDER_IDS_KEY, JSON.stringify([...next]));
+  } catch {}
+}
+
+function isRemoteKitchenFeedOrder(
+  order: Pick<StaffOrderRecord, "id" | "orderedBy" | "isRemoteGroupOrder" | "groupRoundId">,
+  opts: {
+    myName: string;
+    sessionMembers: string[];
+    inSplitSession: boolean;
+  }
+): boolean {
+  const myIds = readMyOrderIds();
+  if (myIds.has(order.id)) return true;
+
+  const myName = opts.myName.trim().toLowerCase();
+  const orderedBy = (order.orderedBy || "").trim().toLowerCase();
+  if (myName && orderedBy && orderedBy === myName) return true;
+
+  // Group lock-in: show tickets for everyone in your open split session.
+  if (
+    order.isRemoteGroupOrder &&
+    opts.inSplitSession &&
+    opts.sessionMembers.length > 0 &&
+    orderedBy &&
+    opts.sessionMembers.some((m) => m.trim().toLowerCase() === orderedBy)
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
 const ROCO_GOOGLE_REVIEW_URL = "https://share.google/uwYFGZKMKA9eKMYUA";
 const QUICK_DRINK_IDS = ["soda-coke", "soda-sprite", "soda-zero", "bos-peach", "water-still", "shake-oreo"] as const;
 
@@ -1217,6 +1268,8 @@ export default function App() {
   const [serviceRequests, setServiceRequests] = useState<ServiceRequest[]>([]);
   const [sharedStaffOrders, setSharedStaffOrders] = useState<StaffOrderRecord[]>([]);
   const [tableSittings, setTableSittings] = useState<TableSittingRecord[]>([]);
+  /** Floor pulse flags — synced via Firestore system/tableAlerts across devices. */
+  const [tableAlerts, setTableAlerts] = useState<Record<string, boolean>>({});
   const [expandedSittingId, setExpandedSittingId] = useState<string | null>(null);
   const knownStaffOrderIdsRef = useRef<string[]>([]);
 
@@ -1378,6 +1431,15 @@ export default function App() {
       }
     }, error => logFirestorePilotError("tableAssignments", error));
 
+    const unsubAlerts = onSnapshot(doc(db, "system", "tableAlerts"), snap => {
+      const data = snap.data() as Record<string, boolean> | undefined;
+      if (data) {
+        setTableAlerts(data);
+      } else if (!snap.exists()) {
+        setTableAlerts({});
+      }
+    }, error => logFirestorePilotError("tableAlerts", error));
+
     const unsubSittings = listenTableSittings((records) => {
       setTableSittings(records);
     });
@@ -1387,6 +1449,7 @@ export default function App() {
       unsubRequests();
       unsubOrders();
       unsubAssignments();
+      unsubAlerts();
       unsubSittings();
     };
   }, []);
@@ -1426,6 +1489,27 @@ export default function App() {
     } catch (error) {
       console.error(error);
     }
+  };
+
+  /** Cross-device floor pulse / alert flags (Firestore-backed, not local-only). */
+  const persistTableAlerts = async (nextAlerts: Record<string, boolean>) => {
+    setTableAlerts(nextAlerts);
+    try {
+      await setDoc(doc(db, "system", "tableAlerts"), sanitizeForFirestore(nextAlerts) as Record<string, unknown>);
+    } catch (error) {
+      console.error("[ROCO] Failed to sync table alerts:", error);
+    }
+  };
+
+  const setTableAlertFlag = async (tableId: string, active: boolean) => {
+    const id = String(tableId);
+    setTableAlerts((prev) => {
+      const next = { ...prev, [id]: active };
+      void setDoc(doc(db, "system", "tableAlerts"), sanitizeForFirestore(next) as Record<string, unknown>).catch(
+        (error) => console.error("[ROCO] Failed to sync table alert:", error)
+      );
+      return next;
+    });
   };
 
   const createServiceRequest = async (type: ServiceRequestType, tableId: string, note?: string) => {
@@ -2775,6 +2859,31 @@ export default function App() {
   );
   const useRemoteGroupOrderFlow = isRemoteTable && !!remoteSplitSession && remoteOrderMode === "group";
 
+  /** Guest kitchen feed — remote table only shows this device/group's tickets. */
+  const kitchenFeedOrders = useMemo(() => {
+    if (!isRemoteTable) return historicOrders;
+    const myName = myMemberName || currentPlayerName || sessionStorage.getItem("roco_my_session_name") || "";
+    const feedOpts = {
+      myName,
+      sessionMembers: remoteSplitSession?.members || [],
+      inSplitSession: !!remoteSplitSession && remoteOrderMode === "group",
+    };
+    return historicOrders.filter((order) => {
+      const remote = sharedStaffOrders.find((o) => o.id === order.id);
+      if (!remote) return true;
+      return isRemoteKitchenFeedOrder(remote, feedOpts);
+    });
+  }, [
+    isRemoteTable,
+    historicOrders,
+    myMemberName,
+    currentPlayerName,
+    remoteSplitSession?.members,
+    remoteSplitSession?.id,
+    remoteOrderMode,
+    sharedStaffOrders,
+  ]);
+
   const [isInviteOpen, setIsInviteOpen] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const [highlightKitchenOrders, setHighlightKitchenOrders] = useState(false);
@@ -2808,15 +2917,6 @@ export default function App() {
   const [pendingBillRequestId, setPendingBillRequestId] = useState<string | null>(null);
   const [billRequestSubmitted, setBillRequestSubmitted] = useState(false);
   const [submittedBillDetails, setSubmittedBillDetails] = useState<BillRequestDetails | null>(null);
-
-  const [tableAlerts, setTableAlerts] = useState<Record<string, boolean>>(() => {
-    try {
-      const saved = localStorage.getItem("roco_table_alerts");
-      return saved ? JSON.parse(saved) : { "10": false, "11": false, "12": false, "14": true };
-    } catch {
-      return { "10": false, "11": false, "12": false, "14": true };
-    }
-  });
 
   const [incomingOrders, setIncomingOrders] = useState<any[]>(() => {
     try {
@@ -3141,6 +3241,7 @@ export default function App() {
   }, []);
 
   // Keep guest order cards in sync with Firestore status updates from staff.
+  // Remote table: never inject other devices' solo tickets into this guest's kitchen feed.
   useEffect(() => {
     const activeTableId = resolveActiveTableId(currentTableId);
     const remoteForTable = sharedStaffOrders.filter(
@@ -3148,13 +3249,40 @@ export default function App() {
     );
     if (remoteForTable.length === 0) return;
 
+    const isRemote = String(activeTableId) === REMOTE_TABLE_ID;
+    const myName = myMemberName || currentPlayerName || sessionStorage.getItem("roco_my_session_name") || "";
+    const sessionMembers = remoteSplitSession?.members || [];
+    const feedOpts = {
+      myName,
+      sessionMembers,
+      inSplitSession: !!remoteSplitSession && remoteOrderMode === "group",
+    };
+
     setHistoricOrders((prev) => {
       const prevById = new Map<string, HistoricOrder>(prev.map((order) => [order.id, order]));
       let changed = false;
-      const next: HistoricOrder[] = [...prev];
+      let next: HistoricOrder[] = [...prev];
+
+      // Drop foreign remote tickets already stuck in local history from older syncs.
+      if (isRemote) {
+        const owned = next.filter((order) => {
+          const remote = remoteForTable.find((r) => r.id === order.id);
+          // Keep device-local tickets (placed here) even before/after staff snapshot churn.
+          if (!remote) return true;
+          return isRemoteKitchenFeedOrder(remote, feedOpts);
+        });
+        if (owned.length !== next.length) {
+          next = owned;
+          changed = true;
+        }
+      }
 
       remoteForTable.forEach((remote: StaffOrderRecord) => {
-        const existing = prevById.get(remote.id);
+        if (isRemote && !isRemoteKitchenFeedOrder(remote, feedOpts)) {
+          return;
+        }
+
+        const existing = prevById.get(remote.id) || next.find((o) => o.id === remote.id);
         if (!existing) {
           next.unshift(remoteOrderToHistoric(remote));
           changed = true;
@@ -3180,15 +3308,26 @@ export default function App() {
 
       return changed ? next : prev;
     });
-  }, [sharedStaffOrders, currentTableId]);
+  }, [
+    sharedStaffOrders,
+    currentTableId,
+    myMemberName,
+    currentPlayerName,
+    remoteSplitSession?.id,
+    remoteSplitSession?.members,
+    remoteOrderMode,
+  ]);
 
   useEffect(() => {
     localStorage.setItem("roco_app_mode", appMode);
   }, [appMode]);
 
   useEffect(() => {
-    localStorage.setItem("roco_table_alerts", JSON.stringify(tableAlerts));
-  }, [tableAlerts]);
+    // Alerts are Firestore-synced via system/tableAlerts — clear stale local copies.
+    try {
+      localStorage.removeItem("roco_table_alerts");
+    } catch {}
+  }, []);
 
   useEffect(() => {
     localStorage.setItem("roco_incoming_orders", JSON.stringify(incomingOrders));
@@ -3718,7 +3857,7 @@ export default function App() {
         const latest = freshOrders[0];
         triggerToast(`New order — ${formatTableLabel(latest.tableId)}`, "success");
         playBeep(880, "sine", 0.12);
-        setTableAlerts((prev) => ({ ...prev, [latest.tableId]: true }));
+        void setTableAlertFlag(latest.tableId, true);
         setHighlightKitchenOrders(true);
         setTimeout(() => setHighlightKitchenOrders(false), 4500);
       }
@@ -3730,15 +3869,15 @@ export default function App() {
   // --- Call Waiter ---
   const handleCallWaiter = async () => {
     setWaiterSummoned(true);
-    setTableAlerts(prev => ({ ...prev, [currentTableId]: true }));
     if (currentTableId) {
+      void setTableAlertFlag(currentTableId, true);
       await createServiceRequest("WAITER", currentTableId, "Guest requested waiter assistance");
     }
     triggerToast("Roco Crew has been notified. He'll be right there.", "info");
     // Pulse animation of waiter icon can stay highlighted.
     setTimeout(() => {
       setWaiterSummoned(false);
-      setTableAlerts(prev => ({ ...prev, [currentTableId]: false }));
+      if (currentTableId) void setTableAlertFlag(currentTableId, false);
     }, 45000); // kept at 45 seconds for convenient testing
   };
 
@@ -3829,11 +3968,8 @@ export default function App() {
       }
 
       setTablesState((prev) => ({ ...prev, [tableId]: "Available" }));
-      setTableAlerts((prev) => {
-        const next = { ...prev };
-        delete next[tableId];
-        return next;
-      });
+      const clearedAlerts = { ...tableAlerts, [String(tableId)]: false };
+      await persistTableAlerts(clearedAlerts);
       if (tableId === currentTableId) {
         setWaiterSummoned(false);
       }
@@ -4011,14 +4147,11 @@ export default function App() {
 
   const handleResolveAlertForTable = (tableId: string) => {
     playBeep(523.25, "sine", 0.06);
-    setTableAlerts(prev => ({
-      ...prev,
-      [tableId]: false
-    }));
+    void setTableAlertFlag(tableId, false);
     if (tableId === currentTableId) {
       setWaiterSummoned(false);
     }
-    triggerToast(`Table ${tableId} alert has been marked as resolved!`, "success");
+    triggerToast(`${formatTableLabel(tableId)} alert has been marked as resolved!`, "success");
   };
 
   const handleEndShift = () => {
@@ -4146,6 +4279,7 @@ export default function App() {
     }
 
     if (mySubmittedOrder) {
+      rememberMyOrderId(mySubmittedOrder.id);
       setHistoricOrders((prev) => [mySubmittedOrder!, ...prev]);
       openPassDownloadPrompt({
         order: mySubmittedOrder,
@@ -4290,6 +4424,7 @@ export default function App() {
     };
 
     setHistoricOrders(prev => [newOrder, ...prev]);
+    rememberMyOrderId(newOrder.id);
 
     const assignedWaiterProfile = staffProfiles.find(profile => profile.name === assignedWaiterName);
     const guestLabel = myMemberName || "Guest";
@@ -5393,7 +5528,7 @@ export default function App() {
 
       {/* DYNAMIC TOP KITCHEN LIVE TRACKER */}
       {(() => {
-        const activeKitchenOrders = historicOrders.filter(o => o.status === "Sent" || o.status === "Preparing");
+        const activeKitchenOrders = kitchenFeedOrders.filter(o => o.status === "Sent" || o.status === "Preparing");
         if (activeKitchenOrders.length === 0) return null;
 
         return (
@@ -6295,7 +6430,7 @@ export default function App() {
       </section>
 
       {/* TRACKING PRECENT ORDERS (Active Kitchen Orders Simulator) */}
-      {historicOrders.length > 0 && (
+      {kitchenFeedOrders.length > 0 && (
         <section 
           id="active-kitchen-orders-section" 
           className={`px-4 py-4 border-t border-zinc-900 mt-6 md:pb-8 rounded-xl transition-all duration-500 ${
@@ -6312,7 +6447,7 @@ export default function App() {
           </div>
 
           <div className="flex flex-col gap-2.5">
-            {historicOrders.map((order) => (
+            {kitchenFeedOrders.map((order) => (
               <div 
                 key={order.id} 
                 className="bg-[#1C1C1E]/50 p-3 rounded-xl border border-zinc-900 flex md:flex-row flex-col justify-between items-start md:items-center gap-3"
@@ -6983,7 +7118,7 @@ export default function App() {
                     };
 
                     setChatMessages((prev) => appendChatMessage(prev, newMsg));
-                    setTableAlerts((prev) => ({ ...prev, [tableKey]: true }));
+                    void setTableAlertFlag(tableKey, true);
                     setCustomerChatInput("");
                     triggerToast("Message dispatched to Roco Crew dashboard! 💬", "success");
                   }}
@@ -12548,7 +12683,7 @@ export default function App() {
                       <h2 className={`font-display font-extrabold text-3xl uppercase leading-none tracking-tighter ${
                         isDarkTheme ? "text-[#FF5A00]" : isMinimalTheme ? "text-black" : "text-[#FF5A00]"
                       }`}>
-                        TABLE {tableId.padStart(2, "0")}
+                        {tableId === REMOTE_TABLE_ID ? "REMOTE ORDERING" : `TABLE ${tableId.padStart(2, "0")}`}
                       </h2>
                     </div>
 
@@ -12559,7 +12694,9 @@ export default function App() {
                           ? "bg-zinc-50 border-zinc-200 text-zinc-700" 
                           : "bg-orange-50/50 border-orange-100 text-[#FF5A00]"
                     }`}>
-                      {table.type} surface • Max {table.capacity} pax
+                      {tableId === REMOTE_TABLE_ID
+                        ? "Scan • order • claim at the counter"
+                        : `${table.type} surface • Max ${table.capacity} pax`}
                     </span>
                   </div>
 

@@ -29,7 +29,7 @@ export const ROCO_TABLES: TableConfig[] = [
 
 export function formatTableLabel(tableId: string | null | undefined): string {
   if (!tableId) return "Table";
-  if (tableId === REMOTE_TABLE_ID) return "Remote Table";
+  if (tableId === REMOTE_TABLE_ID) return "Remote Ordering";
   return `Table ${tableId}`;
 }
 
