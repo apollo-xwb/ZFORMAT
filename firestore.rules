@@ -39,6 +39,10 @@ service cloud.firestore {
       allow read, write: if true;
     }
 
+    match /table_services/{tableId} {
+      allow read, write: if true;
+    }
+
     match /staff_archives/{archiveId} {
       allow read, write: if true;
     }

@@ -115,7 +115,8 @@ import {
   LogIn,
   LogOut,
   ScanLine,
-  History
+  History,
+  BookOpen
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { ThuneeFullscreenApp } from "./components/ThuneeFullscreenApp";
@@ -211,6 +212,18 @@ import {
   resolveBillRequestDetails,
   type BillRequestDetails,
 } from "./billRequest";
+import { downloadTrainingManualPdf } from "./trainingManualPdf";
+import {
+  closeTableParty,
+  combineTableParties,
+  createPartyId,
+  listenTableServices,
+  moveTableParty,
+  savePartyAcrossTables,
+  upsertTableService,
+  type TableServiceMap,
+  type TableServiceRecord,
+} from "./tableServiceSync";
 
 const MY_ORDER_IDS_KEY = "roco_my_kitchen_order_ids";
 
@@ -293,6 +306,7 @@ interface ServiceRequest {
   assignedStaffName?: string;
   note?: string;
   billDetails?: BillRequestDetails;
+  partyId?: string;
 }
 
 const DEFAULT_GENERAL_PROFILE: StaffProfile = {
@@ -750,7 +764,11 @@ export default function App() {
 
   // Automatically mark table as Occupied when scanned/accessed in Customer View
   useEffect(() => {
-    if (appMode === "CUSTOMER" && currentTableId) {
+    if (
+      appMode === "CUSTOMER" &&
+      currentTableId &&
+      (currentTableId === REMOTE_TABLE_ID || isTableUnlocked)
+    ) {
       setTablesState(prev => {
         if (prev[currentTableId] === "Available") {
           return { ...prev, [currentTableId]: "Occupied" };
@@ -1270,6 +1288,13 @@ export default function App() {
   const [tableSittings, setTableSittings] = useState<TableSittingRecord[]>([]);
   /** Floor pulse flags — synced via Firestore system/tableAlerts across devices. */
   const [tableAlerts, setTableAlerts] = useState<Record<string, boolean>>({});
+  const [tableServices, setTableServices] = useState<TableServiceMap>({});
+  const [staffManualOrderOpen, setStaffManualOrderOpen] = useState(false);
+  const [staffManualOrderSearch, setStaffManualOrderSearch] = useState("");
+  const [staffManualOrderCart, setStaffManualOrderCart] = useState<CartItem[]>([]);
+  const [staffManualOrderNotes, setStaffManualOrderNotes] = useState("");
+  const [staffMoveTarget, setStaffMoveTarget] = useState("");
+  const [staffCombineTables, setStaffCombineTables] = useState<string[]>([]);
   const [expandedSittingId, setExpandedSittingId] = useState<string | null>(null);
   const knownStaffOrderIdsRef = useRef<string[]>([]);
 
@@ -1443,6 +1468,9 @@ export default function App() {
     const unsubSittings = listenTableSittings((records) => {
       setTableSittings(records);
     });
+    const unsubTableServices = listenTableServices((records) => {
+      setTableServices(records);
+    });
 
     return () => {
       unsubProfiles();
@@ -1451,6 +1479,7 @@ export default function App() {
       unsubAssignments();
       unsubAlerts();
       unsubSittings();
+      unsubTableServices();
     };
   }, []);
 
@@ -1470,13 +1499,54 @@ export default function App() {
       return DEFAULT_GENERAL_PROFILE;
     }
 
-    const counts = availableProfiles.reduce((acc, profile) => {
-      acc[profile.name] = Object.values(assignments).filter(value => value === profile.name).length;
+    const activePrimaryServices = (Object.values(tableServices) as TableServiceRecord[]).filter(
+      (service: TableServiceRecord) =>
+        service.active &&
+        service.tableId === service.primaryTableId &&
+        String(service.tableId) !== REMOTE_TABLE_ID
+    );
+
+    const loadScores = availableProfiles.reduce((acc, profile) => {
+      const services = activePrimaryServices.filter(
+        (service: TableServiceRecord) => service.assignedStaffName === profile.name
+      );
+      const covers = services.reduce(
+        (sum: number, service: TableServiceRecord) => sum + Math.max(1, service.covers),
+        0
+      );
+      const partyIds = new Set(services.map((service: TableServiceRecord) => service.partyId));
+      const openTickets = sharedStaffOrders.filter(
+        (order) =>
+          order.status !== "Completed" &&
+          (order.assignedStaffName === profile.name ||
+            (!!order.partyId && partyIds.has(order.partyId)))
+      ).length;
+      const billRequests = serviceRequests.filter(
+        (request) =>
+          request.status !== "DONE" &&
+          request.type === "BILL" &&
+          services.some((service: TableServiceRecord) =>
+            service.memberTableIds.includes(String(request.tableId))
+          )
+      ).length;
+
+      // Covers are the base load; live tickets and bills add operational pressure.
+      acc[profile.name] = covers + openTickets * 2 + billRequests * 3;
       return acc;
     }, {} as Record<string, number>);
 
     return [...availableProfiles].sort((a, b) => {
-      const tableDelta = (counts[a.name] || 0) - (counts[b.name] || 0);
+      const loadDelta = (loadScores[a.name] || 0) - (loadScores[b.name] || 0);
+      if (loadDelta !== 0) return loadDelta;
+      const partyCount = (profile: StaffProfile) =>
+        activePrimaryServices.filter(
+          (service) => service.assignedStaffName === profile.name
+        ).length +
+        Object.entries(assignments).filter(
+          ([tableId, waiterName]) =>
+            waiterName === profile.name && !tableServices[tableId]?.active
+        ).length;
+      const tableDelta = partyCount(a) - partyCount(b);
       if (tableDelta !== 0) return tableDelta;
       return a.name.localeCompare(b.name);
     })[0] || null;
@@ -1485,7 +1555,8 @@ export default function App() {
   const persistTableAssignments = async (nextAssignments: Record<string, string>) => {
     setTableWaiterAssignments(nextAssignments);
     try {
-      await setDoc(doc(db, "system", "tableAssignments"), nextAssignments, { merge: true });
+      // Full document replace — merge:true would leave deleted table keys on other devices.
+      await setDoc(doc(db, "system", "tableAssignments"), nextAssignments);
     } catch (error) {
       console.error(error);
     }
@@ -1513,13 +1584,20 @@ export default function App() {
   };
 
   const createServiceRequest = async (type: ServiceRequestType, tableId: string, note?: string) => {
-    const waiter = tableWaiterAssignments[tableId] || getNextAvailableWaiter(tableWaiterAssignments)?.name || "";
+    const service = tableServices[String(tableId)]?.active ? tableServices[String(tableId)] : null;
+    const requestTableId = service?.primaryTableId || tableId;
+    const waiter =
+      service?.assignedStaffName ||
+      tableWaiterAssignments[tableId] ||
+      getNextAvailableWaiter(tableWaiterAssignments)?.name ||
+      "";
     const requestId = `req-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     const assignedProfile = staffProfiles.find(profile => profile.name === waiter);
     const payload = omitUndefined({
       id: requestId,
       type,
-      tableId,
+      tableId: requestTableId,
+      partyId: service?.partyId,
       status: "OPEN" as const,
       createdAt: Date.now(),
       assignedStaffId: assignedProfile?.id,
@@ -1617,6 +1695,461 @@ export default function App() {
     setActiveChatTableId(tableId);
     setStaffInspectorChatOpen(true);
     setStaffChatInput("");
+    setStaffManualOrderOpen(false);
+    setStaffManualOrderSearch("");
+    setStaffManualOrderCart([]);
+    setStaffManualOrderNotes("");
+    setStaffMoveTarget("");
+    setStaffCombineTables([]);
+    if (String(tableId) === REMOTE_TABLE_ID) return;
+    const service = tableServices[String(tableId)];
+    if (
+      tableWaiterAssignments[tableId] &&
+      (!service || !service.active || service.covers <= 0)
+    ) {
+      window.setTimeout(() => {
+        const covers = askForCovers(tableId, 1);
+        if (covers === null) return;
+        const waiterName = tableWaiterAssignments[tableId];
+        const waiter = staffProfiles.find((profile) => profile.name === waiterName);
+        void savePartyAcrossTables({
+          partyId: service?.partyId || createPartyId(tableId),
+          primaryTableId: service?.primaryTableId || tableId,
+          memberTableIds: service?.memberTableIds || [tableId],
+          covers,
+          assignedStaffId: waiter?.id,
+          assignedStaffName: waiterName,
+          createdAt: service?.createdAt,
+        }).then(() => {
+          triggerToast(
+            `${formatTableLabel(tableId)} set to ${covers} cover${covers === 1 ? "" : "s"}.`,
+            "success"
+          );
+        });
+      }, 150);
+    }
+  };
+
+  const getActiveTableService = (tableId: string): TableServiceRecord | null => {
+    const record = tableServices[String(tableId)];
+    return record?.active ? record : null;
+  };
+
+  const askForCovers = (tableId: string, fallback = 1): number | null => {
+    if (String(tableId) === REMOTE_TABLE_ID) return 0;
+    const raw = window.prompt(
+      `How many guests are seated across ${formatTableLabel(tableId)}?\n\n` +
+        `ROCO uses covers (not just table count) to balance the next assignment.`,
+      String(Math.max(1, fallback))
+    );
+    if (raw === null) return null;
+    const covers = Math.round(Number(raw));
+    if (!Number.isFinite(covers) || covers < 1 || covers > 200) {
+      triggerToast("Enter a guest count between 1 and 200.", "info");
+      return null;
+    }
+    return covers;
+  };
+
+  const handleAssignTableWithCovers = async (tableId: string, waiterName: string) => {
+    const isRemote = String(tableId) === REMOTE_TABLE_ID;
+    const existing = getActiveTableService(tableId);
+    if (!waiterName) {
+      const nextAssignments = { ...tableWaiterAssignments };
+      (existing?.memberTableIds || [tableId]).forEach((id) => delete nextAssignments[id]);
+      await persistTableAssignments(nextAssignments);
+      if (existing && !isRemote) {
+        await Promise.all(
+          existing.memberTableIds.map((id) =>
+            upsertTableService({
+              ...existing,
+              tableId: id,
+              assignedStaffId: undefined,
+              assignedStaffName: undefined,
+              updatedAt: Date.now(),
+            })
+          )
+        );
+      }
+      triggerToast(`${formatTableLabel(tableId)} is now unassigned.`, "info");
+      return;
+    }
+
+    const waiter = staffProfiles.find((profile) => profile.name === waiterName);
+
+    // Remote ordering is not a physical seat — assign waiter only, never ask covers.
+    if (isRemote) {
+      await persistTableAssignments({ ...tableWaiterAssignments, [tableId]: waiterName });
+      triggerToast(`${waiterName} assigned to Remote Ordering.`, "success");
+      return;
+    }
+
+    const covers = askForCovers(tableId, existing?.covers || 1);
+    if (covers === null) return;
+    const partyId = existing?.partyId || createPartyId(tableId);
+    const memberTableIds = (existing?.memberTableIds || [tableId]).filter(
+      (id) => String(id) !== REMOTE_TABLE_ID
+    );
+    const primaryTableId = existing?.primaryTableId || tableId;
+
+    await savePartyAcrossTables({
+      partyId,
+      primaryTableId,
+      memberTableIds,
+      covers,
+      assignedStaffId: waiter?.id,
+      assignedStaffName: waiterName,
+      createdAt: existing?.createdAt,
+    });
+
+    const nextAssignments = { ...tableWaiterAssignments };
+    memberTableIds.forEach((id) => {
+      nextAssignments[id] = waiterName;
+    });
+    await persistTableAssignments(nextAssignments);
+    setTablesState((prev) => {
+      const next = { ...prev };
+      memberTableIds.forEach((id) => {
+        next[id] = "Occupied";
+      });
+      return next;
+    });
+    triggerToast(
+      `${waiterName} assigned to ${formatTableLabel(primaryTableId)} • ${covers} cover${covers === 1 ? "" : "s"}.`,
+      "success"
+    );
+  };
+
+  const handleUpdateTableCovers = async (tableId: string) => {
+    if (String(tableId) === REMOTE_TABLE_ID) {
+      triggerToast("Remote Ordering does not use physical covers.", "info");
+      return;
+    }
+    const existing = getActiveTableService(tableId);
+    if (!existing) {
+      triggerToast("Assign a waiter first to start this table service.", "info");
+      return;
+    }
+    const covers = askForCovers(existing.primaryTableId, existing.covers || 1);
+    if (covers === null) return;
+    await savePartyAcrossTables({
+      partyId: existing.partyId,
+      primaryTableId: existing.primaryTableId,
+      memberTableIds: existing.memberTableIds.filter((id) => String(id) !== REMOTE_TABLE_ID),
+      covers,
+      assignedStaffId: existing.assignedStaffId,
+      assignedStaffName: existing.assignedStaffName,
+      createdAt: existing.createdAt,
+    });
+    triggerToast(
+      `${formatTableLabel(existing.primaryTableId)} updated to ${covers} cover${covers === 1 ? "" : "s"}.`,
+      "success"
+    );
+  };
+
+  const handleAddManualOrderItem = (item: MenuItem) => {
+    setStaffManualOrderCart((prev) => {
+      const existing = prev.find((entry) => entry.menuItem.id === item.id);
+      if (existing) {
+        return prev.map((entry) =>
+          entry.menuItem.id === item.id
+            ? { ...entry, quantity: entry.quantity + 1 }
+            : entry
+        );
+      }
+      return [...prev, { menuItem: item, quantity: 1 }];
+    });
+  };
+
+  const handleSubmitStaffManualOrder = async (tableId: string) => {
+    if (staffManualOrderCart.length === 0) {
+      triggerToast("Add at least one menu item.", "info");
+      return;
+    }
+
+    let service = getActiveTableService(tableId);
+    let waiterName =
+      service?.assignedStaffName ||
+      tableWaiterAssignments[tableId] ||
+      activeStaffProfile?.name ||
+      "General";
+    const waiter = staffProfiles.find((profile) => profile.name === waiterName);
+
+    if (!service) {
+      const covers = askForCovers(tableId, 1);
+      if (covers === null) return;
+      const partyId = createPartyId(tableId);
+      await savePartyAcrossTables({
+        partyId,
+        primaryTableId: tableId,
+        memberTableIds: [tableId],
+        covers,
+        assignedStaffId: waiter?.id,
+        assignedStaffName: waiterName,
+      });
+      await persistTableAssignments({ ...tableWaiterAssignments, [tableId]: waiterName });
+      service = {
+        tableId,
+        partyId,
+        primaryTableId: tableId,
+        memberTableIds: [tableId],
+        covers,
+        assignedStaffId: waiter?.id,
+        assignedStaffName: waiterName,
+        active: true,
+        needsCoverCount: false,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+    } else if (service.covers <= 0) {
+      const covers = askForCovers(service.primaryTableId, 1);
+      if (covers === null) return;
+      await savePartyAcrossTables({
+        partyId: service.partyId,
+        primaryTableId: service.primaryTableId,
+        memberTableIds: service.memberTableIds,
+        covers,
+        assignedStaffId: service.assignedStaffId || waiter?.id,
+        assignedStaffName: service.assignedStaffName || waiterName,
+        createdAt: service.createdAt,
+      });
+      service = { ...service, covers, needsCoverCount: false };
+    }
+
+    if (!service.assignedStaffName) {
+      await savePartyAcrossTables({
+        partyId: service.partyId,
+        primaryTableId: service.primaryTableId,
+        memberTableIds: service.memberTableIds,
+        covers: service.covers,
+        assignedStaffId: waiter?.id,
+        assignedStaffName: waiterName,
+        createdAt: service.createdAt,
+      });
+      const nextAssignments = { ...tableWaiterAssignments };
+      service.memberTableIds.forEach((id) => {
+        nextAssignments[id] = waiterName;
+      });
+      await persistTableAssignments(nextAssignments);
+      service = {
+        ...service,
+        assignedStaffId: waiter?.id,
+        assignedStaffName: waiterName,
+      };
+    }
+
+    waiterName = service.assignedStaffName || waiterName;
+    const targetTableId = service.primaryTableId;
+    const total = staffManualOrderCart.reduce(
+      (sum, entry) => sum + entry.menuItem.price * entry.quantity,
+      0
+    );
+    const prepSeconds = getOrderPrepSeconds(staffManualOrderCart);
+    const order: HistoricOrder = {
+      id: `staff-${Date.now()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`,
+      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      createdAt: Date.now(),
+      items: staffManualOrderCart,
+      total,
+      status: "Sent",
+      notes: staffManualOrderNotes.trim() || undefined,
+      timerDuration: prepSeconds,
+      timerRemaining: prepSeconds,
+      timerExpired: false,
+    };
+    const record = buildStaffOrderRecord({
+      order,
+      tableId: targetTableId,
+      physicalTableId: tableId,
+      partyId: service.partyId,
+      assignedStaffId: service.assignedStaffId || waiter?.id,
+      assignedStaffName: waiterName,
+      orderedBy: "Waiter-entered",
+      orderSource: "STAFF",
+      enteredByStaffId: activeStaffProfile?.id,
+      enteredByStaffName: activeStaffProfile?.name,
+    });
+
+    await upsertSharedOrder(record);
+    setSharedStaffOrders((prev) => [record, ...prev.filter((entry) => entry.id !== record.id)]);
+    setIncomingOrders((prev) => [record, ...prev]);
+    setTablesState((prev) => ({ ...prev, [targetTableId]: "Occupied" }));
+    void setTableAlertFlag(targetTableId, true);
+    setStaffManualOrderCart([]);
+    setStaffManualOrderNotes("");
+    setStaffManualOrderOpen(false);
+    triggerToast(
+      `Waiter order sent for ${formatTableLabel(targetTableId)} • R${total.toFixed(2)}.`,
+      "success"
+    );
+  };
+
+  const handleMoveCurrentTable = async (tableId: string) => {
+    const source = getActiveTableService(tableId);
+    const targetTableId = String(staffMoveTarget);
+    if (!source) {
+      triggerToast("Start/assign this table before moving it.", "info");
+      return;
+    }
+    if (!targetTableId || source.memberTableIds.includes(targetTableId)) {
+      triggerToast("Choose a different destination table.", "info");
+      return;
+    }
+    if (getActiveTableService(targetTableId)) {
+      triggerToast("Destination already has a party. Use Combine tables instead.", "info");
+      return;
+    }
+    if (
+      !window.confirm(
+        `Move ${source.covers} cover${source.covers === 1 ? "" : "s"} from ` +
+          `${formatTableLabel(source.primaryTableId)} to ${formatTableLabel(targetTableId)}?\n\n` +
+          `Orders, requests, bill context and waiter ownership will move with them.`
+      )
+    ) {
+      return;
+    }
+
+    const partyOrders = sharedStaffOrders.filter(
+      (order) =>
+        order.partyId === source.partyId ||
+        source.memberTableIds.includes(String(order.tableId))
+    );
+    const partyRequests = serviceRequests.filter(
+      (request) => source.memberTableIds.includes(String(request.tableId))
+    );
+    await moveTableParty({
+      source,
+      targetTableId,
+      orderIds: partyOrders.map((order) => order.id),
+      requestIds: partyRequests.map((request) => request.id),
+    });
+
+    const nextAssignments = { ...tableWaiterAssignments };
+    source.memberTableIds.forEach((id) => delete nextAssignments[id]);
+    if (source.assignedStaffName) nextAssignments[targetTableId] = source.assignedStaffName;
+    await persistTableAssignments(nextAssignments);
+    setTablesState((prev) => {
+      const next = { ...prev, [targetTableId]: "Occupied" as const };
+      source.memberTableIds.forEach((id) => {
+        next[id] = "Available";
+      });
+      return next;
+    });
+    setChatMessages((prev) =>
+      prev.map((message) =>
+        source.memberTableIds.includes(String(message.tableId))
+          ? { ...message, tableId: targetTableId }
+          : message
+      )
+    );
+    await persistTableAlerts({
+      ...tableAlerts,
+      ...Object.fromEntries(source.memberTableIds.map((id) => [id, false])),
+      [targetTableId]: partyOrders.some((order) => order.status !== "Completed"),
+    });
+    setSelectedStaffTable(targetTableId);
+    setStaffMoveTarget("");
+    triggerToast(
+      `Party moved to ${formatTableLabel(targetTableId)} with ${partyOrders.length} order${partyOrders.length === 1 ? "" : "s"}.`,
+      "success"
+    );
+  };
+
+  const handleCombineCurrentTables = async (tableId: string) => {
+    const selected = Array.from(new Set([tableId, ...staffCombineTables].map(String)));
+    if (selected.length < 2) {
+      triggerToast("Choose at least one more physical table to combine.", "info");
+      return;
+    }
+    if (selected.includes(REMOTE_TABLE_ID)) {
+      triggerToast("Remote Ordering cannot be combined with dine-in tables.", "info");
+      return;
+    }
+
+    const existingServices = selected
+      .map((id) => getActiveTableService(id))
+      .filter((record): record is TableServiceRecord => !!record);
+    const allMembers = Array.from(
+      new Set([
+        ...selected,
+        ...existingServices.flatMap((record) => record.memberTableIds),
+      ])
+    );
+    const currentService = getActiveTableService(tableId);
+    const defaultCovers = Math.max(
+      1,
+      existingServices
+        .filter(
+          (record, index, all) =>
+            all.findIndex((entry) => entry.partyId === record.partyId) === index
+        )
+        .reduce((sum, record) => sum + Math.max(1, record.covers), 0)
+    );
+    const covers = askForCovers(tableId, defaultCovers);
+    if (covers === null) return;
+
+    const waiterName =
+      currentService?.assignedStaffName ||
+      tableWaiterAssignments[tableId] ||
+      activeStaffProfile?.name ||
+      "General";
+    const waiter = staffProfiles.find((profile) => profile.name === waiterName);
+    const partyId = currentService?.partyId || createPartyId(tableId);
+    const relatedPartyIds = new Set(existingServices.map((record) => record.partyId));
+    const partyOrders = sharedStaffOrders.filter(
+      (order) =>
+        (!!order.partyId && relatedPartyIds.has(order.partyId)) ||
+        allMembers.includes(String(order.tableId))
+    );
+    const partyRequests = serviceRequests.filter((request) =>
+      allMembers.includes(String(request.tableId))
+    );
+
+    if (
+      !window.confirm(
+        `Combine ${allMembers.map(formatTableShort).join(" + ")} as one party?\n\n` +
+          `${covers} covers • Lead table ${formatTableLabel(tableId)} • ${waiterName}\n` +
+          `Orders and bills from every member table will roll into the lead table.`
+      )
+    ) {
+      return;
+    }
+
+    await combineTableParties({
+      primaryTableId: tableId,
+      memberTableIds: allMembers,
+      partyId,
+      covers,
+      assignedStaffId: waiter?.id,
+      assignedStaffName: waiterName,
+      orderIds: partyOrders.map((order) => order.id),
+      requestIds: partyRequests.map((request) => request.id),
+    });
+
+    const nextAssignments = { ...tableWaiterAssignments };
+    allMembers.forEach((id) => {
+      nextAssignments[id] = waiterName;
+    });
+    await persistTableAssignments(nextAssignments);
+    const combinedAlert =
+      allMembers.some((id) => !!tableAlerts[id]) ||
+      partyOrders.some((order) => order.status !== "Completed");
+    await persistTableAlerts({
+      ...tableAlerts,
+      ...Object.fromEntries(allMembers.map((id) => [id, combinedAlert])),
+    });
+    setTablesState((prev) => {
+      const next = { ...prev };
+      allMembers.forEach((id) => {
+        next[id] = "Occupied";
+      });
+      return next;
+    });
+    setStaffCombineTables([]);
+    triggerToast(
+      `${allMembers.length} tables combined • ${covers} covers • ${waiterName}.`,
+      "success"
+    );
   };
 
   const handleSendStaffTableChat = () => {
@@ -3244,10 +3777,17 @@ export default function App() {
   // Remote table: never inject other devices' solo tickets into this guest's kitchen feed.
   useEffect(() => {
     const activeTableId = resolveActiveTableId(currentTableId);
-    const remoteForTable = sharedStaffOrders.filter(
-      (order) => String(order.tableId) === String(activeTableId)
+    const activeService = tableServices[String(activeTableId)]?.active
+      ? tableServices[String(activeTableId)]
+      : null;
+    const serviceOrders = sharedStaffOrders.filter(
+      (order) =>
+        String(order.tableId) === String(activeTableId) ||
+        (!!activeService &&
+          (order.partyId === activeService.partyId ||
+            activeService.memberTableIds.includes(String(order.tableId))))
     );
-    if (remoteForTable.length === 0) return;
+    if (serviceOrders.length === 0) return;
 
     const isRemote = String(activeTableId) === REMOTE_TABLE_ID;
     const myName = myMemberName || currentPlayerName || sessionStorage.getItem("roco_my_session_name") || "";
@@ -3266,7 +3806,7 @@ export default function App() {
       // Drop foreign remote tickets already stuck in local history from older syncs.
       if (isRemote) {
         const owned = next.filter((order) => {
-          const remote = remoteForTable.find((r) => r.id === order.id);
+          const remote = serviceOrders.find((r) => r.id === order.id);
           // Keep device-local tickets (placed here) even before/after staff snapshot churn.
           if (!remote) return true;
           return isRemoteKitchenFeedOrder(remote, feedOpts);
@@ -3277,7 +3817,7 @@ export default function App() {
         }
       }
 
-      remoteForTable.forEach((remote: StaffOrderRecord) => {
+      serviceOrders.forEach((remote: StaffOrderRecord) => {
         if (isRemote && !isRemoteKitchenFeedOrder(remote, feedOpts)) {
           return;
         }
@@ -3316,7 +3856,56 @@ export default function App() {
     remoteSplitSession?.id,
     remoteSplitSession?.members,
     remoteOrderMode,
+    tableServices,
   ]);
+
+  // Dine-in bill is derived from the shared Firestore tickets. This means a
+  // guest who scans after a waiter entered the order still sees the real bill.
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+    const activeTableId = resolveActiveTableId(currentTableId);
+    if (!activeTableId || activeTableId === REMOTE_TABLE_ID) return;
+    const service = tableServices[activeTableId]?.active
+      ? tableServices[activeTableId]
+      : null;
+    const orders = sharedStaffOrders.filter(
+      (order) =>
+        order.status !== "Completed" &&
+        (String(order.tableId) === String(activeTableId) ||
+          (!!service &&
+            (order.partyId === service.partyId ||
+              service.memberTableIds.includes(String(order.tableId)))))
+    );
+
+    const grouped = new Map<string, MasterBillItem>();
+    orders.forEach((order) => {
+      const paid = order.paymentStatus === "PAID" || order.status === "Paid";
+      order.items.forEach((entry) => {
+        const key = entry.menuItem.id || entry.menuItem.name;
+        const current = grouped.get(key);
+        if (current) {
+          current.quantity += entry.quantity;
+          if (paid) current.paidCount += entry.quantity;
+          return;
+        }
+        grouped.set(key, {
+          id: `shared-${service?.partyId || activeTableId}-${key}`,
+          name: entry.menuItem.name,
+          price: entry.menuItem.price,
+          emoji: entry.menuItem.emoji || "🍽️",
+          quantity: entry.quantity,
+          paidCount: paid ? entry.quantity : 0,
+        });
+      });
+    });
+
+    const next = Array.from(grouped.values());
+    setMasterBillItems((prev) =>
+      JSON.stringify(prev) === JSON.stringify(next) ? prev : next
+    );
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [currentTableId, sharedStaffOrders, tableServices]);
 
   useEffect(() => {
     localStorage.setItem("roco_app_mode", appMode);
@@ -3339,7 +3928,7 @@ export default function App() {
 
   // --- AUTOMATED ROTATING TABLE WAITER ASSIGNMENT ON QR SCAN ---
   useEffect(() => {
-    if (currentTableId) {
+    if (appMode === "CUSTOMER" && currentTableId) {
       if (!tableWaiterAssignments[currentTableId]) {
         const nextWaiter = getNextAvailableWaiter(tableWaiterAssignments);
         if (nextWaiter) {
@@ -3348,15 +3937,32 @@ export default function App() {
             [currentTableId]: nextWaiter.name
           };
 
-          persistTableAssignments(nextAssignments);
+          void persistTableAssignments(nextAssignments);
+          if (currentTableId !== REMOTE_TABLE_ID) {
+            const existing = tableServices[currentTableId];
+            void savePartyAcrossTables({
+              partyId: existing?.partyId || createPartyId(currentTableId),
+              primaryTableId: existing?.primaryTableId || currentTableId,
+              memberTableIds: existing?.memberTableIds || [currentTableId],
+              covers: existing?.covers || 0,
+              assignedStaffId: nextWaiter.id,
+              assignedStaffName: nextWaiter.name,
+              createdAt: existing?.createdAt,
+            });
+          }
           setTimeout(() => {
-            triggerToast("🔥 Chili safely decayed (+15 pts)!", "success");
+            triggerToast(
+              currentTableId === REMOTE_TABLE_ID
+                ? `${nextWaiter.name} assigned to Remote Ordering.`
+                : `${nextWaiter.name} assigned to ${formatTableLabel(currentTableId)} • cover count required.`,
+              "success"
+            );
             playBeep(659.25, "sine", 0.1);
           }, 1000);
         }
       }
     }
-  }, [currentTableId, staffProfiles, tableWaiterAssignments]);
+  }, [appMode, currentTableId, isTableUnlocked, staffProfiles, tableWaiterAssignments, tableServices]);
 
   // --- COMPLEXITY-BASED REAL-TIME ORDER TIMER DECREMENT ---
   useEffect(() => {
@@ -3431,6 +4037,19 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem("roco_tables_occupancy", JSON.stringify(tablesState));
   }, [tablesState]);
+
+  useEffect(() => {
+    if (Object.keys(tableServices).length === 0) return;
+    setTablesState((prev) => {
+      const next = { ...prev };
+      (Object.values(tableServices) as TableServiceRecord[]).forEach((service: TableServiceRecord) => {
+        if (String(service.tableId) === REMOTE_TABLE_ID) return;
+        if (next[service.tableId] === "Booked" && !service.active) return;
+        next[service.tableId] = service.active ? "Occupied" : "Available";
+      });
+      return JSON.stringify(prev) === JSON.stringify(next) ? prev : next;
+    });
+  }, [tableServices]);
 
   useEffect(() => {
     saveChatMessages(chatMessages);
@@ -3901,10 +4520,34 @@ export default function App() {
   };
 
   const handleClearTableForNewParty = async (tableId: string) => {
-    const openOrders = sharedStaffOrders.filter(
-      (order) => String(order.tableId) === String(tableId) && order.status !== "Completed"
+    const isRemoteClear = String(tableId) === REMOTE_TABLE_ID;
+    const service = getActiveTableService(tableId);
+    // Remote Ordering is a separate lane — never bundle it into dine-in clears.
+    const memberTableIds = (
+      isRemoteClear
+        ? [REMOTE_TABLE_ID]
+        : (service?.memberTableIds || [tableId]).filter((id) => String(id) !== REMOTE_TABLE_ID)
     );
+    const primaryTableId = isRemoteClear
+      ? REMOTE_TABLE_ID
+      : service?.primaryTableId && service.primaryTableId !== REMOTE_TABLE_ID
+        ? service.primaryTableId
+        : tableId;
+    const openOrders = sharedStaffOrders.filter((order) => {
+      if (order.status === "Completed") return false;
+      if (isRemoteClear) {
+        return String(order.tableId) === REMOTE_TABLE_ID;
+      }
+      if (String(order.tableId) === REMOTE_TABLE_ID) return false;
+      return (
+        String(order.tableId) === String(primaryTableId) ||
+        (!!service &&
+          (order.partyId === service.partyId ||
+            memberTableIds.includes(String(order.tableId))))
+      );
+    });
     const waiterName =
+      service?.assignedStaffName ||
       tableWaiterAssignments[tableId] ||
       activeStaffProfile?.name ||
       openOrders.find((o) => o.assignedStaffName)?.assignedStaffName ||
@@ -3912,8 +4555,11 @@ export default function App() {
     const waiterProfile = staffProfiles.find((p) => p.name === waiterName);
 
     const confirmed = window.confirm(
-      `Clear ${formatTableLabel(tableId)} for a new party?\n\n` +
-        `This archives ${openOrders.length} order(s) under ${waiterName}, marks tickets completed, resets the bill, and sets the table Available.`
+      `Clear ${formatTableLabel(primaryTableId)}${!isRemoteClear && memberTableIds.length > 1 ? ` (${memberTableIds.length} combined tables)` : ""} for a new party?\n\n` +
+        (isRemoteClear
+          ? `This only clears Remote Ordering tickets. Dine-in tables stay untouched.\n\n`
+          : `Remote Ordering stays untouched.\n\n`) +
+        `This archives ${openOrders.length} order(s) under ${waiterName}, marks tickets completed, resets the bill, and releases ${isRemoteClear ? "remote prep" : "every member table"}.`
     );
     if (!confirmed) return;
 
@@ -3922,7 +4568,7 @@ export default function App() {
     try {
       if (openOrders.length > 0) {
         const sitting = buildSittingFromOrders({
-          tableId,
+          tableId: primaryTableId,
           waiterName,
           waiterStaffId: waiterProfile?.id,
           clearedBy: activeStaffProfile?.name || waiterName,
@@ -3936,7 +4582,7 @@ export default function App() {
             const detailHistory = {
               sittingId: sitting.id,
               orderId: sitting.id,
-              tableId,
+              tableId: primaryTableId,
               itemsCount: sitting.itemCount,
               prepTimeSeconds: 0,
               deliveryTimeSeconds: 0,
@@ -3958,51 +4604,78 @@ export default function App() {
         await Promise.all(openOrders.map((order) => updateSharedOrderStatus(order.id, "Completed")));
       }
 
-      const billKey = `roco_master_bill_${tableId}`;
-      localStorage.removeItem(billKey);
-      localStorage.removeItem(`roco_session_members_${tableId}`);
-      if (String(currentTableId) === String(tableId)) {
+      memberTableIds.forEach((memberId) => {
+        localStorage.removeItem(`roco_master_bill_${memberId}`);
+        localStorage.removeItem(`roco_session_members_${memberId}`);
+      });
+      if (memberTableIds.includes(String(currentTableId))) {
         setMasterBillItems([]);
         setSessionMembers([]);
         setHistoricOrders([]);
       }
 
-      setTablesState((prev) => ({ ...prev, [tableId]: "Available" }));
-      const clearedAlerts = { ...tableAlerts, [String(tableId)]: false };
+      setTablesState((prev) => {
+        const next = { ...prev };
+        memberTableIds.forEach((memberId) => {
+          next[memberId] = "Available";
+        });
+        return next;
+      });
+      const clearedAlerts = {
+        ...tableAlerts,
+        ...Object.fromEntries(memberTableIds.map((memberId) => [memberId, false])),
+      };
       await persistTableAlerts(clearedAlerts);
-      if (tableId === currentTableId) {
+      if (!isRemoteClear) {
+        await closeTableParty(memberTableIds);
+      }
+      if (memberTableIds.includes(String(currentTableId))) {
         setWaiterSummoned(false);
       }
 
-      const openRequests = serviceRequests.filter(
-        (r) => String(r.tableId) === String(tableId) && r.status !== "DONE"
-      );
+      const openRequests = serviceRequests.filter((r) => {
+        if (r.status === "DONE") return false;
+        if (isRemoteClear) return String(r.tableId) === REMOTE_TABLE_ID;
+        if (String(r.tableId) === REMOTE_TABLE_ID) return false;
+        return memberTableIds.includes(String(r.tableId)) || r.partyId === service?.partyId;
+      });
       await Promise.all(
         openRequests.map((r) => updateDoc(doc(db, "service_requests", r.id), { status: "DONE" }))
       );
 
-      setChatMessages((prev) => prev.filter((m) => String(m.tableId) !== String(tableId)));
+      setChatMessages((prev) =>
+        prev.filter((m) => !memberTableIds.includes(String(m.tableId)))
+      );
 
       const nextAssignments = { ...tableWaiterAssignments };
-      delete nextAssignments[tableId];
+      memberTableIds.forEach((memberId) => delete nextAssignments[memberId]);
       await persistTableAssignments(nextAssignments);
 
       triggerToast(
         openOrders.length > 0
-          ? `${formatTableLabel(tableId)} cleared — sitting saved to ${waiterName}'s record.`
-          : `${formatTableLabel(tableId)} cleared and ready for a new party.`,
+          ? `${formatTableLabel(primaryTableId)} cleared — sitting saved to ${waiterName}'s record.`
+          : `${formatTableLabel(primaryTableId)} cleared and ready for a new party.`,
         "success"
       );
       setSelectedStaffTable(null);
 
-      const stillOpenElsewhere = sharedStaffOrders.some(
-        (order) => String(order.tableId) !== String(tableId) && order.status !== "Completed"
-      );
-      const allOtherTablesAvailable = ROCO_TABLES.every(
-        (table) => table.id === tableId || (tablesState[table.id] || "Available") === "Available"
-      );
-      if (!stillOpenElsewhere && allOtherTablesAvailable) {
-        await handleClearAllTableAssignments();
+      // End-of-floor cleanup only looks at dine-in tables — remote is a separate lane.
+      if (!isRemoteClear) {
+        const dineInTables = ROCO_TABLES.filter((table) => table.id !== REMOTE_TABLE_ID);
+        const stillOpenElsewhere = sharedStaffOrders.some(
+          (order) =>
+            order.status !== "Completed" &&
+            String(order.tableId) !== REMOTE_TABLE_ID &&
+            !memberTableIds.includes(String(order.tableId))
+        );
+        const allOtherDineInAvailable = dineInTables.every(
+          (table) =>
+            memberTableIds.includes(table.id) ||
+            (tablesState[table.id] || "Available") === "Available"
+        );
+        if (!stillOpenElsewhere && allOtherDineInAvailable) {
+          await handleClearAllTableAssignments();
+        }
       }
     } catch (error) {
       console.error("[ROCO] Clear table failed:", error);
@@ -4011,11 +4684,64 @@ export default function App() {
   };
 
   const handleClearAllTableAssignments = async () => {
-    const allTablesAvailable = ROCO_TABLES.every((table) => (tablesState[table.id] || "Available") === "Available");
-    const noOpenOrders = sharedStaffOrders.every((order) => order.status === "Completed");
-    if (!allTablesAvailable || !noOpenOrders) return;
-    if (Object.keys(tableWaiterAssignments).length === 0) return;
-    await persistTableAssignments({});
+    const dineInTables = ROCO_TABLES.filter((table) => table.id !== REMOTE_TABLE_ID);
+    const allDineInAvailable = dineInTables.every(
+      (table) => (tablesState[table.id] || "Available") === "Available"
+    );
+    const noOpenDineInOrders = sharedStaffOrders.every(
+      (order) =>
+        order.status === "Completed" || String(order.tableId) === REMOTE_TABLE_ID
+    );
+    if (!allDineInAvailable || !noOpenDineInOrders) return;
+
+    const nextAssignments = { ...tableWaiterAssignments };
+    const hadDineIn = dineInTables.some((table) => !!nextAssignments[table.id]);
+    if (!hadDineIn) return;
+    dineInTables.forEach((table) => delete nextAssignments[table.id]);
+    // Preserve Remote Ordering assignment — it is not part of the floor rotation.
+    await persistTableAssignments(nextAssignments);
+  };
+
+  const handleResetTableAssignments = async () => {
+    const dineInAssignedCount = Object.keys(tableWaiterAssignments).filter(
+      (tableId) => tableId !== REMOTE_TABLE_ID
+    ).length;
+    if (dineInAssignedCount === 0) {
+      triggerToast("No dine-in table assignments to reset.", "info");
+      return;
+    }
+    const confirmed = window.confirm(
+      `Reset all dine-in waiter table assignments (${dineInAssignedCount})?\n\n` +
+        `Remote Ordering stays assigned. Floor tables stay as they are — only dine-in coverage ownership clears.`
+    );
+    if (!confirmed) return;
+    playBeep(320, "sine", 0.08);
+    const nextAssignments = { ...tableWaiterAssignments };
+    const remoteWaiter = nextAssignments[REMOTE_TABLE_ID];
+    ROCO_TABLES.filter((table) => table.id !== REMOTE_TABLE_ID).forEach((table) => {
+      delete nextAssignments[table.id];
+    });
+    if (remoteWaiter) nextAssignments[REMOTE_TABLE_ID] = remoteWaiter;
+    else delete nextAssignments[REMOTE_TABLE_ID];
+    await persistTableAssignments(nextAssignments);
+    await Promise.all(
+      (Object.values(tableServices) as TableServiceRecord[])
+        .filter(
+          (service: TableServiceRecord) =>
+            service.active &&
+            !!service.assignedStaffName &&
+            String(service.tableId) !== REMOTE_TABLE_ID
+        )
+        .map((service: TableServiceRecord) =>
+          upsertTableService({
+            ...service,
+            assignedStaffId: undefined,
+            assignedStaffName: undefined,
+            updatedAt: Date.now(),
+          })
+        )
+    );
+    triggerToast("Dine-in table assignments cleared. Remote Ordering left intact.", "success");
   };
 
   const handleCopyPilotSummary = (order: StaffOrderRecord) => {
@@ -4162,6 +4888,18 @@ export default function App() {
     setIsAdminUnlocked(false);
     localStorage.removeItem("roco_admin_unlocked");
     triggerToast("Shift successfully ended. Stand down, Roco Crew!", "info");
+  };
+
+  const handleDownloadTrainingManual = async () => {
+    playBeep(620, "sine", 0.06);
+    triggerToast("Building branded training PDF…", "info");
+    try {
+      await downloadTrainingManualPdf();
+      triggerToast("Training manual downloaded — ready for your first session.", "success");
+    } catch (error) {
+      console.error("[ROCO] Training PDF export failed:", error);
+      triggerToast("Could not export the training PDF. Try again.", "info");
+    }
   };
 
   // --- Add to Cart ---
@@ -4399,14 +5137,38 @@ export default function App() {
 
     const maxPrepSeconds = getOrderPrepSeconds(cart);
 
+    const tableService =
+      activeTableId !== REMOTE_TABLE_ID && tableServices[activeTableId]?.active
+        ? tableServices[activeTableId]
+        : null;
+    const orderTableId = tableService?.primaryTableId || activeTableId;
     const assignedWaiterName = activeTableId
-      ? (tableWaiterAssignments[activeTableId] || getNextAvailableWaiter(tableWaiterAssignments)?.name || "")
+      ? (
+          tableService?.assignedStaffName ||
+          tableWaiterAssignments[activeTableId] ||
+          getNextAvailableWaiter(tableWaiterAssignments)?.name ||
+          ""
+        )
       : "";
 
     if (activeTableId && !tableWaiterAssignments[activeTableId] && assignedWaiterName) {
-      persistTableAssignments({
+      void persistTableAssignments({
         ...tableWaiterAssignments,
         [activeTableId]: assignedWaiterName
+      });
+    }
+
+    let partyId = tableService?.partyId;
+    if (activeTableId !== REMOTE_TABLE_ID && !tableService) {
+      partyId = createPartyId(activeTableId);
+      const waiter = staffProfiles.find((profile) => profile.name === assignedWaiterName);
+      void savePartyAcrossTables({
+        partyId,
+        primaryTableId: activeTableId,
+        memberTableIds: [activeTableId],
+        covers: 0,
+        assignedStaffId: waiter?.id,
+        assignedStaffName: assignedWaiterName,
       });
     }
 
@@ -4431,7 +5193,9 @@ export default function App() {
     const claimCode = isRemoteTable ? generateClaimCode() : undefined;
     const staffOrder = buildStaffOrderRecord({
       order: newOrder,
-      tableId: activeTableId,
+      tableId: orderTableId,
+      physicalTableId: activeTableId,
+      partyId,
       assignedStaffId: assignedWaiterProfile?.id,
       assignedStaffName: assignedWaiterName,
       orderedBy: isRemoteTable ? guestLabel : undefined,
@@ -4761,13 +5525,21 @@ export default function App() {
     });
     const note = formatBillRequestStaffSummary(billDetails);
 
-    const waiter = tableWaiterAssignments[currentTableId] || getNextAvailableWaiter(tableWaiterAssignments)?.name || "";
+    const tableService =
+      tableServices[currentTableId]?.active ? tableServices[currentTableId] : null;
+    const requestTableId = tableService?.primaryTableId || currentTableId;
+    const waiter =
+      tableService?.assignedStaffName ||
+      tableWaiterAssignments[currentTableId] ||
+      getNextAvailableWaiter(tableWaiterAssignments)?.name ||
+      "";
     const assignedProfile = staffProfiles.find(profile => profile.name === waiter);
     const requestId = `req-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     const payload = omitUndefined({
       id: requestId,
       type: "BILL" as const,
-      tableId: currentTableId,
+      tableId: requestTableId,
+      partyId: tableService?.partyId,
       status: "OPEN" as const,
       createdAt: Date.now(),
       assignedStaffId: assignedProfile?.id,
@@ -11624,7 +12396,29 @@ export default function App() {
             <div className={`flex-1 min-h-0 overflow-y-auto ${staffWorkspace === "tables" ? "p-0" : "p-4 md:p-6 pt-4"}`}>
             {staffWorkspace === "overview" && (
               <div className="grid xl:grid-cols-2 gap-4">
-                <div className="bg-[#1C1C1E] border border-zinc-800 rounded-3xl p-5">
+                <div className="xl:col-span-2 rounded-3xl border-2 border-[#E78A3E] bg-gradient-to-r from-black via-[#1C1C1E] to-black p-5 flex flex-col sm:flex-row sm:items-center gap-4">
+                  <div className="flex items-start gap-3 flex-1 min-w-0">
+                    <div className="w-12 h-12 rounded-2xl bg-[#E78A3E] text-black flex items-center justify-center shrink-0">
+                      <BookOpen className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <p className="text-[#E78A3E] text-[10px] font-mono font-black uppercase tracking-widest">First training session</p>
+                      <h3 className="text-white font-black uppercase text-base mt-0.5">Staff & Admin Training Manual</h3>
+                      <p className="text-zinc-400 text-xs mt-1 max-w-xl">
+                        Branded PDF with guest journey, floor ops, remote claim passes, bills, and 50 live scenarios. Download and share with the crew.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => { void handleDownloadTrainingManual(); }}
+                    className="px-5 py-3 rounded-2xl bg-[#E78A3E] text-black font-black uppercase text-xs flex items-center justify-center gap-2 shrink-0 hover:brightness-110 transition-all"
+                  >
+                    <Download className="w-4 h-4" />
+                    Download PDF
+                  </button>
+                </div>
+                <div className="xl:col-span-2 bg-[#1C1C1E] border border-zinc-800 rounded-3xl p-5">
                   <h3 className="text-white font-black uppercase text-sm mb-4">Next actions</h3>
                   <div className="space-y-3">
                     {serviceRequests.filter(request => request.status !== "DONE").slice(0, 5).map(request => (
@@ -11670,22 +12464,59 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="bg-[#1C1C1E] border border-zinc-800 rounded-3xl p-5">
-                  <h3 className="text-white font-black uppercase text-sm mb-4">Table coverage</h3>
-                  <div className="space-y-3">
-                    {ROCO_TABLES.map(table => (
-                      <div key={table.id} className="rounded-2xl bg-black/50 border border-zinc-800 p-4 flex items-center justify-between gap-3">
-                        <div>
-                          <p className="text-white font-bold uppercase text-sm">{formatTableLabel(table.id)}</p>
-                          <p className="text-zinc-500 text-xs">{table.name} • {tablesState[table.id] || "Available"}</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-[#FF5A00] text-xs font-black uppercase">{tableWaiterAssignments[table.id] || "Unassigned"}</p>
-                          <p className="text-zinc-500 text-[11px]">{sharedStaffOrders.filter(order => order.tableId === table.id && order.status !== "Completed").length} open orders</p>
-                        </div>
-                      </div>
-                    ))}
+                <div className="xl:col-span-2 bg-[#1C1C1E] border border-zinc-800 rounded-3xl p-5">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+                    <div>
+                      <h3 className="text-white font-black uppercase text-sm">Floor coverage</h3>
+                      <p className="text-[10px] text-zinc-500 mt-1 max-w-xl">
+                        Live floor plan — assigned waiters pulse green with initials. Red = waiter call, orange = open orders, purple = bill.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => { void handleResetTableAssignments(); }}
+                      className="px-4 py-2.5 rounded-xl bg-black border border-[#E78A3E] text-[#E78A3E] text-[10px] font-black uppercase flex items-center justify-center gap-2 shrink-0 hover:bg-[#E78A3E] hover:text-black transition-colors"
+                    >
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      Reset table assignments
+                    </button>
                   </div>
+                  <StaffFloorBlueprint
+                    selectedTableId={selectedStaffTable}
+                    tablesState={tablesState}
+                    tableWaiterAssignments={tableWaiterAssignments}
+                    tableServices={tableServices}
+                    tableNotifications={Object.fromEntries(
+                      ROCO_TABLES.map((t) => {
+                        const service = tableServices[t.id]?.active ? tableServices[t.id] : null;
+                        const reqs = serviceRequests.filter(
+                          (r) =>
+                            r.status !== "DONE" &&
+                            (r.tableId === t.id ||
+                              (!!service &&
+                                (r.partyId === service.partyId ||
+                                  service.memberTableIds.includes(String(r.tableId)))))
+                        );
+                        return [
+                          t.id,
+                          {
+                            openOrders: sharedStaffOrders.filter(
+                              (o) =>
+                                o.status !== "Completed" &&
+                                (o.tableId === t.id ||
+                                  (!!service &&
+                                    (o.partyId === service.partyId ||
+                                      service.memberTableIds.includes(String(o.tableId)))))
+                            ).length,
+                            waiterCalls: reqs.filter((r) => r.type === "WAITER").length,
+                            billRequests: reqs.filter((r) => r.type === "BILL").length,
+                            hasAlert: !!tableAlerts[t.id]
+                          }
+                        ];
+                      })
+                    )}
+                    onTableSelect={handleOpenStaffTable}
+                  />
                 </div>
               </div>
             )}
@@ -11836,13 +12667,29 @@ export default function App() {
                     selectedTableId={selectedStaffTable}
                     tablesState={tablesState}
                     tableWaiterAssignments={tableWaiterAssignments}
+                    tableServices={tableServices}
                     tableNotifications={Object.fromEntries(
                       ROCO_TABLES.map((t) => {
-                        const reqs = serviceRequests.filter((r) => r.tableId === t.id && r.status !== "DONE");
+                        const service = tableServices[t.id]?.active ? tableServices[t.id] : null;
+                        const reqs = serviceRequests.filter(
+                          (r) =>
+                            r.status !== "DONE" &&
+                            (r.tableId === t.id ||
+                              (!!service &&
+                                (r.partyId === service.partyId ||
+                                  service.memberTableIds.includes(String(r.tableId)))))
+                        );
                         return [
                           t.id,
                           {
-                            openOrders: sharedStaffOrders.filter((o) => o.tableId === t.id && o.status !== "Completed").length,
+                            openOrders: sharedStaffOrders.filter(
+                              (o) =>
+                                o.status !== "Completed" &&
+                                (o.tableId === t.id ||
+                                  (!!service &&
+                                    (o.partyId === service.partyId ||
+                                      service.memberTableIds.includes(String(o.tableId)))))
+                            ).length,
                             waiterCalls: reqs.filter((r) => r.type === "WAITER").length,
                             billRequests: reqs.filter((r) => r.type === "BILL").length,
                             hasAlert: !!tableAlerts[t.id]
@@ -12077,6 +12924,14 @@ export default function App() {
                     <button type="button" onClick={() => openQrPrintSheet(false)} className="px-4 py-3 rounded-2xl bg-zinc-900 border border-zinc-800 text-zinc-300 font-black uppercase text-xs">
                       Print QR cards
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => { void handleDownloadTrainingManual(); }}
+                      className="px-4 py-3 rounded-2xl bg-black border border-[#E78A3E] text-[#E78A3E] font-black uppercase text-xs flex items-center gap-2"
+                    >
+                      <BookOpen className="w-3.5 h-3.5" />
+                      Download training PDF
+                    </button>
                   </div>
                   <h3 className="text-white font-black uppercase text-sm pt-2">Reset my PIN</h3>
                   <input value={staffResetCurrentPin} onChange={(e) => setStaffResetCurrentPin(e.target.value)} placeholder="Current PIN" className="w-full bg-[#121212] border border-zinc-800 rounded-xl px-3 py-3 text-white" />
@@ -12085,7 +12940,19 @@ export default function App() {
                 </div>
 
                 <div className="bg-[#1C1C1E] border border-zinc-800 rounded-3xl p-5 space-y-4">
-                  <h3 className="text-white font-black uppercase text-sm">Go-live notes</h3>
+                  <h3 className="text-white font-black uppercase text-sm">Training pack</h3>
+                  <p className="text-sm text-zinc-400">
+                    Export the full branded manual for your first training session — cover stamp logo, guest journey, staff loop, admin tools, and all 50 scenarios.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => { void handleDownloadTrainingManual(); }}
+                    className="w-full px-4 py-4 rounded-2xl bg-[#E78A3E] text-black font-black uppercase text-sm flex items-center justify-center gap-2"
+                  >
+                    <Download className="w-4 h-4" />
+                    Download training manual (PDF)
+                  </button>
+                  <h3 className="text-white font-black uppercase text-sm pt-2">Go-live notes</h3>
                   <ul className="space-y-2 text-sm text-zinc-400">
                     <li>- Orders are processed manually by staff.</li>
                     <li>- Guests can request the bill from the app.</li>
@@ -12103,10 +12970,24 @@ export default function App() {
         <AnimatePresence>
           {selectedStaffTable !== null && appMode === "STAFF" && (() => {
             const tableId = selectedStaffTable;
-            const tableStaffOrders = sharedStaffOrders.filter((order) => String(order.tableId) === String(tableId));
+            const tableService = getActiveTableService(tableId);
+            const serviceMemberIds = tableService?.memberTableIds || [tableId];
+            const primaryTableId = tableService?.primaryTableId || tableId;
+            const tableStaffOrders = sharedStaffOrders.filter(
+              (order) =>
+                String(order.tableId) === String(primaryTableId) ||
+                (!!tableService &&
+                  (order.partyId === tableService.partyId ||
+                    serviceMemberIds.includes(String(order.tableId))))
+            );
             const tableActiveOrders = tableStaffOrders.filter((order) => order.status !== "Completed");
             const tableSittingsForTable = tableSittings.filter((s) => String(s.tableId) === String(tableId));
-            const tableRequests = serviceRequests.filter(r => r.tableId === tableId && r.status !== "DONE");
+            const tableRequests = serviceRequests.filter(
+              (request) =>
+                request.status !== "DONE" &&
+                (serviceMemberIds.includes(String(request.tableId)) ||
+                  request.partyId === tableService?.partyId)
+            );
             const tableChat = chatMessages.filter(m => String(m.tableId) === String(tableId));
             const hasAlert = tableId === currentTableId ? waiterSummoned : tableAlerts[tableId];
             const hasActiveOrders = tableStaffOrders.some(o => o.status === "Sent" || o.status === "Preparing" || o.status === "Ready");
@@ -12118,6 +12999,16 @@ export default function App() {
               )
             );
             const isRemoteStaffTable = String(tableId) === REMOTE_TABLE_ID;
+            const manualMenuMatches = menuItems
+              .filter((item) => {
+                const query = staffManualOrderSearch.trim().toLowerCase();
+                return (
+                  !query ||
+                  item.name.toLowerCase().includes(query) ||
+                  (item.description || "").toLowerCase().includes(query)
+                );
+              })
+              .slice(0, 24);
 
             return (
               <>
@@ -12131,7 +13022,11 @@ export default function App() {
                   <div className="p-4 bg-black border-b border-[#E78A3E] flex justify-between items-center gap-3">
                     <div>
                       <h3 className="font-display font-black text-[#E78A3E] text-lg uppercase">{formatTableLabel(tableId)}</h3>
-                      <p className="text-[10px] font-mono text-white uppercase">{tablesState[tableId] || "Available"} • {tableWaiterAssignments[tableId] || "Unassigned"}</p>
+                      <p className="text-[10px] font-mono text-white uppercase">
+                        {tablesState[tableId] || "Available"} • {tableService?.assignedStaffName || tableWaiterAssignments[tableId] || "Unassigned"}
+                        {tableService ? ` • ${tableService.covers || "?"} covers` : ""}
+                        {serviceMemberIds.length > 1 ? ` • ${serviceMemberIds.length} tables combined` : ""}
+                      </p>
                     </div>
                     <button type="button" onClick={() => setSelectedStaffTable(null)} className="p-2 bg-zinc-900 border border-zinc-800 text-zinc-300 rounded-lg"><X className="w-4 h-4" /></button>
                   </div>
@@ -12181,14 +13076,195 @@ export default function App() {
                     <div>
                       <label className="text-[10px] font-mono uppercase text-zinc-600 font-black">Assigned waiter</label>
                       <select
-                        value={tableWaiterAssignments[tableId] || ""}
-                        onChange={async (e) => persistTableAssignments({ ...tableWaiterAssignments, [tableId]: e.target.value })}
+                        value={tableService?.assignedStaffName || tableWaiterAssignments[tableId] || ""}
+                        onChange={(e) => {
+                          void handleAssignTableWithCovers(tableId, e.target.value);
+                        }}
                         className="w-full mt-1 bg-white border border-zinc-300 rounded-xl px-3 py-2.5 text-sm"
                       >
                         <option value="">Unassigned</option>
                         {staffProfiles.filter(p => p.onShift).map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
                       </select>
                     </div>
+
+                    {!isRemoteStaffTable && (
+                      <div className={`rounded-xl border p-3 ${tableService?.covers ? "border-[#E78A3E]/50 bg-[#E78A3E]/10" : "border-red-300 bg-red-50"}`}>
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-[10px] font-mono uppercase tracking-widest font-black">
+                              Workload covers
+                            </p>
+                            <p className="text-sm font-black mt-0.5">
+                              {tableService?.covers
+                                ? `${tableService.covers} guest${tableService.covers === 1 ? "" : "s"}`
+                                : "Guest count required"}
+                            </p>
+                            <p className="text-[10px] text-zinc-600 mt-1">
+                              Cover count, open tickets and bill requests determine who is offered the next table.
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              void handleUpdateTableCovers(tableId);
+                            }}
+                            className="shrink-0 px-3 py-2 rounded-lg bg-[#E78A3E] text-black text-[10px] font-black uppercase"
+                          >
+                            {tableService?.covers ? "Edit covers" : "Set covers"}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {!isRemoteStaffTable && (
+                      <div className="rounded-xl border-2 border-black overflow-hidden">
+                        <div className="bg-black text-white px-3 py-2 flex items-center justify-between gap-2">
+                          <div>
+                            <h4 className="text-xs font-black uppercase text-[#E78A3E]">Waiter order</h4>
+                            <p className="text-[9px] font-mono uppercase">For guests who have not scanned</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setStaffManualOrderOpen((open) => !open)}
+                            className="px-3 py-1.5 rounded-lg bg-[#E78A3E] text-black text-[10px] font-black uppercase"
+                          >
+                            {staffManualOrderOpen ? "Close" : "Add order"}
+                          </button>
+                        </div>
+                        {staffManualOrderOpen && (
+                          <div className="p-3 space-y-3 bg-white">
+                            <input
+                              value={staffManualOrderSearch}
+                              onChange={(event) => setStaffManualOrderSearch(event.target.value)}
+                              placeholder="Search food or drinks..."
+                              className="w-full bg-white border border-zinc-300 focus:border-[#E78A3E] focus:ring-2 focus:ring-[#E78A3E]/30 rounded-xl px-3 py-2.5 text-sm text-black"
+                            />
+                            <div className="max-h-52 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                              {manualMenuMatches.map((item) => (
+                                <button
+                                  key={item.id}
+                                  type="button"
+                                  onClick={() => handleAddManualOrderItem(item)}
+                                  className="text-left rounded-lg border border-zinc-200 p-2 hover:border-[#E78A3E] transition-colors"
+                                >
+                                  <span className="block text-xs font-black">{item.name}</span>
+                                  <span className="text-[10px] font-mono text-zinc-600">R{item.price.toFixed(2)} • Tap to add</span>
+                                </button>
+                              ))}
+                            </div>
+                            {staffManualOrderCart.length > 0 && (
+                              <div className="rounded-xl bg-zinc-100 p-3 space-y-2">
+                                {staffManualOrderCart.map((entry) => (
+                                  <div key={entry.menuItem.id} className="flex items-center justify-between gap-2 text-xs">
+                                    <span className="font-bold">{entry.quantity}× {entry.menuItem.name}</span>
+                                    <div className="flex items-center gap-1">
+                                      <button type="button" onClick={() => setStaffManualOrderCart((prev) => prev.map((item) => item.menuItem.id === entry.menuItem.id ? { ...item, quantity: Math.max(0, item.quantity - 1) } : item).filter((item) => item.quantity > 0))} className="w-7 h-7 rounded bg-white border border-zinc-300 font-black">−</button>
+                                      <button type="button" onClick={() => handleAddManualOrderItem(entry.menuItem)} className="w-7 h-7 rounded bg-[#E78A3E] text-black font-black">+</button>
+                                    </div>
+                                  </div>
+                                ))}
+                                <textarea
+                                  value={staffManualOrderNotes}
+                                  onChange={(event) => setStaffManualOrderNotes(event.target.value)}
+                                  placeholder="Kitchen notes or allergies..."
+                                  className="w-full min-h-16 bg-white border border-zinc-300 rounded-lg px-3 py-2 text-xs"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    void handleSubmitStaffManualOrder(tableId);
+                                  }}
+                                  className="w-full py-3 rounded-xl bg-[#E78A3E] text-black font-black uppercase text-xs"
+                                >
+                                  Send {staffManualOrderCart.reduce((sum, entry) => sum + entry.quantity, 0)} item(s) • R{staffManualOrderCart.reduce((sum, entry) => sum + entry.menuItem.price * entry.quantity, 0).toFixed(2)}
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {!isRemoteStaffTable && (
+                      <div className="rounded-xl border border-zinc-300 p-3 space-y-3">
+                        <div>
+                          <h4 className="font-black uppercase text-xs">Move this party</h4>
+                          <p className="text-[10px] text-zinc-600">Moves orders, bill requests and waiter ownership to an empty table.</p>
+                        </div>
+                        <div className="flex gap-2">
+                          <select
+                            value={staffMoveTarget}
+                            onChange={(event) => setStaffMoveTarget(event.target.value)}
+                            className="flex-1 bg-white border border-zinc-300 rounded-lg px-3 py-2 text-xs"
+                          >
+                            <option value="">Choose empty table…</option>
+                            {ROCO_TABLES.filter(
+                              (table) =>
+                                table.id !== REMOTE_TABLE_ID &&
+                                !serviceMemberIds.includes(table.id) &&
+                                !getActiveTableService(table.id)
+                            ).map((table) => (
+                              <option key={table.id} value={table.id}>{formatTableLabel(table.id)}</option>
+                            ))}
+                          </select>
+                          <button type="button" onClick={() => { void handleMoveCurrentTable(tableId); }} className="px-3 py-2 rounded-lg bg-black text-[#E78A3E] border border-[#E78A3E] text-[10px] font-black uppercase">Move</button>
+                        </div>
+
+                        <div className="border-t border-zinc-200 pt-3">
+                          <h4 className="font-black uppercase text-xs">Combine physical tables</h4>
+                          <p className="text-[10px] text-zinc-600 mb-2">
+                            Tap tables on the floor plan to add them. Lead stays {formatTableLabel(tableId)}. Remote Ordering is excluded.
+                          </p>
+                          <StaffFloorBlueprint
+                            mode="combine"
+                            compact
+                            hideRemote
+                            selectedTableId={tableId}
+                            multiSelectedIds={[
+                              ...serviceMemberIds.filter((id) => id !== tableId),
+                              ...staffCombineTables,
+                            ]}
+                            disabledTableIds={ROCO_TABLES.filter((table) => {
+                              if (table.id === REMOTE_TABLE_ID) return true;
+                              if (serviceMemberIds.includes(table.id)) return false;
+                              const other = getActiveTableService(table.id);
+                              return !!other && other.partyId !== tableService?.partyId;
+                            }).map((table) => table.id)}
+                            tablesState={tablesState}
+                            tableWaiterAssignments={tableWaiterAssignments}
+                            tableServices={tableServices}
+                            tableNotifications={Object.fromEntries(
+                              ROCO_TABLES.map((t) => [
+                                t.id,
+                                {
+                                  openOrders: 0,
+                                  waiterCalls: 0,
+                                  billRequests: 0,
+                                  hasAlert: false,
+                                },
+                              ])
+                            )}
+                            onTableSelect={(pickedId) => {
+                              if (pickedId === tableId || pickedId === REMOTE_TABLE_ID) return;
+                              if (serviceMemberIds.includes(pickedId)) return;
+                              setStaffCombineTables((prev) =>
+                                prev.includes(pickedId)
+                                  ? prev.filter((id) => id !== pickedId)
+                                  : [...prev, pickedId]
+                              );
+                            }}
+                          />
+                          {staffCombineTables.length > 0 && (
+                            <p className="text-[10px] font-mono text-zinc-600 mt-2">
+                              Combining: {formatTableShort(tableId)} + {staffCombineTables.map(formatTableShort).join(" + ")}
+                            </p>
+                          )}
+                          <button type="button" onClick={() => { void handleCombineCurrentTables(tableId); }} className="w-full mt-2 py-2.5 rounded-lg bg-[#E78A3E] text-black text-[10px] font-black uppercase">
+                            Combine {staffCombineTables.length + 1} tables
+                          </button>
+                        </div>
+                      </div>
+                    )}
 
                     <div className="rounded-xl border border-zinc-200 p-3">
                       <div className="flex items-center justify-between mb-2">
@@ -12374,28 +13450,69 @@ export default function App() {
           open={isClaimScannerOpen}
           onClose={() => setIsClaimScannerOpen(false)}
           onResolved={({ orderId, claimCode }) => {
-            const candidateOrders = sharedStaffOrders.filter(
-              (order) => String(order.tableId) === REMOTE_TABLE_ID && order.status !== "Completed"
-            );
-            const match = orderId
-              ? candidateOrders.find((order) => order.id === orderId) ||
-                candidateOrders.find((order) => order.claimCode === claimCode)
-              : candidateOrders.find((order) => order.claimCode === claimCode);
+            void (async () => {
+              const code = String(claimCode || "").trim();
+              const candidateOrders = sharedStaffOrders.filter(
+                (order) =>
+                  String(order.tableId) === REMOTE_TABLE_ID &&
+                  order.status !== "Completed" &&
+                  order.status !== "Paid"
+              );
 
-            if (!match) {
-              playBeep(180, "sawtooth", 0.25);
-              triggerToast("Invalid or expired claim code.", "info");
-              return;
-            }
+              const match = orderId
+                ? candidateOrders.find((order) => order.id === orderId) ||
+                  candidateOrders.find((order) => String(order.claimCode) === code)
+                : candidateOrders.find((order) => String(order.claimCode) === code);
 
-            const nextStatus: HistoricOrder["status"] = match.status === "Ready" ? "Served" : "Ready";
-            void updateSharedOrderStatus(match.id, nextStatus);
-            updateDoc(doc(db, "staff_orders", match.id), { claimVerifiedAt: Date.now() }).catch((error) =>
-              console.error("[ROCO] Failed to record claim verification:", error)
-            );
-            playBeep(660, "sine", 0.1);
-            triggerToast(`Claim verified for ${match.orderedBy || "guest"} • order marked ${nextStatus}.`, "success");
-            setIsClaimScannerOpen(false);
+              if (!match) {
+                playBeep(180, "sawtooth", 0.25);
+                triggerToast(
+                  code
+                    ? `No open remote order for claim ${code}. Ask guest to re-open their pass.`
+                    : "Invalid or expired claim code.",
+                  "info"
+                );
+                setIsClaimScannerOpen(false);
+                return;
+              }
+
+              const nextStatus: HistoricOrder["status"] =
+                match.status === "Ready" || match.status === "Preparing" || match.status === "Sent"
+                  ? "Served"
+                  : match.status === "Served"
+                    ? "Served"
+                    : "Ready";
+
+              try {
+                await updateSharedOrderStatus(match.id, nextStatus);
+                await updateDoc(doc(db, "staff_orders", match.id), {
+                  claimVerifiedAt: Date.now(),
+                  status: nextStatus,
+                  updatedAt: Date.now(),
+                });
+                // Optimistic local sync so Orders / Floor update immediately on this device
+                setSharedStaffOrders((prev) =>
+                  prev.map((order) =>
+                    order.id === match.id
+                      ? { ...order, status: nextStatus, claimVerifiedAt: Date.now(), updatedAt: Date.now() }
+                      : order
+                  )
+                );
+                playBeep(660, "sine", 0.1);
+                triggerToast(
+                  `Claim ${match.claimCode || code} verified • ${match.orderedBy || "guest"} • ${nextStatus}`,
+                  "success"
+                );
+                setIsClaimScannerOpen(false);
+                setStaffWorkspace("orders");
+                setHighlightKitchenOrders(true);
+                setTimeout(() => setHighlightKitchenOrders(false), 4000);
+              } catch (error) {
+                console.error("[ROCO] Claim verification failed:", error);
+                triggerToast("Could not update order after claim scan. Try again.", "info");
+                setIsClaimScannerOpen(false);
+              }
+            })();
           }}
         />
 

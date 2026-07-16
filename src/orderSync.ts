@@ -18,6 +18,11 @@ export type StaffOrderRecord = {
   isRemoteGroupOrder?: boolean;
   claimCode?: string;
   claimVerifiedAt?: number;
+  partyId?: string;
+  physicalTableId?: string;
+  orderSource?: "GUEST" | "STAFF";
+  enteredByStaffId?: string;
+  enteredByStaffName?: string;
   timerDuration?: number;
   timerRemaining?: number;
   timerExpired?: boolean;
@@ -43,8 +48,27 @@ export function buildStaffOrderRecord(input: {
   groupRoundId?: string;
   isRemoteGroupOrder?: boolean;
   claimCode?: string;
+  partyId?: string;
+  physicalTableId?: string;
+  orderSource?: "GUEST" | "STAFF";
+  enteredByStaffId?: string;
+  enteredByStaffName?: string;
 }): StaffOrderRecord {
-  const { order, tableId, assignedStaffId, assignedStaffName, orderedBy, groupRoundId, isRemoteGroupOrder, claimCode } = input;
+  const {
+    order,
+    tableId,
+    assignedStaffId,
+    assignedStaffName,
+    orderedBy,
+    groupRoundId,
+    isRemoteGroupOrder,
+    claimCode,
+    partyId,
+    physicalTableId,
+    orderSource,
+    enteredByStaffId,
+    enteredByStaffName,
+  } = input;
   return {
     id: order.id,
     timestamp: order.timestamp,
@@ -68,6 +92,11 @@ export function buildStaffOrderRecord(input: {
     groupRoundId,
     isRemoteGroupOrder,
     claimCode,
+    partyId,
+    physicalTableId: physicalTableId || tableId,
+    orderSource: orderSource || "GUEST",
+    enteredByStaffId,
+    enteredByStaffName,
   };
 }
 

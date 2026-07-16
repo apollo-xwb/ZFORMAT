@@ -13,26 +13,53 @@ export function ClaimCodeScannerModal({ open, onClose, onResolved }: Props) {
   const [manualCode, setManualCode] = useState("");
   const [error, setError] = useState("");
   const [cameraReady, setCameraReady] = useState(false);
+  const [busy, setBusy] = useState(false);
   const scannerRef = useRef<Html5Qrcode | null>(null);
-  const regionId = "roco-claim-scanner";
+  const handledRef = useRef(false);
+  const onResolvedRef = useRef(onResolved);
+  const regionIdRef = useRef(`roco-claim-scanner-${Math.random().toString(36).slice(2, 8)}`);
+  const regionId = regionIdRef.current;
+
+  onResolvedRef.current = onResolved;
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) {
+      handledRef.current = false;
+      setManualCode("");
+      setError("");
+      setBusy(false);
+      setCameraReady(false);
+      return;
+    }
+
     let cancelled = false;
+    handledRef.current = false;
     const scanner = new Html5Qrcode(regionId);
     scannerRef.current = scanner;
+
+    const finish = async (payload: { orderId: string; claimCode: string; raw: string }) => {
+      if (handledRef.current || cancelled) return;
+      handledRef.current = true;
+      setBusy(true);
+      try {
+        await scannerRef.current?.stop();
+      } catch {
+        /* ignore */
+      }
+      onResolvedRef.current(payload);
+    };
 
     scanner
       .start(
         { facingMode: "environment" },
-        { fps: 8, qrbox: { width: 240, height: 240 } },
+        { fps: 10, qrbox: { width: 240, height: 240 } },
         (decoded) => {
           const parsed = parseClaimPayload(decoded);
           if (!parsed) {
             setError("QR not recognized. Use a ROCO claim pass QR.");
             return;
           }
-          onResolved({ ...parsed, raw: decoded });
+          void finish({ ...parsed, raw: decoded });
         },
         () => undefined
       )
@@ -48,16 +75,22 @@ export function ClaimCodeScannerModal({ open, onClose, onResolved }: Props) {
 
     return () => {
       cancelled = true;
-      scanner
+      const active = scannerRef.current;
+      scannerRef.current = null;
+      if (!active) return;
+      void active
         .stop()
         .catch(() => undefined)
         .finally(() => {
-          try { scanner.clear(); } catch { /* ignore */ }
+          try {
+            active.clear();
+          } catch {
+            /* ignore */
+          }
         });
-      scannerRef.current = null;
       setCameraReady(false);
     };
-  }, [open, onResolved]);
+  }, [open, regionId]);
 
   if (!open) return null;
 
@@ -69,7 +102,7 @@ export function ClaimCodeScannerModal({ open, onClose, onResolved }: Props) {
           <div>
             <h3 className="font-display font-black text-[#E78A3E] uppercase text-sm">Verify remote claim</h3>
             <p className="text-[10px] font-mono text-white uppercase mt-1">
-              {cameraReady ? "Scan pass QR" : "Manual code entry"}
+              {busy ? "Verifying…" : cameraReady ? "Scan pass QR" : "Manual code entry"}
             </p>
           </div>
           <button type="button" onClick={onClose} className="p-2 bg-zinc-900 border border-zinc-800 text-zinc-300 rounded-lg">
@@ -88,18 +121,23 @@ export function ClaimCodeScannerModal({ open, onClose, onResolved }: Props) {
                 inputMode="numeric"
                 maxLength={4}
                 placeholder="••••"
+                disabled={busy}
                 className="flex-1 border border-zinc-300 rounded-xl px-3 py-3 text-center text-xl font-black tracking-[0.4em] text-black"
               />
               <button
                 type="button"
+                disabled={busy}
                 onClick={() => {
                   if (manualCode.length !== 4) {
                     setError("Enter all 4 digits.");
                     return;
                   }
-                  onResolved({ orderId: "", claimCode: manualCode, raw: manualCode });
+                  if (handledRef.current) return;
+                  handledRef.current = true;
+                  setBusy(true);
+                  onResolvedRef.current({ orderId: "", claimCode: manualCode, raw: manualCode });
                 }}
-                className="px-4 py-3 bg-[#E78A3E] text-black font-black uppercase text-xs rounded-xl"
+                className="px-4 py-3 bg-[#E78A3E] text-black font-black uppercase text-xs rounded-xl disabled:opacity-60"
               >
                 Verify
               </button>
