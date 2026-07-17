@@ -31,7 +31,7 @@ The accent trio (primary / secondary / tertiary) is exposed as CSS variables —
 
 ## 3. Brand Naming & Logos
 
-* **Brand Name:** Always refer to the system as **Lutho** or **Lutho OS**. No legacy brand references (RocoMamas / Staffordshire) should remain anywhere in the product.
+* **Brand Name:** Always refer to the system as **Lutho** or **Lutho OS**. No legacy or third-party brand references should remain anywhere in the product.
 * **Logo Asset:** Use the local combined logo asset: `/lutho-logo.png`.
 * **Stamp / Emblem:** Loyalty stamps and the favicon use `/lutho-stamp-logo.png`.
 

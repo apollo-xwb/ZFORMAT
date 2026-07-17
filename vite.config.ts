@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 import {defineConfig} from 'vite';
 
-// NOTE: The legacy RocoMamas build-time migration plugin has been removed.
+// NOTE: The legacy build-time branding migration plugin has been removed.
 // This is the white-labeled "Lutho" fork — branding and palette are baked
 // directly into the source, so no runtime string rewriting is required.
 
