@@ -51,7 +51,7 @@ export function listenTableServices(onData: (records: TableServiceMap) => void):
       });
       onData(next);
     },
-    (error) => console.error("[ROCO] Table service sync failed:", error)
+    (error) => console.error("[LUTHO] Table service sync failed:", error)
   );
 }
 

@@ -1,4 +1,4 @@
-# Deploy Firestore rules for the ROCO pilot database.
+# Deploy Firestore rules for the LUTHO pilot database.
 # Requires the Google account that OWNS project: gen-lang-client-0165508640
 
 $ErrorActionPreference = "Stop"

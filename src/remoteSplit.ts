@@ -6,10 +6,10 @@ export interface RemoteSplitSession {
   createdAt: number;
 }
 
-const JOINED_KEY = "roco_remote_split_joined";
+const JOINED_KEY = "lutho_remote_split_joined";
 
 function sessionKey(sessionId: string) {
-  return `roco_remote_split_${sessionId}`;
+  return `lutho_remote_split_${sessionId}`;
 }
 
 export function saveSplitSession(session: RemoteSplitSession) {
@@ -62,7 +62,7 @@ export function joinSplitSession(sessionId: string, memberName: string): RemoteS
 }
 
 export function getSplitBillStorageKey(sessionId: string) {
-  return `roco_split_master_bill_${sessionId}`;
+  return `lutho_split_master_bill_${sessionId}`;
 }
 
 export function getSplitJoinUrl(sessionId: string, tableId: string): string {

@@ -1,9 +1,9 @@
-export const ROCO_BRAND_LOGO_URL = "https://www.rocomamas.co.ke/images//logo-combined.png";
+export const LUTHO_BRAND_LOGO_URL = "/lutho-logo.png";
 /** Stamp / skull logo used on loyalty stamps (QR center art). */
-export const ROCO_STAMP_LOGO_URL =
-  "https://static-prod.dineplan.com/restaurant/restaurants/logos/logo_4118.png?d=1714983479";
+export const LUTHO_STAMP_LOGO_URL =
+  "/lutho-stamp-logo.png";
 /** Same-origin copy for canvas/print export (avoids CORS taint). */
-export const ROCO_STAMP_LOGO_LOCAL_URL = "/roco-stamp-logo.png";
+export const LUTHO_STAMP_LOGO_LOCAL_URL = "/lutho-stamp-logo.png";
 
 const canvasLogoCache = new Map<string, string>();
 
@@ -38,9 +38,9 @@ export async function resolveCanvasLogoDataUrl(src: string): Promise<string | nu
   const cached = canvasLogoCache.get(src);
   if (cached) return cached;
 
-  if (src === ROCO_STAMP_LOGO_URL) {
+  if (src === LUTHO_STAMP_LOGO_URL) {
     try {
-      const local = await loadImageElement(ROCO_STAMP_LOGO_LOCAL_URL);
+      const local = await loadImageElement(LUTHO_STAMP_LOGO_LOCAL_URL);
       const canvas = document.createElement("canvas");
       canvas.width = local.naturalWidth;
       canvas.height = local.naturalHeight;
@@ -49,7 +49,7 @@ export async function resolveCanvasLogoDataUrl(src: string): Promise<string | nu
       ctx.drawImage(local, 0, 0);
       const dataUrl = canvas.toDataURL("image/png");
       canvasLogoCache.set(src, dataUrl);
-      canvasLogoCache.set(ROCO_STAMP_LOGO_LOCAL_URL, dataUrl);
+      canvasLogoCache.set(LUTHO_STAMP_LOGO_LOCAL_URL, dataUrl);
       return dataUrl;
     } catch {
       // fall through to remote strategies
@@ -90,8 +90,8 @@ export async function loadCanvasLogoImage(src: string): Promise<HTMLImageElement
   }
 }
 
-export const QR_OVERLAY_STORAGE_KEY = "roco_qr_overlays";
-export const CUSTOM_QR_STORAGE_KEY = "roco_custom_qrs";
+export const QR_OVERLAY_STORAGE_KEY = "lutho_qr_overlays";
+export const CUSTOM_QR_STORAGE_KEY = "lutho_custom_qrs";
 
 export function readStoredQrOverlays(): Record<string, string> {
   try {

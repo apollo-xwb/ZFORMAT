@@ -10,7 +10,7 @@ export interface TableConfig {
 
 export const REMOTE_TABLE_ID = "14";
 
-export const ROCO_TABLES: TableConfig[] = [
+export const LUTHO_TABLES: TableConfig[] = [
   { id: "1", name: "Booth 1", type: "booth", capacity: 6, orientation: "vertical", row: 2, col: 2 },
   { id: "2", name: "Booth 2", type: "booth", capacity: 6, orientation: "vertical", row: 2, col: 3 },
   { id: "3", name: "Booth 3", type: "booth", capacity: 6, orientation: "vertical", row: 2, col: 4 },
@@ -40,7 +40,7 @@ export function formatTableShort(tableId: string | null | undefined): string {
 }
 
 export function getStaffOrderColor(staffName?: string): string {
-  const STAFF_ORDER_COLORS = ["#E78A3E", "#10B981", "#3B82F6", "#A855F7", "#EF4444", "#F59E0B"];
+  const STAFF_ORDER_COLORS = ["#3E5E93", "#10B981", "#3B82F6", "#A855F7", "#EF4444", "#F59E0B"];
   if (!staffName) return "#71717A";
   let hash = 0;
   for (let i = 0; i < staffName.length; i++) hash = staffName.charCodeAt(i) + ((hash << 5) - hash);

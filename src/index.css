@@ -1,10 +1,31 @@
-@import url('https://fonts.googleapis.com/css2?family=Bungee&family=Montserrat:wght@400;700;900&family=Inter:ital,wght@0,300;0,400;0,500;0,700;1,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Montserrat:wght@400;600;700;800;900&family=Inter:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&display=swap');
 @import "tailwindcss";
 
 @theme {
-  --font-display: "Twemoji Country Flags", Rocomamas, "Bungee", "Rubik Black", Impact, sans-serif;
-  --font-sub: "Twemoji Country Flags", Rocomamas, "Montserrat", sans-serif;
+  --font-display: "Twemoji Country Flags", "Space Grotesk", "Montserrat", "Rubik Black", Impact, sans-serif;
+  --font-sub: "Twemoji Country Flags", "Space Grotesk", "Montserrat", sans-serif;
   --font-sans: "Inter", sans-serif;
+}
+
+/* =====================================================================
+   LUTHO OS — WHITE-LABEL THEME ENGINE
+   Palette: creamy light beige canvas + light navy blue + silver/chrome.
+   The accent trio (primary / secondary / tertiary) is driven by CSS
+   variables so any business can retheme the whole app live from the
+   staff Theme Studio without touching a single component.
+   ===================================================================== */
+:root {
+  /* Accent trio — overridable at runtime by the Theme Studio */
+  --lutho-primary: #3E5E93;        /* light navy blue */
+  --lutho-primary-strong: #2F4A73; /* darker navy for hovers */
+  --lutho-secondary: #9AA6B8;      /* silver / chrome */
+  --lutho-tertiary: #C7A468;       /* warm beige / champagne */
+  --lutho-on-primary: #FFFFFF;
+
+  /* Base surfaces */
+  --lutho-beige: #F4EEE1;
+  --lutho-cream: #FBF7EE;
+  --lutho-ink: #20293A;
 }
 
 /* Prevent iOS zoom on input focus */
@@ -15,27 +36,52 @@ select {
 }
 
 html, body {
-  background-color: #121212;
-  color: #FFFFFF;
+  background-color: var(--lutho-beige);
+  color: var(--lutho-ink);
   font-family: var(--font-sans);
   overflow-y: auto;
 }
 
-/* Custom rough textured background or grunge styles */
+/* ---------------------------------------------------------------------
+   ACCENT ROUTING (global so it also covers portalled modals)
+   Only exact solid tokens are forced; /opacity tints keep their baked
+   navy so faint backgrounds stay subtle.
+   --------------------------------------------------------------------- */
+[class~="bg-[#3E5E93]"] {
+  background-color: var(--lutho-primary) !important;
+  color: var(--lutho-on-primary) !important;
+}
+[class~="text-[#3E5E93]"] { color: var(--lutho-primary) !important; }
+[class~="border-[#3E5E93]"] { border-color: var(--lutho-primary) !important; }
+[class~="ring-[#3E5E93]"] { --tw-ring-color: var(--lutho-primary) !important; }
+[class~="fill-[#3E5E93]"] { fill: var(--lutho-primary) !important; }
+[class~="from-[#3E5E93]"] { --tw-gradient-from: var(--lutho-primary) var(--tw-gradient-from-position) !important; }
+[class~="via-[#3E5E93]"] { --tw-gradient-via: var(--lutho-primary) var(--tw-gradient-via-position) !important; }
+[class~="to-[#3E5E93]"] { --tw-gradient-to: var(--lutho-primary) var(--tw-gradient-to-position) !important; }
+
+/* Secondary (silver) + tertiary (champagne) helper classes for new UI */
+.lutho-secondary-bg { background-color: var(--lutho-secondary) !important; color: var(--lutho-ink) !important; }
+.lutho-secondary-text { color: var(--lutho-secondary) !important; }
+.lutho-secondary-border { border-color: var(--lutho-secondary) !important; }
+.lutho-tertiary-bg { background-color: var(--lutho-tertiary) !important; color: var(--lutho-ink) !important; }
+.lutho-tertiary-text { color: var(--lutho-tertiary) !important; }
+.lutho-tertiary-border { border-color: var(--lutho-tertiary) !important; }
+
+/* Custom subtle canvas texture (replaces the urban grunge) */
 .grunge-pattern {
-  background-image: 
-    radial-gradient(rgba(255, 90, 0, 0.03) 1px, transparent 1px),
-    radial-gradient(rgba(255, 255, 255, 0.02) 1.5px, transparent 1.5px);
-  background-size: 24px 24px;
-  background-position: 0 0, 12px 12px;
+  background-image:
+    radial-gradient(rgba(62, 94, 147, 0.035) 1px, transparent 1px),
+    radial-gradient(rgba(154, 166, 184, 0.05) 1.5px, transparent 1.5px);
+  background-size: 26px 26px;
+  background-position: 0 0, 13px 13px;
 }
 
-/* Custom brush stroke highlighted text container */
+/* Highlight text container — now a clean navy chip */
 .brush-stroke {
   position: relative;
   display: inline-block;
-  color: #FFFFFF !important; /* Changed from black to white to coordinate with the high energy theme */
-  font-weight: 900;
+  color: var(--lutho-on-primary) !important;
+  font-weight: 800;
   padding: 4px 12px;
   z-index: 10;
 }
@@ -46,18 +92,17 @@ html, body {
   left: -4px;
   right: -5px;
   bottom: 2px;
-  background-color: #FF5A00;
+  background-color: var(--lutho-primary);
   z-index: -1;
-  transform: rotate(-1.8deg) skewX(-6deg);
-  border-radius: 3px 4px 3px 4px;
-  border-bottom: 2px solid rgba(0,0,0,0.3);
+  transform: rotate(-1deg) skewX(-4deg);
+  border-radius: 4px;
 }
 
 .brush-stroke-sm {
   position: relative;
   display: inline-block;
-  color: #FFFFFF !important;
-  font-weight: 800;
+  color: var(--lutho-on-primary) !important;
+  font-weight: 700;
   padding: 1px 6px;
   z-index: 10;
 }
@@ -68,60 +113,64 @@ html, body {
   left: -2px;
   right: -3px;
   bottom: 1px;
-  background-color: #FF5A00;
+  background-color: var(--lutho-primary);
   z-index: -1;
-  transform: rotate(-1.2deg) skewX(-4deg);
-  border-radius: 1px 2px 1px 2px;
+  transform: rotate(-0.8deg) skewX(-3deg);
+  border-radius: 2px;
 }
 
-/* Stamp styles */
+/* Loyalty stamps */
 .stamp {
   aspect-ratio: 1;
-  border: 2px dashed rgba(255, 90, 0, 0.3);
+  border: 2px dashed rgba(62, 94, 147, 0.3);
   border-radius: 9999px;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: all 0.3s ease;
 }
-
 .stamp.active {
-  border: 2px solid #FF5A00;
-  background: radial-gradient(circle, rgba(255, 90, 0, 0.15) 0%, transparent 75%);
-  color: #FF5A00;
-  transform: scale(1.05) rotate(4deg);
-  filter: drop-shadow(0 0 4px rgba(255, 90, 0, 0.4));
+  border: 2px solid var(--lutho-primary);
+  background: radial-gradient(circle, rgba(62, 94, 147, 0.12) 0%, transparent 75%);
+  color: var(--lutho-primary);
+  transform: scale(1.05) rotate(3deg);
+  filter: drop-shadow(0 0 4px rgba(62, 94, 147, 0.35));
 }
 
-/* Webkit scrollbar customized for heavy dark mode aesthetics */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-track {
-  background: #111111;
-}
-::-webkit-scrollbar-thumb {
-  background: #2C2C2E;
-  border-radius: 3px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #FF5A00;
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #EFE8D9; }
+::-webkit-scrollbar-thumb { background: var(--lutho-secondary); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--lutho-primary); }
+
+/* =====================================================================
+   SURFACE THEME CONTAINER
+   ===================================================================== */
+#lutho-os-container {
+  --bg-app: var(--lutho-beige);
+  --bg-card: #FFFFFF;
+  --bg-subcard: #ECE4D3;
+  --bg-secondary: #EAE1CF;
+  --text-primary: var(--lutho-ink);
+  --text-muted: #6B7280;
+  --border-color: #D3D7DE;
+  --border-glow: rgba(62, 94, 147, 0.18);
 }
 
-/* CLASSIC THEME CONFIGURATOR ENGINE */
-#rocomamas-os-container {
-  --bg-app: #121212;
-  --bg-card: #1C1C1E;
-  --bg-subcard: #2C2C2E;
-  --bg-secondary: #0A0A0A;
-  --text-primary: #FFFFFF;
-  --text-muted: #A0A0A0;
-  --border-color: #27272A;
-  --border-glow: rgba(255, 90, 0, 0.2);
+/* Lutho = default beige/navy/silver look */
+#lutho-os-container.theme-LUTHO {
+  --bg-app: var(--lutho-beige);
+  --bg-card: #FFFFFF;
+  --bg-subcard: #ECE4D3;
+  --bg-secondary: #EAE1CF;
+  --text-primary: var(--lutho-ink);
+  --text-muted: #6B7280;
+  --border-color: #D3D7DE;
+  --border-glow: rgba(62, 94, 147, 0.18);
 }
 
-#rocomamas-os-container.theme-LIGHT {
+/* Neutral light alternative */
+#lutho-os-container.theme-LIGHT {
   --bg-app: #FAFAFA;
   --bg-card: #FFFFFF;
   --bg-subcard: #E4E4E7;
@@ -132,200 +181,122 @@ html, body {
   --border-glow: rgba(0, 0, 0, 0.05);
 }
 
-#rocomamas-os-container.theme-ORANGE {
-  --bg-app: #FF5A00;
-  --bg-card: #000000;
-  --bg-subcard: #141416;
+/* Dark alternative (kept for venues that prefer it) */
+#lutho-os-container.theme-DARK {
+  --bg-app: #121212;
+  --bg-card: #1C1C1E;
+  --bg-subcard: #2C2C2E;
   --bg-secondary: #0A0A0A;
   --text-primary: #FFFFFF;
-  --text-muted: #FFE5D9;
-  --border-color: #FF7A33;
-  --border-glow: rgba(0, 0, 0, 0.5);
+  --text-muted: #A0A0A0;
+  --border-color: #27272A;
+  --border-glow: rgba(62, 94, 147, 0.2);
 }
 
-/* OVERRIDE INTRUSIONS FOR CLEAN THEME SANITARY HARMONY */
-#rocomamas-os-container {
+#lutho-os-container {
   background-color: var(--bg-app) !important;
   color: var(--text-primary) !important;
 }
 
-#rocomamas-os-container .bg-\[\#121212\],
-#rocomamas-os-container .bg-\[\#121212\]\/95,
-#rocomamas-os-container .bg-\[\#121212\]\/90,
-#rocomamas-os-container .bg-\[\#121212\]\/40,
-#rocomamas-os-container .bg-\[\#121212\]\/30,
-#rocomamas-os-container .bg-neutral-950,
-#rocomamas-os-container .bg-zinc-950,
-#rocomamas-os-container .bg-zinc-950\/80 {
+/* --- BACKGROUNDS (solid surfaces only, so modal scrims keep dimming) --- */
+#lutho-os-container [class~="bg-[#121212]"],
+#lutho-os-container [class~="bg-neutral-950"],
+#lutho-os-container [class~="bg-zinc-950"] {
   background-color: var(--bg-app) !important;
 }
-
-#rocomamas-os-container .bg-\[\#1C1C1E\],
-#rocomamas-os-container .bg-zinc-900,
-#rocomamas-os-container .bg-zinc-900\/60,
-#rocomamas-os-container .bg-zinc-900\/80 {
+#lutho-os-container [class~="bg-[#1C1C1E]"],
+#lutho-os-container [class~="bg-zinc-900"] {
   background-color: var(--bg-card) !important;
 }
-
-#rocomamas-os-container .bg-\[\#2C2C2E\],
-#rocomamas-os-container .bg-\[\#2C2C2E\]\/40,
-#rocomamas-os-container .bg-zinc-800 {
+#lutho-os-container [class~="bg-[#2C2C2E]"],
+#lutho-os-container [class~="bg-zinc-800"] {
   background-color: var(--bg-subcard) !important;
 }
-
-#rocomamas-os-container .bg-black,
-#rocomamas-os-container .bg-black\/40,
-#rocomamas-os-container .bg-black\/60,
-#rocomamas-os-container .bg-black\/85,
-#rocomamas-os-container .bg-black\/95 {
+#lutho-os-container [class~="bg-black"] {
   background-color: var(--bg-secondary) !important;
 }
 
-/* BORDERS */
-#rocomamas-os-container .border-zinc-900,
-#rocomamas-os-container .border-zinc-855,
-#rocomamas-os-container .border-zinc-850,
-#rocomamas-os-container .border-zinc-805,
-#rocomamas-os-container .border-zinc-800,
-#rocomamas-os-container .border-zinc-800\/80,
-#rocomamas-os-container .border-black,
-#rocomamas-os-container .border-[#2C2C2E]\/50,
-#rocomamas-os-container .border-zinc-850\/80,
-#rocomamas-os-container .border-zinc-850\/40,
-#rocomamas-os-container .border-black\/80 {
+/* --- BORDERS --- */
+#lutho-os-container [class~="border-zinc-900"],
+#lutho-os-container [class~="border-zinc-850"],
+#lutho-os-container [class~="border-zinc-800"],
+#lutho-os-container [class~="border-black"],
+#lutho-os-container [class~="border-[#2C2C2E]"] {
   border-color: var(--border-color) !important;
 }
 
-/* TEXT */
-#rocomamas-os-container .text-white,
-#rocomamas-os-container .text-zinc-100,
-#rocomamas-os-container .text-zinc-200,
-#rocomamas-os-container .text-zinc-300 {
+/* --- TEXT --- */
+#lutho-os-container [class~="text-white"],
+#lutho-os-container [class~="text-zinc-100"],
+#lutho-os-container [class~="text-zinc-200"],
+#lutho-os-container [class~="text-zinc-300"] {
   color: var(--text-primary) !important;
 }
-
-#rocomamas-os-container .text-zinc-400,
-#rocomamas-os-container .text-zinc-450,
-#rocomamas-os-container .text-zinc-500,
-#rocomamas-os-container .text-\[\#A0A0A0\] {
+#lutho-os-container [class~="text-zinc-400"],
+#lutho-os-container [class~="text-zinc-500"],
+#lutho-os-container [class~="text-[#A0A0A0]"] {
   color: var(--text-muted) !important;
 }
 
-/* HEADS & MAINS */
-#rocomamas-os-container header {
+/* --- HEADER --- */
+#lutho-os-container header {
   background-color: var(--bg-card) !important;
   border-bottom-color: var(--border-color) !important;
 }
 
-/* INPUTS, TEXTAREAS & SELECTS */
-#rocomamas-os-container input,
-#rocomamas-os-container textarea,
-#rocomamas-os-container select {
-  background-color: var(--bg-subcard) !important;
+/* --- INPUTS --- */
+#lutho-os-container input,
+#lutho-os-container textarea,
+#lutho-os-container select {
+  background-color: var(--bg-card) !important;
   color: var(--text-primary) !important;
   border-color: var(--border-color) !important;
 }
-
-/* THE QUICK CATEGORY PILLS */
-#rocomamas-os-container .category-pill-active {
-  background-color: #FF5A00 !important;
-  color: #FFFFFF !important;
+#lutho-os-container input:focus,
+#lutho-os-container textarea:focus,
+#lutho-os-container select:focus {
+  border-color: var(--lutho-primary) !important;
+  outline-color: var(--lutho-primary) !important;
 }
 
-/* HOVER / ACTIVE CORRECTIONS FOR ULTRA SMOOTH VIBES */
-#rocomamas-os-container.theme-LIGHT .bg-[#FF5A00] {
-  background-color: #FF5A00 !important;
-  color: #FFFFFF !important;
+/* Category pills */
+#lutho-os-container .category-pill-active {
+  background-color: var(--lutho-primary) !important;
+  color: var(--lutho-on-primary) !important;
 }
 
-#rocomamas-os-container.theme-LIGHT .stamp:not(.active) {
-  border-color: rgba(0, 0, 0, 0.1) !important;
-  background-color: rgba(0, 0, 0, 0.03) !important;
+/* Re-assert accent so it always beats the text remap above */
+#lutho-os-container [class~="bg-[#3E5E93]"],
+[class~="bg-[#3E5E93]"] {
+  background-color: var(--lutho-primary) !important;
+  color: var(--lutho-on-primary) !important;
 }
+#lutho-os-container [class~="text-[#3E5E93]"],
+[class~="text-[#3E5E93]"] { color: var(--lutho-primary) !important; }
 
-#rocomamas-os-container.theme-ORANGE .stamp:not(.active) {
-  border-color: rgba(255, 255, 255, 0.2) !important;
-  background-color: rgba(0, 0, 0, 0.3) !important;
-}
-
-#rocomamas-os-container.theme-LIGHT .bg-slate-900\/50,
-#rocomamas-os-container.theme-LIGHT .bg-zinc-800\/25,
-#rocomamas-os-container.theme-LIGHT .bg-zinc-950\/80 {
-  background-color: var(--bg-secondary) !important;
-}
-
-/* EAT/DRINK CONTROLLER EXTRA POLISH */
-#rocomamas-os-container .font-display.tracking-widest.text-lg:not(.bg-\[\#FF5A00\]) {
-  color: var(--text-muted) !important;
-}
-#rocomamas-os-container .font-display.tracking-widest.text-lg:not(.bg-\[\#FF5A00\]):hover {
-  color: var(--text-primary) !important;
-}
-#rocomamas-os-container .font-display.tracking-widest.text-lg.bg-\[\#FF5A00\] {
-  color: #FFFFFF !important;
-}
-
-/* Elegant faint diagonal stripes background and deep shadows */
+/* Elegant faint diagonal stripes */
 .diagonal-stripes {
   background-image: repeating-linear-gradient(
     135deg,
-    rgba(255, 255, 255, 0.018) 0px,
-    rgba(255, 255, 255, 0.018) 1.5px,
+    rgba(62, 94, 147, 0.02) 0px,
+    rgba(62, 94, 147, 0.02) 1.5px,
     transparent 1.5px,
     transparent 14px
   );
 }
-
 .diagonal-stripes-orange {
   background-image: repeating-linear-gradient(
     135deg,
-    rgba(255, 90, 0, 0.025) 0px,
-    rgba(255, 90, 0, 0.025) 1.5px,
+    rgba(62, 94, 147, 0.03) 0px,
+    rgba(62, 94, 147, 0.03) 1.5px,
     transparent 1.5px,
     transparent 14px
   );
 }
 
 .shadow-heavy {
-  box-shadow: 0 12px 28px -4px rgba(0, 0, 0, 0.65), 0 4px 10px -2px rgba(0, 0, 0, 0.45) !important;
+  box-shadow: 0 12px 28px -4px rgba(32, 41, 58, 0.18), 0 4px 10px -2px rgba(32, 41, 58, 0.12) !important;
 }
-
 .shadow-orange-glow {
-  box-shadow: 0 12px 28px -6px rgba(255, 90, 0, 0.28), 0 4px 10px -2px rgba(255, 90, 0, 0.15) !important;
+  box-shadow: 0 12px 28px -6px rgba(62, 94, 147, 0.28), 0 4px 10px -2px rgba(62, 94, 147, 0.15) !important;
 }
-
-/* Global solid orange geometric texture overrides */
-.bg-\[\#FF5A00\], .orange-textured-geom {
-  position: relative !important;
-}
-
-.bg-\[\#FF5A00\]::before, .orange-textured-geom::before {
-  content: "" !important;
-  position: absolute !important;
-  inset: 0 !important;
-  pointer-events: none !important;
-  opacity: 0.12 !important;
-  background-image: repeating-linear-gradient(
-    45deg,
-    #000000 0px,
-    #000000 2px,
-    transparent 2px,
-    transparent 14px
-  ), repeating-linear-gradient(
-    -45deg,
-    #000000 0px,
-    #000000 2px,
-    transparent 2px,
-    transparent 14px
-  ) !important;
-  z-index: 1 !important;
-  border-radius: inherit !important;
-}
-
-/* For children to stay above the pseudo-element texture layer if needed */
-.bg-\[\#FF5A00\] > *, .orange-textured-geom > * {
-  position: relative !important;
-  z-index: 2 !important;
-}
-
-

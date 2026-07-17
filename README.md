@@ -1,12 +1,12 @@
-# 🍔 RocoMamas OS — Powered by Lutho™ Smart Restaurant Platform
+# 🍔 Lutho OS — Powered by Lutho™ Smart Restaurant Platform
 
-Welcome to **RocoMamas OS**, the ultimate, high-fidelity sit-down restaurant platform designed specifically for the fast-paced, high-energy environment of **RocoMamas**! By framing patrons and crew behind a beautifully unified, real-time responsive interface, RocoMamas OS bridges the physical gap of dine-in hospitality.
+Welcome to **Lutho OS**, the ultimate, high-fidelity sit-down restaurant platform designed specifically for the fast-paced, high-energy environment of **Lutho**! By framing patrons and crew behind a beautifully unified, real-time responsive interface, Lutho OS bridges the physical gap of dine-in hospitality.
 
 ---
 
 ## ✅ Z-Format (Manual Ops / No POS / No Payments)
 
-**Z-Format** is the “go-live fast” version of RocoMamas OS:
+**Z-Format** is the “go-live fast” version of Lutho OS:
 
 - **No POS integration required**
 - **No payment processing in-app**
@@ -26,9 +26,9 @@ This repo can support multiple formats. **Z-Format does not replace the full POS
 
 ## 🚀 1. The Executive Core Vision
 
-RocoMamas OS is a lightweight, zero-friction, sit-down dining portal. Standard restaurant apps require heavy downloads, password registrations, or sms authentications that slow down patrons when they are hungry. RocoMamas OS utilizes **zero-install URL coordinate streams** (`?table=X`) to bring diners immediately into a synchronized table ecology.
+Lutho OS is a lightweight, zero-friction, sit-down dining portal. Standard restaurant apps require heavy downloads, password registrations, or sms authentications that slow down patrons when they are hungry. Lutho OS utilizes **zero-install URL coordinate streams** (`?table=X`) to bring diners immediately into a synchronized table ecology.
 
-Whether ordering custom-smashed burgers, splitting bills, chatting with other guests at the table, or triggering emergency service calls, everything in RocoMamas OS is custom-crafted to deliver interactive feedback in **under 200 milliseconds**.
+Whether ordering custom-smashed burgers, splitting bills, chatting with other guests at the table, or triggering emergency service calls, everything in Lutho OS is custom-crafted to deliver interactive feedback in **under 200 milliseconds**.
 
 ---
 
@@ -55,7 +55,7 @@ Whether ordering custom-smashed burgers, splitting bills, chatting with other gu
 
 ## 🛠️ 3. High-Fidelity Technology Stack
 
-The under-the-hood engine driving RocoMamas OS consists of the following components:
+The under-the-hood engine driving Lutho OS consists of the following components:
 
 * **Engine Core:** React 19 SPA bundled via Vite 6 and written with strict type-safety in **TypeScript 5**.
 * **Visual Frame:** **Tailwind CSS V4** utility sheets using high-density layouts, custom responsive breakpoints, and custom theme presets.
@@ -67,11 +67,11 @@ The under-the-hood engine driving RocoMamas OS consists of the following compone
 
 ## 🔒 4. "Lutho-Shield" Airtight Table Security
 
-Dine-in security is paramount. To prevent security compromises and table hopping, RocoMamas OS features an advanced multi-layered security suite:
+Dine-in security is paramount. To prevent security compromises and table hopping, Lutho OS features an advanced multi-layered security suite:
 
 ### 🛡️ Single-Table Session Lockdown (Anti-Table-Hopping)
 To prevent customers from sniffing table IDs and table hopping (e.g. typing `?table=7` from table 12 to mess with other carts or order unauthorized beers), the app enforces a strict **Single Active Table Rule**:
-1. When a user scans a table QR code or successfully enters a physical PIN, the device registers the single active table: `localStorage.setItem("roco_active_customer_table", tableId)`.
+1. When a user scans a table QR code or successfully enters a physical PIN, the device registers the single active table: `localStorage.setItem("lutho_active_customer_table", tableId)`.
 2. Even if a user manually changes their browser search parameter to `?table=7`, if they don't have the explicit secure QR token or table 7's physical PIN, they are **immediately locked out** and forced to input Table 7's PIN before viewing or ordering.
 
 ### 🔑 Physical Table Sticker PINs
@@ -82,7 +82,7 @@ Every table features a randomized, rotatable 4-digit physical PIN listed at the 
 * **Table 13 PIN:** `3141` | **Table 14 PIN (Remote):** `4529` (remote ordering allows concurrent sessions; no table-lock)
 
 ### 🛸 Seamless Secure Token Bypasses
-For authentic QR scans, the generated link embeds a secure cryptographic session token: `&token=roco-sec-t[table]-[pin]f8c2b5`. Scanning this token instantly authenticates the device as sitting at that physical coordinate, bypassing the pin keyboard completely!
+For authentic QR scans, the generated link embeds a secure cryptographic session token: `&token=lutho-sec-t[table]-[pin]f8c2b5`. Scanning this token instantly authenticates the device as sitting at that physical coordinate, bypassing the pin keyboard completely!
 
 ### ⚙️ Brute-Force Rate Limiting & Audit Logs
 If a rogue user guesses table PINs incorrectly more than **5 times**, the system triggers a **30-second security block**, locking the virtual keypad and logging a security violation entry in the Crew's Audit Logs.
@@ -91,7 +91,7 @@ If a rogue user guesses table PINs incorrectly more than **5 times**, the system
 
 ## 👾 5. Every Nook & Cranny: Feature Breakdown
 
-RocoMamas OS is partitioned into two major modes of activation: The **Customer Operations Panel** and the **Staff Operations Dashboard**.
+Lutho OS is partitioned into two major modes of activation: The **Customer Operations Panel** and the **Staff Operations Dashboard**.
 
 ### 🍔 A. Customer Operations Panel
 
@@ -114,17 +114,17 @@ RocoMamas OS is partitioned into two major modes of activation: The **Customer O
 * Patrons can trigger distress summon buttons (`🔔 Call Waiter`, `💳 Request Bill`, `🧽 Clear Table`). This immediately sounds alert chimes on the Waiter console, signaling Zoe to speed to Table X.
 
 #### 6. Thunee Card Game Integration
-* To occupy guests while waiting for their custom patties, RocoMamas OS embeds a fully playable **Thunee** module! Thunee is a beloved South African trick-taking game using 24 cards (9, 10, J, Q, K, A). 
+* To occupy guests while waiting for their custom patties, Lutho OS embeds a fully playable **Thunee** module! Thunee is a beloved South African trick-taking game using 24 cards (9, 10, J, Q, K, A). 
 * Patrons can deal hands, play cards, win tricks, request "Double" or "Khanapyt", and register live scores with custom auditory sound chimes and retro card overlays!
 
 ---
 
 ### 🍻 B. Custom Error 404 Panel: "Lost in the Smash!"
 
-RocoMamas OS replaces default, sterile browser errors with a beautiful, fully on-brand **Custom 404 Screen**:
+Lutho OS replaces default, sterile browser errors with a beautiful, fully on-brand **Custom 404 Screen**:
 * **Activation:** Triggered when a guest attempts to access an invalid table ID beyond our configured boundaries (valid IDs: Table 1 to Table 14).
 * **Atmosphere:** Deep matte charcoal backdrop with warm radial glows, featuring a large spinning consolidated logo, pulsing warning indicators, and a red-gradient error banner.
-* **Actions:** Guests are greeted with helpful instructions explaining valid table boundaries, a diagnostic error log code (`ROCO-404-COORDINATES-VOID`), an interactive **Return to Table Board** button, and an emergency **Signal Flight Captain (SOS)** distress button to request immediate human floor support.
+* **Actions:** Guests are greeted with helpful instructions explaining valid table boundaries, a diagnostic error log code (`LUTHO-404-COORDINATES-VOID`), an interactive **Return to Table Board** button, and an emergency **Signal Flight Captain (SOS)** distress button to request immediate human floor support.
 
 ---
 
@@ -149,11 +149,11 @@ Logged in via the Staff PIN (default profile **General**), servers gain access t
 
 ## 📁 6. Full Directory Overview
 
-RocoMamas OS is designed with extreme modularity to guarantee lightweight bundles and prevent token overflow:
+Lutho OS is designed with extreme modularity to guarantee lightweight bundles and prevent token overflow:
 
 * `/src/App.tsx` - The primary state manager, router, layouts, and view layers (Customer view, Staff dashboard, PIN input, and 404 screens).
 * `/src/types.ts` - Shared contract specifications detailing interfaces for menus, cart items, historic orders, splits, and security logs.
-* `/src/data.ts` - Central repository hosting the entire RocoMamas catalog, pricing details, emojis, and daily specials rules.
+* `/src/data.ts` - Central repository hosting the entire Lutho catalog, pricing details, emojis, and daily specials rules.
 * `/src/luthoDocs.ts` - Proprietary PRD and TRD system blueprints serving the floor manager’s onboarding assistant.
 * `/src/firebase.ts` - Standard server-side full duplex SDK connector targeting Cloud Firestore collections.
 * `/src/components/ThuneeFullscreenApp.tsx` - Fully self-contained South African trick game core, scoring mechanics, and visual cards deck.
@@ -182,4 +182,4 @@ npm run build
 ```
 
 ---
-*RocoMamas OS — Smash, Order, Repent. Built to Rock your Hunger.*
+*Lutho OS — Smash, Order, Repent. Built to Rock your Hunger.*

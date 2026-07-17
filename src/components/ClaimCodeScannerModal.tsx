@@ -17,7 +17,7 @@ export function ClaimCodeScannerModal({ open, onClose, onResolved }: Props) {
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const handledRef = useRef(false);
   const onResolvedRef = useRef(onResolved);
-  const regionIdRef = useRef(`roco-claim-scanner-${Math.random().toString(36).slice(2, 8)}`);
+  const regionIdRef = useRef(`lutho-claim-scanner-${Math.random().toString(36).slice(2, 8)}`);
   const regionId = regionIdRef.current;
 
   onResolvedRef.current = onResolved;
@@ -56,7 +56,7 @@ export function ClaimCodeScannerModal({ open, onClose, onResolved }: Props) {
         (decoded) => {
           const parsed = parseClaimPayload(decoded);
           if (!parsed) {
-            setError("QR not recognized. Use a ROCO claim pass QR.");
+            setError("QR not recognized. Use a LUTHO claim pass QR.");
             return;
           }
           void finish({ ...parsed, raw: decoded });
@@ -97,10 +97,10 @@ export function ClaimCodeScannerModal({ open, onClose, onResolved }: Props) {
   return (
     <div className="fixed inset-0 z-[9960] flex items-end sm:items-center justify-center p-4">
       <button type="button" aria-label="Close scanner" className="absolute inset-0 bg-black/85" onClick={onClose} />
-      <div className="relative w-full max-w-md bg-white border-2 border-[#E78A3E] rounded-3xl overflow-hidden shadow-2xl">
-        <div className="p-4 bg-black border-b border-[#E78A3E] flex items-center justify-between">
+      <div className="relative w-full max-w-md bg-white border-2 border-[#3E5E93] rounded-3xl overflow-hidden shadow-2xl">
+        <div className="p-4 bg-black border-b border-[#3E5E93] flex items-center justify-between">
           <div>
-            <h3 className="font-display font-black text-[#E78A3E] uppercase text-sm">Verify remote claim</h3>
+            <h3 className="font-display font-black text-[#3E5E93] uppercase text-sm">Verify remote claim</h3>
             <p className="text-[10px] font-mono text-white uppercase mt-1">
               {busy ? "Verifying…" : cameraReady ? "Scan pass QR" : "Manual code entry"}
             </p>
@@ -137,7 +137,7 @@ export function ClaimCodeScannerModal({ open, onClose, onResolved }: Props) {
                   setBusy(true);
                   onResolvedRef.current({ orderId: "", claimCode: manualCode, raw: manualCode });
                 }}
-                className="px-4 py-3 bg-[#E78A3E] text-black font-black uppercase text-xs rounded-xl disabled:opacity-60"
+                className="px-4 py-3 bg-[#3E5E93] text-black font-black uppercase text-xs rounded-xl disabled:opacity-60"
               >
                 Verify
               </button>

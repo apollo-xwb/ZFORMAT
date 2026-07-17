@@ -3,11 +3,11 @@ import type { CartItem } from "../types";
 import { formatPrepMinutes, getItemPrepMinutes } from "../prepTimes";
 
 const CARD_BACKGROUNDS = [
-  { bg: "#E78A3E", text: "#000000", badge: "#000000", badgeText: "#FFFFFF" },
-  { bg: "#18181B", text: "#FFFFFF", badge: "#E78A3E", badgeText: "#000000" },
-  { bg: "#F4F4F5", text: "#000000", badge: "#E78A3E", badgeText: "#000000" },
+  { bg: "#3E5E93", text: "#000000", badge: "#000000", badgeText: "#FFFFFF" },
+  { bg: "#18181B", text: "#FFFFFF", badge: "#3E5E93", badgeText: "#000000" },
+  { bg: "#F4F4F5", text: "#000000", badge: "#3E5E93", badgeText: "#000000" },
   { bg: "#C45A1A", text: "#000000", badge: "#000000", badgeText: "#FFFFFF" },
-  { bg: "#000000", text: "#FFFFFF", badge: "#E78A3E", badgeText: "#000000" },
+  { bg: "#000000", text: "#FFFFFF", badge: "#3E5E93", badgeText: "#000000" },
   { bg: "#FFD4A8", text: "#000000", badge: "#000000", badgeText: "#FFFFFF" }
 ];
 

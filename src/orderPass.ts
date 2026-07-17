@@ -1,6 +1,6 @@
 import type { CartItem, HistoricOrder } from "./types";
-import { formatTableLabel, REMOTE_TABLE_ID } from "./rocoTables";
-import { ROCO_STAMP_LOGO_LOCAL_URL, loadCanvasLogoImage } from "./qrConfig";
+import { formatTableLabel, REMOTE_TABLE_ID } from "./luthoTables";
+import { LUTHO_STAMP_LOGO_LOCAL_URL, loadCanvasLogoImage } from "./qrConfig";
 import QRCode from "qrcode";
 import { jsPDF } from "jspdf";
 
@@ -17,7 +17,7 @@ export type OrderPassPayload = {
 
 export type PassFormat = "pdf" | "png";
 
-const ORANGE = "#E78A3E";
+const ORANGE = "#3E5E93";
 const BLACK = "#0A0A0B";
 const WHITE = "#FFFFFF";
 const MUTED = "#A1A1AA";
@@ -27,12 +27,12 @@ export function generateClaimCode(): string {
 }
 
 export function buildClaimPayload(orderId: string, claimCode: string): string {
-  return `roco-claim:${orderId}:${claimCode}`;
+  return `lutho-claim:${orderId}:${claimCode}`;
 }
 
 export function parseClaimPayload(value: string): { orderId: string; claimCode: string } | null {
   const trimmed = value.trim();
-  const match = trimmed.match(/^roco-claim:([^:]+):(\d{4})$/i);
+  const match = trimmed.match(/^lutho-claim:([^:]+):(\d{4})$/i);
   if (match) return { orderId: match[1], claimCode: match[2] };
   if (/^\d{4}$/.test(trimmed)) return { orderId: "", claimCode: trimmed };
   return null;
@@ -56,7 +56,7 @@ export function buildOrderPassText(payload: OrderPassPayload): string {
   const when = new Date(order.createdAt || Date.now()).toLocaleString();
   return [
     "══════════════════════════════════",
-    "   ROCO OS — GUEST ORDER PASS",
+    "   LUTHO OS — GUEST ORDER PASS",
     "══════════════════════════════════",
     "",
     `Pass ID:     ${order.id}`,
@@ -98,7 +98,7 @@ export function buildPilotSummaryText(payload: {
   claimCode?: string;
 }): string {
   const lines = [
-    "ROCO → PILOT POS MANUAL ENTRY",
+    "LUTHO → PILOT POS MANUAL ENTRY",
     "--------------------------------",
     `Order:  ${payload.orderId}`,
     payload.claimCode ? `Claim:  ${payload.claimCode}` : null,
@@ -116,7 +116,7 @@ export function buildPilotSummaryText(payload: {
     payload.notes ? `NOTES: ${payload.notes}` : null,
     "--------------------------------",
     "Enter these lines into Pilot manually,",
-    "then mark Preparing → Ready → Served/Paid in ROCO.",
+    "then mark Preparing → Ready → Served/Paid in LUTHO.",
   ].filter((line): line is string => line !== null);
   return lines.join("\n");
 }
@@ -229,7 +229,7 @@ async function buildPassCanvas(payload: OrderPassPayload): Promise<HTMLCanvasEle
   ctx.lineWidth = 1.5;
   ctx.stroke();
 
-  const stamp = await loadCanvasLogoImage(ROCO_STAMP_LOGO_LOCAL_URL);
+  const stamp = await loadCanvasLogoImage(LUTHO_STAMP_LOGO_LOCAL_URL);
   if (stamp) {
     const badge = 72;
     const bx = 56;
@@ -253,7 +253,7 @@ async function buildPassCanvas(payload: OrderPassPayload): Promise<HTMLCanvasEle
 
   ctx.fillStyle = ORANGE;
   ctx.font = "800 13px Inter, Arial, sans-serif";
-  ctx.fillText("ROCO OS  ·  COLLECTION PASS", 148, 78);
+  ctx.fillText("LUTHO OS  ·  COLLECTION PASS", 148, 78);
   ctx.fillStyle = WHITE;
   ctx.font = "900 34px Inter, Arial, sans-serif";
   ctx.fillText("ORDER PASS", 148, 118);
@@ -387,7 +387,7 @@ export async function downloadOrderPassPng(payload: OrderPassPayload) {
   const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
   if (!blob) throw new Error("PNG export failed");
   const guest = (payload.orderedBy || "guest").replace(/\s+/g, "-").toLowerCase();
-  downloadBlob(`roco-pass-${payload.order.id}-${guest}.png`, blob);
+  downloadBlob(`lutho-pass-${payload.order.id}-${guest}.png`, blob);
 }
 
 export async function downloadOrderPassPdf(payload: OrderPassPayload) {
@@ -405,7 +405,7 @@ export async function downloadOrderPassPdf(payload: OrderPassPayload) {
   const y = Math.max(margin, (pageH - drawH) / 2);
   pdf.addImage(img, "PNG", margin, y, drawW, Math.min(drawH, pageH - margin * 2));
   const guest = (payload.orderedBy || "guest").replace(/\s+/g, "-").toLowerCase();
-  pdf.save(`roco-pass-${payload.order.id}-${guest}.pdf`);
+  pdf.save(`lutho-pass-${payload.order.id}-${guest}.pdf`);
 }
 
 export async function downloadOrderPass(payload: OrderPassPayload, format: PassFormat = "pdf") {

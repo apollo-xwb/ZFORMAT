@@ -101,7 +101,7 @@ Lutho is the "North Star" proprietary digital dining blueprint. It bridges the c
 ## 5. Visual Theme, Ergonomics & Motion Design
 The visual interface must remain distinctive, safe for low-light dining lounges, and highly professional.
 
-* **Primary Color Scheme:** Matte deep-black, slate dark grays, and vibrant vermilion Roco orange.
+* **Primary Color Scheme:** Matte deep-black, slate dark grays, and vibrant vermilion Lutho orange.
 * **Display Typography:** "Space Grotesk" or "Outfit" with high letter tracking.
 * **Data/Telemetry Typography:** "JetBrains Mono" or "Fira Code" for counts and balances.
 * **Micro-Animations:** Fluid transitions for items added to the cart, showing smooth slider panels.
@@ -163,9 +163,9 @@ To remain operational during network interruptions, Lutho uses a Dual-Storage Re
 
 1. Active Stream Listener: Persistent real-time snapshot subscription via onSnapshot.
 2. Offline Mirror: On boot, if Firestore is unreachable, Lutho loads cached assets from LocalStorage:
-   - roco_thunee_room_ID: Table state backup.
-   - roco_master_bill_ID: Split status replica.
-   - roco_session_members_ID: Active group members pointer.
+   - lutho_thunee_room_ID: Table state backup.
+   - lutho_master_bill_ID: Split status replica.
+   - lutho_session_members_ID: Active group members pointer.
 
 ---
 

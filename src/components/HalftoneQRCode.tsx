@@ -1,8 +1,8 @@
 import React, { useRef, useEffect, useState } from "react";
 import QRCode from "qrcode";
 import {
-  ROCO_STAMP_LOGO_LOCAL_URL,
-  ROCO_STAMP_LOGO_URL,
+  LUTHO_STAMP_LOGO_LOCAL_URL,
+  LUTHO_STAMP_LOGO_URL,
   loadCanvasLogoImage,
 } from "../qrConfig";
 
@@ -20,7 +20,7 @@ export const HalftoneQRCode: React.FC<HalftoneQRCodeProps> = ({
   text,
   src,
   size = 200,
-  colorDark = "#FF5A00",
+  colorDark = "#3E5E93",
   colorLight = "#000000",
   className = "",
   onDataUrl,
@@ -28,8 +28,8 @@ export const HalftoneQRCode: React.FC<HalftoneQRCodeProps> = ({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [printDataUrl, setPrintDataUrl] = useState<string | null>(null);
   const [logoOnCanvas, setLogoOnCanvas] = useState(false);
-  const centerLogoSrc = src || ROCO_STAMP_LOGO_URL;
-  const screenLogoSrc = src || ROCO_STAMP_LOGO_LOCAL_URL;
+  const centerLogoSrc = src || LUTHO_STAMP_LOGO_URL;
+  const screenLogoSrc = src || LUTHO_STAMP_LOGO_LOCAL_URL;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -167,7 +167,7 @@ export const HalftoneQRCode: React.FC<HalftoneQRCodeProps> = ({
       {/* Fallback screen overlay when canvas logo could not be embedded */}
       {!logoOnCanvas && (
         <div
-          className="absolute rounded-full bg-white border border-[#FF5A00] flex items-center justify-center shadow-lg overflow-hidden p-[1.5px] z-10 pointer-events-none qr-center-logo-screen"
+          className="absolute rounded-full bg-white border border-[#3E5E93] flex items-center justify-center shadow-lg overflow-hidden p-[1.5px] z-10 pointer-events-none qr-center-logo-screen"
           style={{
             width: `${size * 0.28}px`,
             height: `${size * 0.28}px`,
@@ -175,7 +175,7 @@ export const HalftoneQRCode: React.FC<HalftoneQRCodeProps> = ({
         >
           <img
             src={screenLogoSrc}
-            alt="ROCO center art"
+            alt="LUTHO center art"
             className="w-full h-full object-cover rounded-full"
             referrerPolicy="no-referrer"
           />

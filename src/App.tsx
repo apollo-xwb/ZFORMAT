@@ -124,7 +124,7 @@ import { HalftoneQRCode } from "./components/HalftoneQRCode";
 import {
   CUSTOM_QR_STORAGE_KEY,
   QR_OVERLAY_STORAGE_KEY,
-  ROCO_BRAND_LOGO_URL,
+  LUTHO_BRAND_LOGO_URL,
   fileToDataUrl,
   readStoredCustomQrs,
   readStoredQrOverlays,
@@ -134,13 +134,13 @@ import { OrderMasonryGrid } from "./components/OrderMasonryGrid";
 import { MenuItem, CartItem, HistoricOrder, MasterBillItem } from "./types";
 import { MENU_ITEMS, SPECIALS } from "./data";
 import {
-  ROCO_TABLES,
+  LUTHO_TABLES,
   REMOTE_TABLE_ID,
   formatTableLabel,
   formatTableShort,
   getStaffOrderColor,
   type TableConfig
-} from "./rocoTables";
+} from "./luthoTables";
 import {
   RONDEBOSCH_VENUE,
   getBookingTimeSlots,
@@ -176,7 +176,7 @@ import {
   syncMemberGroupDraft,
   type GroupOrderDraft,
 } from "./groupOrderSync";
-import { playBeep as rocoPlayBeep, setupRocoAudioUnlock } from "./rocoAudio";
+import { playBeep as luthoPlayBeep, setupLuthoAudioUnlock } from "./luthoAudio";
 import {
   fetchSplitSession,
   listenSplitBill,
@@ -225,7 +225,7 @@ import {
   type TableServiceRecord,
 } from "./tableServiceSync";
 
-const MY_ORDER_IDS_KEY = "roco_my_kitchen_order_ids";
+const MY_ORDER_IDS_KEY = "lutho_my_kitchen_order_ids";
 
 function readMyOrderIds(): Set<string> {
   try {
@@ -276,10 +276,10 @@ function isRemoteKitchenFeedOrder(
   return false;
 }
 
-const ROCO_GOOGLE_REVIEW_URL = "https://share.google/uwYFGZKMKA9eKMYUA";
+const LUTHO_GOOGLE_REVIEW_URL = "https://share.google/uwYFGZKMKA9eKMYUA";
 const QUICK_DRINK_IDS = ["soda-coke", "soda-sprite", "soda-zero", "bos-peach", "water-still", "shake-oreo"] as const;
 
-export { ROCO_TABLES, REMOTE_TABLE_ID, formatTableLabel, formatTableShort, getStaffOrderColor };
+export { LUTHO_TABLES, REMOTE_TABLE_ID, formatTableLabel, formatTableShort, getStaffOrderColor };
 export type { TableConfig };
 
 type StaffRole = "admin" | "general";
@@ -357,7 +357,7 @@ function SplashKeywords({ playBeep, onComplete }: { playBeep: any, onComplete: (
     "ENTERING INTENSE MULTIPLAYER LOBBY 🎮",
     "SYNCING DINER REWARDS CARD 🎫",
     "ACTIVATING SECURE BILL SPLITTER 🧮",
-    "ROCOMAMAS GUEST OS ONLINE 🔥"
+    "LUTHO GUEST OS ONLINE 🔥"
   ];
   const [index, setIndex] = useState(0);
 
@@ -449,18 +449,21 @@ export function getProductResolvedImage(item: any): string {
 
 export default function App() {
   // --- States ---
-  const [theme, setTheme] = useState<"DARK" | "LIGHT" | "ORANGE">(() => {
+  const [theme, setTheme] = useState<"LUTHO" | "DARK" | "LIGHT">(() => {
     try {
-      const saved = localStorage.getItem("roco_theme");
-      return (saved === "DARK" || saved === "LIGHT" || saved === "ORANGE") ? saved : "DARK";
+      const saved = localStorage.getItem("lutho_theme");
+      return (saved === "DARK" || saved === "LIGHT" || saved === "LUTHO") ? saved : "LUTHO";
     } catch {
-      return "DARK";
+      return "LUTHO";
     }
   });
+  useEffect(() => {
+    try { localStorage.setItem("lutho_theme", theme); } catch {}
+  }, [theme]);
 
   const [cart, setCart] = useState<CartItem[]>(() => {
     try {
-      const saved = localStorage.getItem("roco_cart");
+      const saved = localStorage.getItem("lutho_cart");
       return saved ? JSON.parse(saved) : [];
     } catch {
       return [];
@@ -475,7 +478,7 @@ export default function App() {
   // Stateful Specials list that can be managed by staff in real-time
   const [specials, setSpecials] = useState<any[]>(() => {
     try {
-      const saved = localStorage.getItem("roco_specials_v4");
+      const saved = localStorage.getItem("lutho_specials_v4");
       if (saved) {
         const parsed = JSON.parse(saved);
         const merged = [...parsed];
@@ -500,10 +503,10 @@ export default function App() {
   const [userReviewRating, setUserReviewRating] = useState(5);
   const [userReviewText, setUserReviewText] = useState("");
   const [couponCode, setCouponCode] = useState<string | null>(() => {
-    return localStorage.getItem("roco_applied_coupon_code") || null;
+    return localStorage.getItem("lutho_applied_coupon_code") || null;
   });
   const [couponApplied, setCouponApplied] = useState(() => {
-    return localStorage.getItem("roco_coupon_applied") === "true";
+    return localStorage.getItem("lutho_coupon_applied") === "true";
   });
 
   // QR modal state
@@ -543,7 +546,7 @@ export default function App() {
   const handleCopyUrl = (tableId: string) => {
     let secureToken = "";
     try {
-      const saved = localStorage.getItem("roco_tables_security_configs");
+      const saved = localStorage.getItem("lutho_tables_security_configs");
       if (saved) {
         const configs = JSON.parse(saved);
         if (configs[tableId]) secureToken = configs[tableId].secureToken;
@@ -556,7 +559,7 @@ export default function App() {
         "11": "2195", "12": "1294", "13": "3141", "14": "4529", "15": "5670"
       };
       const pin = pins[tableId] || "1294";
-      secureToken = `roco-sec-t${tableId.padStart(2, "0")}-${pin}f8c2b5`;
+      secureToken = `lutho-sec-t${tableId.padStart(2, "0")}-${pin}f8c2b5`;
     }
     const tableUrl = `${window.location.origin}${window.location.pathname}?table=${tableId}&token=${secureToken}`;
     navigator.clipboard.writeText(tableUrl);
@@ -592,7 +595,7 @@ export default function App() {
     try {
       const base64Data = await fileToDataUrl(file);
       const batch: Record<string, string> = {};
-      ROCO_TABLES.forEach((table) => {
+      LUTHO_TABLES.forEach((table) => {
         batch[table.id] = base64Data;
       });
       setCustomQrs(batch);
@@ -669,7 +672,7 @@ export default function App() {
       if (params.get("table")) {
         return false;
       }
-      return localStorage.getItem("roco_admin_unlocked") === "true";
+      return localStorage.getItem("lutho_admin_unlocked") === "true";
     } catch {
       return false;
     }
@@ -710,8 +713,8 @@ export default function App() {
           window.history.replaceState({}, "", `${window.location.pathname}?admin=1`);
         }
 
-        const savedProfileId = localStorage.getItem("roco_active_staff_profile_id") || "";
-        const unlocked = localStorage.getItem("roco_admin_unlocked") === "true";
+        const savedProfileId = localStorage.getItem("lutho_active_staff_profile_id") || "";
+        const unlocked = localStorage.getItem("lutho_admin_unlocked") === "true";
         if (unlocked && savedProfileId) {
           setActiveStaffProfileId(savedProfileId);
           setAppMode("STAFF");
@@ -726,7 +729,7 @@ export default function App() {
         const cleanId = tableParam.replace(/\D/g, "");
         const tableId = cleanId || tableParam;
         setCurrentTableId(tableId);
-        localStorage.setItem("roco_active_customer_table", tableId);
+        localStorage.setItem("lutho_active_customer_table", tableId);
         // Scanning a table QR code should always return Customer View, never staff view
         setAppMode("CUSTOMER");
       } else {
@@ -741,7 +744,7 @@ export default function App() {
           const next = `?table=14&token=${encodeURIComponent(config.secureToken)}`;
           window.history.replaceState({}, "", `${window.location.pathname}${next}`);
           setCurrentTableId("14");
-          localStorage.setItem("roco_active_customer_table", "14");
+          localStorage.setItem("lutho_active_customer_table", "14");
           setAppMode("CUSTOMER");
           setIsAdminUnlocked(false);
         } catch {
@@ -787,7 +790,7 @@ export default function App() {
     setDetailModifiers({ bacon: false, cheddar: false });
   }, [selectedDetailItem]);
 
-  // --- Ultimate RocoMamas Booking, Games, Table Occupancy, Chat States ---
+  // --- Ultimate Lutho Booking, Games, Table Occupancy, Chat States ---
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
   const [isGamesModalOpen, setIsGamesModalOpen] = useState(false);
 
@@ -946,7 +949,7 @@ export default function App() {
   // Booking list
   const [bookings, setBookings] = useState<any[]>(() => {
     try {
-      const saved = localStorage.getItem("roco_bookings");
+      const saved = localStorage.getItem("lutho_bookings");
       return saved ? JSON.parse(saved) : [];
     } catch {
       return [];
@@ -956,7 +959,7 @@ export default function App() {
   // 1-15 tables state: "Available" | "Occupied" | "Booked" | "Pending Cleanup"
   const [tablesState, setTablesState] = useState<Record<string, "Available" | "Occupied" | "Booked" | "Pending Cleanup">>(() => {
     try {
-      const saved = localStorage.getItem("roco_tables_occupancy");
+      const saved = localStorage.getItem("lutho_tables_occupancy");
       if (saved) return JSON.parse(saved);
     } catch {}
     const defaults: Record<string, "Available" | "Occupied" | "Booked" | "Pending Cleanup"> = {};
@@ -985,11 +988,11 @@ export default function App() {
   const [isPosConfigOpen, setIsPosConfigOpen] = useState(false);
   const [isTermsOpen, setIsTermsOpen] = useState(false);
   const [selectedPosSystem, setSelectedPosSystem] = useState<string>(() => {
-    return localStorage.getItem("roco_pos_selected") || "PILOT";
+    return localStorage.getItem("lutho_pos_selected") || "PILOT";
   });
   const [posSettings, setPosSettings] = useState<Record<string, Record<string, string>>>(() => {
     try {
-      const saved = localStorage.getItem("roco_pos_settings");
+      const saved = localStorage.getItem("lutho_pos_settings");
       if (saved) return JSON.parse(saved);
     } catch (e) {
       console.error(e);
@@ -999,19 +1002,19 @@ export default function App() {
         apiUrl: "https://api.pilotpos.co.za/v1",
         storeCode: "PIL-7281-RM",
         apiKey: "pk_plt_8271a8f96b281bf011",
-        channelId: "ROCO-GUEST-APP-SWG",
+        channelId: "LUTHO-GUEST-APP-SWG",
         tableMappingType: "DYNAMIC_NUMERIC",
         bufferTimeout: "3000"
       },
       GAAP: {
         gatewayUrl: "https://gaapcloud.net/integrator/api/v2",
-        siteId: "GAAP-ROCO-DURBAN-SOUTH",
+        siteId: "GAAP-LUTHO-DURBAN-SOUTH",
         clientSecret: "sc_gp_91823eb21a",
-        webhookUrl: "https://api.rocomamas.com/webhooks/gaap",
+        webhookUrl: "https://api.lutho.app/webhooks/gaap",
         diningOptionCode: "10"
       },
       TOAST: {
-        clientId: "toast_client_roco_app",
+        clientId: "toast_client_lutho_app",
         clientSecret: "toast_sec_99182522a",
         groupId: "39a8cd4b-8812-4211-bb1e-128292851a",
         envMode: "SANDBOX"
@@ -1022,7 +1025,7 @@ export default function App() {
         accessToken: "tok_ls_8827104b2b"
       },
       MICROS: {
-        simphonyUrl: "https://simphony.rocomamas.co.za:8080/api",
+        simphonyUrl: "https://simphony.lutho.app:8080/api",
         workstationId: "WS-04-FRONT",
         revenueCenterId: "RVC-BAR-02",
         employeeId: "10092"
@@ -1033,22 +1036,22 @@ export default function App() {
         accessToken: "clv_acc_8716b92a"
       },
       REST: {
-        customUrl: "https://api.rocomamas-franchise.net/orders/v1",
-        bearerToken: "Bearer roco_franchise_9921_sec",
+        customUrl: "https://api.lutho-franchise.net/orders/v1",
+        bearerToken: "Bearer lutho_franchise_9921_sec",
         signingSecret: "wh_sign_9821aa8716cc"
       }
     };
   });
   const [isPosConnecting, setIsPosConnecting] = useState(false);
   const [isPosConnected, setIsPosConnected] = useState(() => {
-    return localStorage.getItem("roco_pos_connected") === "true";
+    return localStorage.getItem("lutho_pos_connected") === "true";
   });
   const [posConnectionLogs, setPosConnectionLogs] = useState<string[]>([]);
 
   // Track known booking IDs to detect and popup newly booked ones
   const [knownBookingIds, setKnownBookingIds] = useState<string[]>(() => {
     try {
-      const saved = localStorage.getItem("roco_bookings");
+      const saved = localStorage.getItem("lutho_bookings");
       let parsed = saved ? JSON.parse(saved) : [];
       parsed = parsed.filter((b: any) => b.id !== "b-1" && b.id !== "b-2" && b.name !== "Jessica Smith" && b.name !== "Marcus Dun");
       return parsed.map((b: any) => b.id);
@@ -1100,17 +1103,17 @@ export default function App() {
   // Stamps tracking (persisted)
   const [stamps, setStamps ] = useState<number>(() => {
     try {
-      const saved = localStorage.getItem("roco_stamps");
+      const saved = localStorage.getItem("lutho_stamps");
       return saved ? parseInt(saved, 10) : 1;
     } catch {
       return 1;
     }
   });
 
-  // Track the history of submitted orders to mimic real "connected" RocoMamas OS
+  // Track the history of submitted orders to mimic real "connected" Lutho OS
   const [historicOrders, setHistoricOrders] = useState<HistoricOrder[]>(() => {
     try {
-      const saved = localStorage.getItem("roco_orders");
+      const saved = localStorage.getItem("lutho_orders");
       return saved ? JSON.parse(saved) : [];
     } catch {
       return [];
@@ -1143,7 +1146,7 @@ export default function App() {
   } | null>(null);
   const [isGuestNameOpen, setIsGuestNameOpen] = useState(() => {
     try {
-      return !localStorage.getItem("roco_guest_name_confirmed");
+      return !localStorage.getItem("lutho_guest_name_confirmed");
     } catch {
       return true;
     }
@@ -1153,7 +1156,7 @@ export default function App() {
   // Dynamic state-based Menu Items list for the Live Menu manager & favorites
   const [menuItems, setMenuItems] = useState<MenuItem[]>(() => {
     try {
-      const saved = localStorage.getItem("roco_menu_items_v4");
+      const saved = localStorage.getItem("lutho_menu_items_v4");
       let base = saved ? JSON.parse(saved) : MENU_ITEMS;
       base = base.map((item: any) => {
         if (item.id === "promo-3") {
@@ -1174,7 +1177,7 @@ export default function App() {
 
   const [favoritedIds, setFavoritedIds] = useState<string[]>(() => {
     try {
-      const saved = localStorage.getItem("roco_favorites");
+      const saved = localStorage.getItem("lutho_favorites");
       return saved ? JSON.parse(saved) : [];
     } catch {
       return [];
@@ -1184,7 +1187,7 @@ export default function App() {
   // Dynamic game selection tabs & multi-game states
   const [activeGameTab, setActiveGameTab] = useState<"DRINKING" | "ARCADE" | "CHALLENGES">("DRINKING");
   
-  // Roco Burger Catcher Game states
+  // Lutho Burger Catcher Game states
   const [burgerCatcherScore, setBurgerCatcherScore] = useState(0);
   const [burgerPosition, setBurgerPosition] = useState(190);
   const [fallingIngredients, setFallingIngredients] = useState<{ id: number; x: number; y: number; emoji: string; speed: number; isBad: boolean }[]>([]);
@@ -1198,7 +1201,7 @@ export default function App() {
   // Authenticated Loyalty User Profile states
   const [userProfile, setUserProfile] = useState<{ email: string; username: string } | null>(() => {
     try {
-      const saved = localStorage.getItem("roco_user_profile");
+      const saved = localStorage.getItem("lutho_user_profile");
       return saved ? JSON.parse(saved) : null;
     } catch {
       return null;
@@ -1224,11 +1227,11 @@ export default function App() {
     Array.from({ length: 9 }).map((_, idx) => ({ id: idx, type: "CHEESE", fuse: 100, active: false }))
   );
   const [defuserHighScore, setDefuserHighScore] = useState<number>(() => {
-    return Number(localStorage.getItem("roco_defuser_highscore") || "120");
+    return Number(localStorage.getItem("lutho_defuser_highscore") || "120");
   });
   const [defuserLeaderboard, setDefuserLeaderboard] = useState<{ name: string; score: number; date: string }[]>(() => {
     try {
-      const saved = localStorage.getItem("roco_defuser_leaderboard");
+      const saved = localStorage.getItem("lutho_defuser_leaderboard");
       if (saved) return JSON.parse(saved);
     } catch {}
     return [];
@@ -1272,7 +1275,7 @@ export default function App() {
   const [staffTablePinPrompt, setStaffTablePinPrompt] = useState<string | null>(null);
   const [selectedStaffTable, setSelectedStaffTable] = useState<string | null>(null);
   const [staffTablePinInput, setStaffTablePinInput] = useState("");
-  const [activeStaffProfileId, setActiveStaffProfileId] = useState<string>(() => localStorage.getItem("roco_active_staff_profile_id") || "");
+  const [activeStaffProfileId, setActiveStaffProfileId] = useState<string>(() => localStorage.getItem("lutho_active_staff_profile_id") || "");
   const [staffWorkspace, setStaffWorkspace] = useState<StaffWorkspace>("overview");
   const [staffSidebarOpen, setStaffSidebarOpen] = useState(false);
   const [staffInspectorChatOpen, setStaffInspectorChatOpen] = useState(true);
@@ -1318,14 +1321,14 @@ export default function App() {
     }
   }, []);
 
-  // --- ROCO CREW ACADEMY, SHIFT ROSTERING & TIMERS STATES ---
+  // --- LUTHO CREW ACADEMY, SHIFT ROSTERING & TIMERS STATES ---
   const [waitersList, setWaitersList] = useState<any[]>(() => {
     try {
-      const saved = localStorage.getItem("roco_waiters_list");
+      const saved = localStorage.getItem("lutho_waiters_list");
       if (saved) return JSON.parse(saved);
     } catch {}
     return [
-      { name: "Roco Crew (Grill Champion)", onShift: true, progress: 100, completedModules: ["efficiency", "timers", "thunee"], history: [
+      { name: "Lutho Crew (Grill Champion)", onShift: true, progress: 100, completedModules: ["efficiency", "timers", "thunee"], history: [
         { orderId: "ORD-K8F", tableId: "10", itemsCount: 3, prepTimeSeconds: 45, deliveryTimeSeconds: 38, onTime: true },
         { orderId: "ORD-M3A", tableId: "14", itemsCount: 2, prepTimeSeconds: 30, deliveryTimeSeconds: 22, onTime: true }
       ] },
@@ -1338,14 +1341,14 @@ export default function App() {
   });
 
   const [activeWaiterProfileName, setActiveWaiterProfileName] = useState<string>(() => {
-    return localStorage.getItem("roco_active_waiter_profile") || "Zoe (Shake Master)";
+    return localStorage.getItem("lutho_active_waiter_profile") || "Zoe (Shake Master)";
   });
 
   const [staffRegistrationName, setStaffRegistrationName] = useState("");
 
   const [tableWaiterAssignments, setTableWaiterAssignments] = useState<Record<string, string>>(() => {
     try {
-      const saved = localStorage.getItem("roco_table_assignments");
+      const saved = localStorage.getItem("lutho_table_assignments");
       if (saved) return JSON.parse(saved);
     } catch {}
     return {};
@@ -1357,19 +1360,19 @@ export default function App() {
 
   // Sync to local storage
   useEffect(() => {
-    localStorage.setItem("roco_waiters_list", JSON.stringify(waitersList));
+    localStorage.setItem("lutho_waiters_list", JSON.stringify(waitersList));
   }, [waitersList]);
 
   useEffect(() => {
-    localStorage.setItem("roco_table_assignments", JSON.stringify(tableWaiterAssignments));
+    localStorage.setItem("lutho_table_assignments", JSON.stringify(tableWaiterAssignments));
   }, [tableWaiterAssignments]);
 
   useEffect(() => {
-    localStorage.setItem("roco_active_waiter_profile", activeWaiterProfileName);
+    localStorage.setItem("lutho_active_waiter_profile", activeWaiterProfileName);
   }, [activeWaiterProfileName]);
 
   useEffect(() => {
-    localStorage.setItem("roco_active_staff_profile_id", activeStaffProfileId);
+    localStorage.setItem("lutho_active_staff_profile_id", activeStaffProfileId);
   }, [activeStaffProfileId]);
 
   useEffect(() => {
@@ -1411,7 +1414,7 @@ export default function App() {
     const logFirestorePilotError = (label: string, error: unknown) => {
       const message = error instanceof Error ? error.message : String(error);
       if (message.includes("permission") || message.includes("Permission")) {
-        console.warn(`[ROCO] Firestore pilot sync unavailable (${label}). Deploy firestore.rules or check Firebase auth.`);
+        console.warn(`[LUTHO] Firestore pilot sync unavailable (${label}). Deploy firestore.rules or check Firebase auth.`);
         return;
       }
       console.error(error);
@@ -1568,7 +1571,7 @@ export default function App() {
     try {
       await setDoc(doc(db, "system", "tableAlerts"), sanitizeForFirestore(nextAlerts) as Record<string, unknown>);
     } catch (error) {
-      console.error("[ROCO] Failed to sync table alerts:", error);
+      console.error("[LUTHO] Failed to sync table alerts:", error);
     }
   };
 
@@ -1577,7 +1580,7 @@ export default function App() {
     setTableAlerts((prev) => {
       const next = { ...prev, [id]: active };
       void setDoc(doc(db, "system", "tableAlerts"), sanitizeForFirestore(next) as Record<string, unknown>).catch(
-        (error) => console.error("[ROCO] Failed to sync table alert:", error)
+        (error) => console.error("[LUTHO] Failed to sync table alert:", error)
       );
       return next;
     });
@@ -1617,7 +1620,7 @@ export default function App() {
     try {
       await setDoc(doc(db, "staff_orders", order.id), toFirestoreOrder(order), { merge: true });
     } catch (error) {
-      console.error("[ROCO] Failed to sync order to Firestore:", error);
+      console.error("[LUTHO] Failed to sync order to Firestore:", error);
     }
   };
 
@@ -1655,7 +1658,7 @@ export default function App() {
     try {
       await updateDoc(doc(db, "staff_orders", orderId), sanitizeForFirestore(patch) as Record<string, unknown>);
     } catch (error) {
-      console.error("[ROCO] Failed to update order status:", error);
+      console.error("[LUTHO] Failed to update order status:", error);
     }
   };
 
@@ -1683,9 +1686,9 @@ export default function App() {
     setIsAdminUnlocked(true);
     setAppMode("STAFF");
     setStaffWorkspace(onAdminKioskRoute ? "tables" : "overview");
-    localStorage.setItem("roco_admin_unlocked", "true");
-    localStorage.setItem("roco_active_staff_profile_id", matchedProfile.id);
-    localStorage.setItem("roco_app_mode", "STAFF");
+    localStorage.setItem("lutho_admin_unlocked", "true");
+    localStorage.setItem("lutho_active_staff_profile_id", matchedProfile.id);
+    localStorage.setItem("lutho_app_mode", "STAFF");
     triggerToast(`Welcome back, ${matchedProfile.name}`, "success");
   };
 
@@ -1739,7 +1742,7 @@ export default function App() {
     if (String(tableId) === REMOTE_TABLE_ID) return 0;
     const raw = window.prompt(
       `How many guests are seated across ${formatTableLabel(tableId)}?\n\n` +
-        `ROCO uses covers (not just table count) to balance the next assignment.`,
+        `LUTHO uses covers (not just table count) to balance the next assignment.`,
       String(Math.max(1, fallback))
     );
     if (raw === null) return null;
@@ -2168,7 +2171,7 @@ export default function App() {
   };
 
   const handleHostSplitSession = async () => {
-    const name = currentPlayerName || sessionStorage.getItem("roco_my_session_name") || "Guest";
+    const name = currentPlayerName || sessionStorage.getItem("lutho_my_session_name") || "Guest";
     const session = createSplitSession(name, REMOTE_TABLE_ID);
     setRemoteSplitSession(session);
     setSplitQrStep("host");
@@ -2183,7 +2186,7 @@ export default function App() {
         items: [],
       });
     } catch (error) {
-      console.error("[ROCO] Failed to publish split session:", error);
+      console.error("[LUTHO] Failed to publish split session:", error);
     }
   };
 
@@ -2193,7 +2196,7 @@ export default function App() {
       triggerToast("Paste a valid split link or session code.", "info");
       return;
     }
-    const name = currentPlayerName || sessionStorage.getItem("roco_my_session_name") || "Guest";
+    const name = currentPlayerName || sessionStorage.getItem("lutho_my_session_name") || "Guest";
     let session = joinSplitSession(sessionId, name);
     if (!session) {
       try {
@@ -2204,7 +2207,7 @@ export default function App() {
           saveSplitSession(session);
         }
       } catch (error) {
-        console.error("[ROCO] Failed to fetch split session:", error);
+        console.error("[LUTHO] Failed to fetch split session:", error);
       }
     }
     if (!session) {
@@ -2220,7 +2223,7 @@ export default function App() {
     try {
       await upsertSplitSession(session);
     } catch (error) {
-      console.error("[ROCO] Failed to sync joined split:", error);
+      console.error("[LUTHO] Failed to sync joined split:", error);
     }
   };
 
@@ -2245,8 +2248,8 @@ export default function App() {
     setIsAdminUnlocked(true);
     setAppMode("STAFF");
     setStaffWorkspace(onAdminKioskRoute ? "tables" : "overview");
-    localStorage.setItem("roco_admin_unlocked", "true");
-    localStorage.setItem("roco_app_mode", "STAFF");
+    localStorage.setItem("lutho_admin_unlocked", "true");
+    localStorage.setItem("lutho_app_mode", "STAFF");
     triggerToast(`Welcome back, ${selectedProfile.name}`, "success");
   };
 
@@ -2259,9 +2262,9 @@ export default function App() {
     setStaffPinInput("");
     setAppMode("CUSTOMER");
     setStaffWorkspace("overview");
-    localStorage.removeItem("roco_admin_unlocked");
-    localStorage.removeItem("roco_active_staff_profile_id");
-    localStorage.setItem("roco_app_mode", "CUSTOMER");
+    localStorage.removeItem("lutho_admin_unlocked");
+    localStorage.removeItem("lutho_active_staff_profile_id");
+    localStorage.setItem("lutho_app_mode", "CUSTOMER");
   };
 
   // --- Staff profile creation + PIN validation helpers ---
@@ -2440,7 +2443,7 @@ export default function App() {
   };
 
   const [currentPlayerName, setCurrentPlayerName] = useState<string>(() => {
-    const cached = localStorage.getItem("roco_current_player_name") || sessionStorage.getItem("roco_my_session_name");
+    const cached = localStorage.getItem("lutho_current_player_name") || sessionStorage.getItem("lutho_my_session_name");
     return cached || "";
   });
 
@@ -2450,7 +2453,7 @@ export default function App() {
   const [isStopwatchRunning, setIsStopwatchRunning] = useState(false);
   const [challengesLeaderboard, setChallengesLeaderboard] = useState<{ name: string; table: string; challenge: string; duration: string; rank: number }[]>(() => {
     try {
-      const saved = localStorage.getItem("roco_leaderboard");
+      const saved = localStorage.getItem("lutho_leaderboard");
       if (saved) return JSON.parse(saved);
     } catch {}
     return [];
@@ -2473,15 +2476,15 @@ export default function App() {
 
   // Storage synchronization effect hooks
   useEffect(() => {
-    localStorage.setItem("roco_menu_items_v4", JSON.stringify(menuItems));
+    localStorage.setItem("lutho_menu_items_v4", JSON.stringify(menuItems));
   }, [menuItems]);
 
   useEffect(() => {
-    localStorage.setItem("roco_favorites", JSON.stringify(favoritedIds));
+    localStorage.setItem("lutho_favorites", JSON.stringify(favoritedIds));
   }, [favoritedIds]);
 
   useEffect(() => {
-    localStorage.setItem("roco_leaderboard", JSON.stringify(challengesLeaderboard));
+    localStorage.setItem("lutho_leaderboard", JSON.stringify(challengesLeaderboard));
   }, [challengesLeaderboard]);
 
   // Stopwatch ticking clock interval
@@ -2628,7 +2631,7 @@ export default function App() {
               
               setDefuserHighScore(currentHigh => {
                 if (defuserScore > currentHigh) {
-                  localStorage.setItem("roco_defuser_highscore", defuserScore.toString());
+                  localStorage.setItem("lutho_defuser_highscore", defuserScore.toString());
                   return defuserScore;
                 }
                 return currentHigh;
@@ -2808,7 +2811,7 @@ export default function App() {
         host: update.host !== undefined ? update.host : thuneeHostName || currentPlayerName,
         lastUpdated: Date.now()
       };
-      localStorage.setItem("roco_thunee_room_" + currentTableId, JSON.stringify(stateObj));
+      localStorage.setItem("lutho_thunee_room_" + currentTableId, JSON.stringify(stateObj));
       if (currentTableId) {
         setDoc(doc(db, "thunee_rooms", currentTableId), stateObj).catch(err => {
           handleFirestoreError(err, OperationType.WRITE, `thunee_rooms/${currentTableId}`);
@@ -2856,8 +2859,8 @@ export default function App() {
     if (!newName) return;
     const oldName = currentPlayerName;
     setCurrentPlayerName(newName);
-    localStorage.setItem("roco_current_player_name", newName);
-    sessionStorage.setItem("roco_my_session_name", newName);
+    localStorage.setItem("lutho_current_player_name", newName);
+    sessionStorage.setItem("lutho_my_session_name", newName);
 
     // If seated at any thunee desk, update seat
     if (thuneeSeats.includes(oldName)) {
@@ -3310,12 +3313,12 @@ export default function App() {
 
   // On mount: check first time user to trigger help automatically
   useEffect(() => {
-    const hasVisited = localStorage.getItem("roco_has_visited");
+    const hasVisited = localStorage.getItem("lutho_has_visited");
     if (!hasVisited) {
       // Delay so it triggers elegantly right as the splash screen completes
       const timer = setTimeout(() => {
         setIsHelpOpen(true);
-        localStorage.setItem("roco_has_visited", "true");
+        localStorage.setItem("lutho_has_visited", "true");
       }, 3400);
       return () => clearTimeout(timer);
     }
@@ -3323,37 +3326,37 @@ export default function App() {
 
   // --- Sync storage ---
   useEffect(() => {
-    localStorage.setItem("roco_cart", JSON.stringify(cart));
+    localStorage.setItem("lutho_cart", JSON.stringify(cart));
   }, [cart]);
 
   useEffect(() => {
-    localStorage.setItem("roco_stamps", stamps.toString());
+    localStorage.setItem("lutho_stamps", stamps.toString());
   }, [stamps]);
 
   useEffect(() => {
-    localStorage.setItem("roco_orders", JSON.stringify(historicOrders));
+    localStorage.setItem("lutho_orders", JSON.stringify(historicOrders));
   }, [historicOrders]);
 
   useEffect(() => {
-    localStorage.setItem("roco_specials_v4", JSON.stringify(specials));
+    localStorage.setItem("lutho_specials_v4", JSON.stringify(specials));
   }, [specials]);
 
   useEffect(() => {
-    localStorage.setItem("roco_coupon_applied", couponApplied.toString());
+    localStorage.setItem("lutho_coupon_applied", couponApplied.toString());
   }, [couponApplied]);
 
   useEffect(() => {
     if (couponCode) {
-      localStorage.setItem("roco_applied_coupon_code", couponCode);
+      localStorage.setItem("lutho_applied_coupon_code", couponCode);
     } else {
-      localStorage.removeItem("roco_applied_coupon_code");
+      localStorage.removeItem("lutho_applied_coupon_code");
     }
   }, [couponCode]);
 
   // Table overall active bill (master bill items, containing what's ordered on table so far)
   const [masterBillItems, setMasterBillItems] = useState<MasterBillItem[]>(() => {
     try {
-      const saved = localStorage.getItem("roco_master_bill");
+      const saved = localStorage.getItem("lutho_master_bill");
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
@@ -3378,7 +3381,7 @@ export default function App() {
     ? (remoteSplitSession?.members ?? (currentPlayerName ? [currentPlayerName] : []))
     : sessionMembers;
 
-  const myMemberName = currentPlayerName || sessionStorage.getItem("roco_my_session_name") || "";
+  const myMemberName = currentPlayerName || sessionStorage.getItem("lutho_my_session_name") || "";
   const myGroupDraft = groupOrderDraft?.members[myMemberName];
   const isMyGroupOrderLocked = !!myGroupDraft?.locked;
   const groupLockedCount = groupOrderDraft
@@ -3395,7 +3398,7 @@ export default function App() {
   /** Guest kitchen feed — remote table only shows this device/group's tickets. */
   const kitchenFeedOrders = useMemo(() => {
     if (!isRemoteTable) return historicOrders;
-    const myName = myMemberName || currentPlayerName || sessionStorage.getItem("roco_my_session_name") || "";
+    const myName = myMemberName || currentPlayerName || sessionStorage.getItem("lutho_my_session_name") || "";
     const feedOpts = {
       myName,
       sessionMembers: remoteSplitSession?.members || [],
@@ -3453,7 +3456,7 @@ export default function App() {
 
   const [incomingOrders, setIncomingOrders] = useState<any[]>(() => {
     try {
-      const saved = localStorage.getItem("roco_incoming_orders");
+      const saved = localStorage.getItem("lutho_incoming_orders");
       if (saved) return JSON.parse(saved);
     } catch {}
     return [];
@@ -3462,7 +3465,7 @@ export default function App() {
   // Keep records of orders for other tables
   const [otherTablesOrders, setOtherTablesOrders] = useState<Record<string, any[]>>(() => {
     try {
-      const saved = localStorage.getItem("roco_other_tables_orders");
+      const saved = localStorage.getItem("lutho_other_tables_orders");
       if (saved) return JSON.parse(saved);
     } catch {}
     return {};
@@ -3483,7 +3486,7 @@ export default function App() {
       "11": "2195", "12": "1294", "13": "3141", "14": "4529", "15": "5670"
     };
     const pin = pins[tableId] || "1294";
-    const secureToken = `roco-sec-t${tableId.padStart(2, "0")}-${pin}f8c2b5`;
+    const secureToken = `lutho-sec-t${tableId.padStart(2, "0")}-${pin}f8c2b5`;
     return {
       tableId,
       pin,
@@ -3494,7 +3497,7 @@ export default function App() {
 
   const [tableSecurityConfigs, setTableSecurityConfigs] = useState<Record<string, { tableId: string; pin: string; secureToken: string; rotatedAt: number }>>(() => {
     try {
-      const saved = localStorage.getItem("roco_tables_security_configs");
+      const saved = localStorage.getItem("lutho_tables_security_configs");
       if (saved) return JSON.parse(saved);
     } catch {}
     const map: Record<string, any> = {};
@@ -3514,14 +3517,14 @@ export default function App() {
       // Remote ordering must allow concurrent sessions globally.
       if (tableId === "14") return true;
 
-      const activeTable = localStorage.getItem("roco_active_customer_table");
+      const activeTable = localStorage.getItem("lutho_active_customer_table");
       const urlToken = params.get("token");
       const urlPin = params.get("pin");
 
       // Get table security configuration synchronously
       let configsSaved: Record<string, any> = {};
       try {
-        const saved = localStorage.getItem("roco_tables_security_configs");
+        const saved = localStorage.getItem("lutho_tables_security_configs");
         if (saved) configsSaved = JSON.parse(saved);
       } catch {}
 
@@ -3531,7 +3534,7 @@ export default function App() {
         "11": "2195", "12": "1294", "13": "3141", "14": "4529", "15": "5670"
       };
       const pin = pins[tableId] || "1294";
-      const defaultToken = `roco-sec-t${tableId.padStart(2, "0")}-${pin}f8c2b5`;
+      const defaultToken = `lutho-sec-t${tableId.padStart(2, "0")}-${pin}f8c2b5`;
       const config = configsSaved[tableId] || {
         tableId,
         pin,
@@ -3540,11 +3543,11 @@ export default function App() {
 
       // Direct URL Token/Pin scans update the active customer table and bypass lock
       if (urlToken && urlToken === config.secureToken) {
-        localStorage.setItem("roco_active_customer_table", tableId);
+        localStorage.setItem("lutho_active_customer_table", tableId);
         return true;
       }
       if (urlPin && urlPin === config.pin) {
-        localStorage.setItem("roco_active_customer_table", tableId);
+        localStorage.setItem("lutho_active_customer_table", tableId);
         return true;
       }
 
@@ -3552,7 +3555,7 @@ export default function App() {
       if (activeTable === tableId) {
         let unlockedRegistry: Record<string, string> = {};
         try {
-          const saved = localStorage.getItem("roco_unlocked_table_tokens");
+          const saved = localStorage.getItem("lutho_unlocked_table_tokens");
           if (saved) unlockedRegistry = JSON.parse(saved);
         } catch {}
 
@@ -3569,7 +3572,7 @@ export default function App() {
   
   const [securityAuditLogs, setSecurityAuditLogs] = useState<{ id: string; timestamp: number; type: "SUCCESS" | "FAILED" | "ROTATED" | "BLOCK"; message: string; tableId: string }[]>(() => {
     try {
-      const saved = localStorage.getItem("roco_security_audit_logs");
+      const saved = localStorage.getItem("lutho_security_audit_logs");
       return saved ? JSON.parse(saved) : [];
     } catch {
       return [];
@@ -3586,7 +3589,7 @@ export default function App() {
     };
     setSecurityAuditLogs(prev => {
       const updated = [newLog, ...prev].slice(0, 50);
-      localStorage.setItem("roco_security_audit_logs", JSON.stringify(updated));
+      localStorage.setItem("lutho_security_audit_logs", JSON.stringify(updated));
       return updated;
     });
   };
@@ -3622,25 +3625,25 @@ export default function App() {
 
     let unlockedRegistry: Record<string, string> = {};
     try {
-      const saved = localStorage.getItem("roco_unlocked_table_tokens");
+      const saved = localStorage.getItem("lutho_unlocked_table_tokens");
       if (saved) unlockedRegistry = JSON.parse(saved);
     } catch {}
 
     const savedToken = unlockedRegistry[currentTableId];
-    const activeTable = localStorage.getItem("roco_active_customer_table");
+    const activeTable = localStorage.getItem("lutho_active_customer_table");
 
     if (urlToken && urlToken === config.secureToken) {
       unlockedRegistry[currentTableId] = config.secureToken;
-      localStorage.setItem("roco_unlocked_table_tokens", JSON.stringify(unlockedRegistry));
-      localStorage.setItem("roco_active_customer_table", currentTableId);
-      document.cookie = `roco_session_${currentTableId}=${config.secureToken}; max-age=86400; path=/; SameSite=Strict; Secure`;
+      localStorage.setItem("lutho_unlocked_table_tokens", JSON.stringify(unlockedRegistry));
+      localStorage.setItem("lutho_active_customer_table", currentTableId);
+      document.cookie = `lutho_session_${currentTableId}=${config.secureToken}; max-age=86400; path=/; SameSite=Strict; Secure`;
       setIsTableUnlocked(true);
       setSecurityAttempts(0);
     } else if (urlPin && urlPin === config.pin) {
       unlockedRegistry[currentTableId] = config.secureToken;
-      localStorage.setItem("roco_unlocked_table_tokens", JSON.stringify(unlockedRegistry));
-      localStorage.setItem("roco_active_customer_table", currentTableId);
-      document.cookie = `roco_session_${currentTableId}=${config.secureToken}; max-age=86400; path=/; SameSite=Strict; Secure`;
+      localStorage.setItem("lutho_unlocked_table_tokens", JSON.stringify(unlockedRegistry));
+      localStorage.setItem("lutho_active_customer_table", currentTableId);
+      document.cookie = `lutho_session_${currentTableId}=${config.secureToken}; max-age=86400; path=/; SameSite=Strict; Secure`;
       setIsTableUnlocked(true);
       setSecurityAttempts(0);
     } else if (activeTable === currentTableId && savedToken && savedToken === config.secureToken) {
@@ -3670,14 +3673,14 @@ export default function App() {
       
       const updatedRegistry: Record<string, string> = {};
       try {
-        const saved = localStorage.getItem("roco_unlocked_table_tokens");
+        const saved = localStorage.getItem("lutho_unlocked_table_tokens");
         if (saved) Object.assign(updatedRegistry, JSON.parse(saved));
       } catch {}
       
       updatedRegistry[currentTableId] = config.secureToken;
-      localStorage.setItem("roco_unlocked_table_tokens", JSON.stringify(updatedRegistry));
-      localStorage.setItem("roco_active_customer_table", currentTableId);
-      document.cookie = `roco_session_${currentTableId}=${config.secureToken}; max-age=86400; path=/; SameSite=Strict; Secure`;
+      localStorage.setItem("lutho_unlocked_table_tokens", JSON.stringify(updatedRegistry));
+      localStorage.setItem("lutho_active_customer_table", currentTableId);
+      document.cookie = `lutho_session_${currentTableId}=${config.secureToken}; max-age=86400; path=/; SameSite=Strict; Secure`;
       
       setIsTableUnlocked(true);
       setSecurityAttempts(0);
@@ -3711,7 +3714,7 @@ export default function App() {
     for (let i = 0; i < 12; i++) {
       randomHex += chars.charAt(Math.floor(Math.random() * chars.length));
     }
-    const newSecureToken = `roco-sec-t${tableId.padStart(2, "0")}-${randomHex}`;
+    const newSecureToken = `lutho-sec-t${tableId.padStart(2, "0")}-${randomHex}`;
     
     setTableSecurityConfigs(prev => {
       const updated = {
@@ -3723,18 +3726,18 @@ export default function App() {
           rotatedAt: Date.now()
         }
       };
-      localStorage.setItem("roco_tables_security_configs", JSON.stringify(updated));
+      localStorage.setItem("lutho_tables_security_configs", JSON.stringify(updated));
       return updated;
     });
 
     logSecurityEvent("ROTATED", `Rotated credentials for Table ${tableId}. Old session keys invalidated.`, tableId);
     
     try {
-      const saved = localStorage.getItem("roco_unlocked_table_tokens");
+      const saved = localStorage.getItem("lutho_unlocked_table_tokens");
       if (saved) {
         const registry = JSON.parse(saved);
         delete registry[tableId];
-        localStorage.setItem("roco_unlocked_table_tokens", JSON.stringify(registry));
+        localStorage.setItem("lutho_unlocked_table_tokens", JSON.stringify(registry));
       }
     } catch {}
 
@@ -3770,7 +3773,7 @@ export default function App() {
   }, [bookings, knownBookingIds]);
 
   useEffect(() => {
-    setupRocoAudioUnlock();
+    setupLuthoAudioUnlock();
   }, []);
 
   // Keep guest order cards in sync with Firestore status updates from staff.
@@ -3790,7 +3793,7 @@ export default function App() {
     if (serviceOrders.length === 0) return;
 
     const isRemote = String(activeTableId) === REMOTE_TABLE_ID;
-    const myName = myMemberName || currentPlayerName || sessionStorage.getItem("roco_my_session_name") || "";
+    const myName = myMemberName || currentPlayerName || sessionStorage.getItem("lutho_my_session_name") || "";
     const sessionMembers = remoteSplitSession?.members || [];
     const feedOpts = {
       myName,
@@ -3908,22 +3911,22 @@ export default function App() {
   }, [currentTableId, sharedStaffOrders, tableServices]);
 
   useEffect(() => {
-    localStorage.setItem("roco_app_mode", appMode);
+    localStorage.setItem("lutho_app_mode", appMode);
   }, [appMode]);
 
   useEffect(() => {
     // Alerts are Firestore-synced via system/tableAlerts — clear stale local copies.
     try {
-      localStorage.removeItem("roco_table_alerts");
+      localStorage.removeItem("lutho_table_alerts");
     } catch {}
   }, []);
 
   useEffect(() => {
-    localStorage.setItem("roco_incoming_orders", JSON.stringify(incomingOrders));
+    localStorage.setItem("lutho_incoming_orders", JSON.stringify(incomingOrders));
   }, [incomingOrders]);
 
   useEffect(() => {
-    localStorage.setItem("roco_other_tables_orders", JSON.stringify(otherTablesOrders));
+    localStorage.setItem("lutho_other_tables_orders", JSON.stringify(otherTablesOrders));
   }, [otherTablesOrders]);
 
   // --- AUTOMATED ROTATING TABLE WAITER ASSIGNMENT ON QR SCAN ---
@@ -4023,19 +4026,19 @@ export default function App() {
   }, [waiterSummoned, tableAlerts]);
 
   useEffect(() => {
-    localStorage.setItem("roco_bookings", JSON.stringify(bookings));
+    localStorage.setItem("lutho_bookings", JSON.stringify(bookings));
   }, [bookings]);
 
   useEffect(() => {
     if (userProfile) {
-      localStorage.setItem("roco_user_profile", JSON.stringify(userProfile));
+      localStorage.setItem("lutho_user_profile", JSON.stringify(userProfile));
     } else {
-      localStorage.removeItem("roco_user_profile");
+      localStorage.removeItem("lutho_user_profile");
     }
   }, [userProfile]);
 
   useEffect(() => {
-    localStorage.setItem("roco_tables_occupancy", JSON.stringify(tablesState));
+    localStorage.setItem("lutho_tables_occupancy", JSON.stringify(tablesState));
   }, [tablesState]);
 
   useEffect(() => {
@@ -4061,14 +4064,14 @@ export default function App() {
       setChatMessages((prev) => (JSON.stringify(prev) === JSON.stringify(next) ? prev : next));
     };
     const onStorage = (e: StorageEvent) => {
-      if (e.key === "roco_chat_messages") syncChat();
+      if (e.key === "lutho_chat_messages") syncChat();
     };
     window.addEventListener("storage", onStorage);
-    window.addEventListener("roco_chat_updated", syncChat);
+    window.addEventListener("lutho_chat_updated", syncChat);
     const interval = setInterval(syncChat, 2000);
     return () => {
       window.removeEventListener("storage", onStorage);
-      window.removeEventListener("roco_chat_updated", syncChat);
+      window.removeEventListener("lutho_chat_updated", syncChat);
       clearInterval(interval);
     };
   }, []);
@@ -4083,7 +4086,7 @@ export default function App() {
       });
     };
     const onStorage = (e: StorageEvent) => {
-      if (e.key?.startsWith("roco_remote_split_") || e.key === "roco_remote_split_joined") syncSplit();
+      if (e.key?.startsWith("lutho_remote_split_") || e.key === "lutho_remote_split_joined") syncSplit();
     };
     window.addEventListener("storage", onStorage);
     const interval = setInterval(syncSplit, 2000);
@@ -4096,7 +4099,7 @@ export default function App() {
   useEffect(() => {
     const splitId = parseSplitFromLocation();
     if (!splitId || resolveActiveTableId(currentTableId) !== REMOTE_TABLE_ID) return;
-    const name = currentPlayerName || sessionStorage.getItem("roco_my_session_name");
+    const name = currentPlayerName || sessionStorage.getItem("lutho_my_session_name");
     if (!name) return;
     if (remoteSplitSession?.id === splitId) return;
 
@@ -4112,7 +4115,7 @@ export default function App() {
             saveSplitSession(session);
           }
         } catch (error) {
-          console.error("[ROCO] Failed to fetch split session from URL:", error);
+          console.error("[LUTHO] Failed to fetch split session from URL:", error);
         }
       }
       if (cancelled || !session) return;
@@ -4121,7 +4124,7 @@ export default function App() {
       try {
         await upsertSplitSession(session);
       } catch (error) {
-        console.error("[ROCO] Failed to sync URL join split:", error);
+        console.error("[LUTHO] Failed to sync URL join split:", error);
       }
     })();
 
@@ -4145,7 +4148,7 @@ export default function App() {
           setGroupOrderDraft(null);
         }
       },
-      (error) => console.error("[ROCO] Group order draft sync failed:", error)
+      (error) => console.error("[LUTHO] Group order draft sync failed:", error)
     );
     return () => unsub();
   }, [remoteSplitSession?.id]);
@@ -4196,9 +4199,9 @@ export default function App() {
           }
           if (Notification.permission === "granted") {
             try {
-              new Notification("Roco OS: Booking Alert!", {
+              new Notification("Lutho OS: Booking Alert!", {
                 body: warningMsg,
-                icon: "https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=Roco-ALERT"
+                icon: "https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=Lutho-ALERT"
               });
             } catch (e) {
               console.error(e);
@@ -4267,15 +4270,15 @@ export default function App() {
 
   // Dynamic table-scoped master bill initialization and synchronization
   useEffect(() => {
-    const myName = currentPlayerName || sessionStorage.getItem("roco_my_session_name") || "";
+    const myName = currentPlayerName || sessionStorage.getItem("lutho_my_session_name") || "";
 
     const billKey =
       currentTableId === REMOTE_TABLE_ID && remoteSplitSession
         ? getSplitBillStorageKey(remoteSplitSession.id)
-        : `roco_master_bill_${currentTableId}`;
+        : `lutho_master_bill_${currentTableId}`;
 
     // Remote solo guests (no split session/host) still get a persistent bill,
-    // keyed the same as a normal table (`roco_master_bill_14`), so it survives reloads.
+    // keyed the same as a normal table (`lutho_master_bill_14`), so it survives reloads.
     try {
       const savedBill = localStorage.getItem(billKey);
       if (savedBill) {
@@ -4295,7 +4298,7 @@ export default function App() {
 
     if (currentTableId !== REMOTE_TABLE_ID) {
       try {
-        const savedMembersStr = localStorage.getItem("roco_session_members_" + currentTableId);
+        const savedMembersStr = localStorage.getItem("lutho_session_members_" + currentTableId);
         let currentMembers: string[] = savedMembersStr ? JSON.parse(savedMembersStr) : [];
         if (myName && !currentMembers.includes(myName)) {
           currentMembers = [...currentMembers, myName];
@@ -4314,7 +4317,7 @@ export default function App() {
     const billKey =
       currentTableId === REMOTE_TABLE_ID && remoteSplitSession
         ? getSplitBillStorageKey(remoteSplitSession.id)
-        : `roco_master_bill_${currentTableId}`;
+        : `lutho_master_bill_${currentTableId}`;
 
     localStorage.setItem(billKey, JSON.stringify(masterBillItems));
 
@@ -4330,7 +4333,7 @@ export default function App() {
           hostName: remoteSplitSession.hostName,
           members: remoteSplitSession.members,
           items: masterBillItems,
-        }).catch((error) => console.error("[ROCO] Split bill sync failed:", error));
+        }).catch((error) => console.error("[LUTHO] Split bill sync failed:", error));
       }, 250);
       return () => window.clearTimeout(timer);
     }
@@ -4339,21 +4342,21 @@ export default function App() {
   // Persist session members when modified (dine-in tables only)
   useEffect(() => {
     if (currentTableId && currentTableId !== REMOTE_TABLE_ID) {
-      localStorage.setItem("roco_session_members_" + currentTableId, JSON.stringify(sessionMembers));
+      localStorage.setItem("lutho_session_members_" + currentTableId, JSON.stringify(sessionMembers));
     }
   }, [sessionMembers, currentTableId]);
 
   // Listen for storage events to synchronize master bill/sessions live across all tabs!
   useEffect(() => {
     const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === "roco_master_bill_" + currentTableId) {
+      if (e.key === "lutho_master_bill_" + currentTableId) {
         try {
           if (e.newValue) {
             setMasterBillItems(JSON.parse(e.newValue));
           }
         } catch {}
       }
-      if (e.key === "roco_session_members_" + currentTableId) {
+      if (e.key === "lutho_session_members_" + currentTableId) {
         try {
           if (e.newValue) {
             setSessionMembers(JSON.parse(e.newValue));
@@ -4397,7 +4400,7 @@ export default function App() {
         }
       } else {
         // Fallback to local storage if Firestore doesn't have it yet, or initialize it from local
-        const saved = localStorage.getItem("roco_thunee_room_" + currentTableId);
+        const saved = localStorage.getItem("lutho_thunee_room_" + currentTableId);
         if (saved) {
           try {
             const data = JSON.parse(saved);
@@ -4435,7 +4438,7 @@ export default function App() {
 
   // Audio synthesize system for industrial tactile feel
   const playBeep = useCallback((freq = 440, type: OscillatorType = "sine", duration = 0.08) => {
-    rocoPlayBeep(freq, type, duration, soundEnabled);
+    luthoPlayBeep(freq, type, duration, soundEnabled);
   }, [soundEnabled]);
 
   // Trigger Toast Notification Helper
@@ -4492,7 +4495,7 @@ export default function App() {
       void setTableAlertFlag(currentTableId, true);
       await createServiceRequest("WAITER", currentTableId, "Guest requested waiter assistance");
     }
-    triggerToast("Roco Crew has been notified. He'll be right there.", "info");
+    triggerToast("Lutho Crew has been notified. He'll be right there.", "info");
     // Pulse animation of waiter icon can stay highlighted.
     setTimeout(() => {
       setWaiterSummoned(false);
@@ -4605,8 +4608,8 @@ export default function App() {
       }
 
       memberTableIds.forEach((memberId) => {
-        localStorage.removeItem(`roco_master_bill_${memberId}`);
-        localStorage.removeItem(`roco_session_members_${memberId}`);
+        localStorage.removeItem(`lutho_master_bill_${memberId}`);
+        localStorage.removeItem(`lutho_session_members_${memberId}`);
       });
       if (memberTableIds.includes(String(currentTableId))) {
         setMasterBillItems([]);
@@ -4661,7 +4664,7 @@ export default function App() {
 
       // End-of-floor cleanup only looks at dine-in tables — remote is a separate lane.
       if (!isRemoteClear) {
-        const dineInTables = ROCO_TABLES.filter((table) => table.id !== REMOTE_TABLE_ID);
+        const dineInTables = LUTHO_TABLES.filter((table) => table.id !== REMOTE_TABLE_ID);
         const stillOpenElsewhere = sharedStaffOrders.some(
           (order) =>
             order.status !== "Completed" &&
@@ -4678,13 +4681,13 @@ export default function App() {
         }
       }
     } catch (error) {
-      console.error("[ROCO] Clear table failed:", error);
+      console.error("[LUTHO] Clear table failed:", error);
       triggerToast("Could not clear the table. Try again.", "info");
     }
   };
 
   const handleClearAllTableAssignments = async () => {
-    const dineInTables = ROCO_TABLES.filter((table) => table.id !== REMOTE_TABLE_ID);
+    const dineInTables = LUTHO_TABLES.filter((table) => table.id !== REMOTE_TABLE_ID);
     const allDineInAvailable = dineInTables.every(
       (table) => (tablesState[table.id] || "Available") === "Available"
     );
@@ -4718,7 +4721,7 @@ export default function App() {
     playBeep(320, "sine", 0.08);
     const nextAssignments = { ...tableWaiterAssignments };
     const remoteWaiter = nextAssignments[REMOTE_TABLE_ID];
-    ROCO_TABLES.filter((table) => table.id !== REMOTE_TABLE_ID).forEach((table) => {
+    LUTHO_TABLES.filter((table) => table.id !== REMOTE_TABLE_ID).forEach((table) => {
       delete nextAssignments[table.id];
     });
     if (remoteWaiter) nextAssignments[REMOTE_TABLE_ID] = remoteWaiter;
@@ -4886,8 +4889,8 @@ export default function App() {
 
     setAppMode("CUSTOMER");
     setIsAdminUnlocked(false);
-    localStorage.removeItem("roco_admin_unlocked");
-    triggerToast("Shift successfully ended. Stand down, Roco Crew!", "info");
+    localStorage.removeItem("lutho_admin_unlocked");
+    triggerToast("Shift successfully ended. Stand down, Lutho Crew!", "info");
   };
 
   const handleDownloadTrainingManual = async () => {
@@ -4897,7 +4900,7 @@ export default function App() {
       await downloadTrainingManualPdf();
       triggerToast("Training manual downloaded — ready for your first session.", "success");
     } catch (error) {
-      console.error("[ROCO] Training PDF export failed:", error);
+      console.error("[LUTHO] Training PDF export failed:", error);
       triggerToast("Could not export the training PDF. Try again.", "info");
     }
   };
@@ -5092,13 +5095,13 @@ export default function App() {
     setPendingPassFormat("pdf");
     setLastOrderPassId(payload.order.id);
     window.setTimeout(() => {
-      downloadOrderPassPdf(payload).catch((error) => console.error("[ROCO] Pass PDF auto-download failed:", error));
+      downloadOrderPassPdf(payload).catch((error) => console.error("[LUTHO] Pass PDF auto-download failed:", error));
     }, 400);
   };
 
   const handleRedownloadOrderPass = (order: HistoricOrder) => {
     const activeTableId = resolveActiveTableId(currentTableId);
-    const guestLabel = myMemberName || currentPlayerName || sessionStorage.getItem("roco_my_session_name") || "Guest";
+    const guestLabel = myMemberName || currentPlayerName || sessionStorage.getItem("lutho_my_session_name") || "Guest";
     const assignedWaiterName = activeTableId
       ? (tableWaiterAssignments[activeTableId] || "")
       : "";
@@ -5133,7 +5136,7 @@ export default function App() {
     if (activeTableId !== currentTableId) {
       setCurrentTableId(activeTableId);
     }
-    localStorage.setItem("roco_active_customer_table", activeTableId);
+    localStorage.setItem("lutho_active_customer_table", activeTableId);
 
     const maxPrepSeconds = getOrderPrepSeconds(cart);
 
@@ -5214,7 +5217,7 @@ export default function App() {
     if (newStampsVal >= 10) {
       newStampsVal = newStampsVal % 10;
       setTimeout(() => {
-        triggerToast("🎉 LOYALTY UNLOCKED: Free Savanna or Windhoek Draft! Tell Roco Crew!", "stamp");
+        triggerToast("🎉 LOYALTY UNLOCKED: Free Savanna or Windhoek Draft! Tell Lutho Crew!", "stamp");
       }, 1500);
     } else {
       setTimeout(() => {
@@ -5253,7 +5256,7 @@ export default function App() {
     triggerToast(
       isRemoteTable
         ? `Order sent! Choose PDF or PNG for your claim pass — find it again under Active Kitchen Orders.`
-        : `Order sent to ${formatTableLabel(activeTableId)}! Roco Crew will bring your drinks/food shortly.`,
+        : `Order sent to ${formatTableLabel(activeTableId)}! Lutho Crew will bring your drinks/food shortly.`,
       "success"
     );
 
@@ -5291,7 +5294,7 @@ export default function App() {
         }
         await submitRemoteGroupRound(claimed, members);
       } catch (error) {
-        console.error("[ROCO] Group order submission failed:", error);
+        console.error("[LUTHO] Group order submission failed:", error);
         submittingGroupRoundRef.current = null;
         triggerToast("Could not submit the group order. Try locking in again.", "info");
       }
@@ -5407,10 +5410,10 @@ export default function App() {
   const handleExportFullReceipt = () => {
     playBeep(480, "sine", 0.08);
     const divider = "------------------------------------------\n";
-    const header = `🍻 RocoMamas (TABLE ${currentTableId}) 🍻\n` +
+    const header = `🍻 Lutho (TABLE ${currentTableId}) 🍻\n` +
                    "      INDUSTRIAL TABLE ORDERING\n" +
                    `Date: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}\n` +
-                   "Server Staff: Roco Crew (Live OS)\n" +
+                   "Server Staff: Lutho Crew (Live OS)\n" +
                    divider +
                    "QTY  ITEM                        PRICE\n" +
                    divider;
@@ -5430,7 +5433,7 @@ export default function App() {
                    remainingStr +
                    "==========================================\n" +
                    "   Thank you for dining with us! 🔥\n" +
-                   "   Powered by RocoMamas Guest OS\n";
+                   "   Powered by Lutho Guest OS\n";
 
     const fullText = header + itemsBody + footer;
 
@@ -5439,7 +5442,7 @@ export default function App() {
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `Roco_Table12_MasterReceipt_${Date.now().toString().slice(-6)}.txt`;
+      link.download = `Lutho_Table12_MasterReceipt_${Date.now().toString().slice(-6)}.txt`;
       link.click();
       URL.revokeObjectURL(url);
       
@@ -5458,9 +5461,9 @@ export default function App() {
     }
     const formatted = trimmed.replace(/\s+/g, " ");
     setCurrentPlayerName(formatted);
-    localStorage.setItem("roco_current_player_name", formatted);
-    sessionStorage.setItem("roco_my_session_name", formatted);
-    localStorage.setItem("roco_guest_name_confirmed", "true");
+    localStorage.setItem("lutho_current_player_name", formatted);
+    sessionStorage.setItem("lutho_my_session_name", formatted);
+    localStorage.setItem("lutho_guest_name_confirmed", "true");
     setSessionMembers((prev) => {
       const withoutYou = prev.filter((m) => m !== "You");
       return [formatted, ...withoutYou.filter((m) => m !== formatted)];
@@ -5611,7 +5614,7 @@ export default function App() {
             exit={{ opacity: 0, scale: 1.05 }}
             transition={{ duration: 0.5, ease: "easeInOut" }}
             className="fixed inset-0 z-[99999] flex flex-col items-center justify-center p-6 text-center select-none font-sans bg-cover bg-center"
-            style={{ backgroundImage: "url('https://i.pinimg.com/736x/d1/7d/31/d17d3138e7946042bd5180af48250c35.jpg')" }}
+            style={{ backgroundImage: "url('')" }}
           >
             {/* Dark glass backdrop overlay for heavy contrast rendering */}
             <div className="absolute inset-0 bg-black/55 backdrop-blur-xs pointer-events-none" />
@@ -5628,10 +5631,10 @@ export default function App() {
                   playBeep(880, "sine", 0.05);
                 }}
               >
-                <div className="absolute inset-0 rounded-full bg-[#FF5A00]/25 blur-3xl animate-pulse" />
+                <div className="absolute inset-0 rounded-full bg-[#3E5E93]/25 blur-3xl animate-pulse" />
                 <img
-                  src="https://www.rocomamas.co.ke/images//logo-combined.png"
-                  alt="RocoMamas Logo"
+                  src="/lutho-logo.png"
+                  alt="Lutho Logo"
                   className="w-56 h-56 md:w-64 md:h-64 object-contain relative z-10 transition-transform duration-300 drop-shadow-[0_15px_35px_rgba(0,0,0,0.95)]"
                   referrerPolicy="no-referrer"
                 />
@@ -5657,7 +5660,7 @@ export default function App() {
                 className="my-1.5 px-4 py-2 bg-black/60 backdrop-blur-md border border-neutral-900 rounded-xl max-w-[280px]"
               >
                 <p className="text-amber-500 font-sans italic text-[11px] md:text-xs font-black tracking-wider uppercase leading-tight drop-shadow-sm">
-                  "WE'RE NOT FAST FOOD, WE'RE ROCOMAMAS. SMASH. GRAB. REPENT."
+                  "WE'RE NOT FAST FOOD, WE'RE LUTHO. SMASH. GRAB. REPENT."
                 </p>
               </motion.div>
 
@@ -5673,7 +5676,7 @@ export default function App() {
                   playBeep(700, "sine", 0.05);
                   setShowSplash(false);
                 }}
-                className="mt-4 px-5 py-2 bg-black/85 hover:bg-neutral-950 border border-neutral-800 text-white text-[9px] font-mono uppercase tracking-widest rounded-xl transition-all cursor-pointer transform active:scale-95 shadow-md font-bold hover:border-[#FF5A00]/40"
+                className="mt-4 px-5 py-2 bg-black/85 hover:bg-neutral-950 border border-neutral-800 text-white text-[9px] font-mono uppercase tracking-widest rounded-xl transition-all cursor-pointer transform active:scale-95 shadow-md font-bold hover:border-[#3E5E93]/40"
               >
                 Skip Intro ⚡
               </button>
@@ -5683,7 +5686,7 @@ export default function App() {
       </AnimatePresence>
 
       <div 
-        id="rocomamas-os-container" 
+        id="lutho-os-container" 
         className={`w-full ${isStaff ? "max-w-none" : "max-w-[500px]"} mx-auto min-h-screen bg-[#121212] text-white flex flex-col relative shadow-2xl border-x border-[#2C2C2E]/50 ${isStaff ? "md:rounded-none border-0" : "md:rounded-3xl"} overflow-x-hidden grunge-pattern select-none font-sans ${isStaff ? "pb-0" : "pb-32"} transition-all duration-350 theme-${theme}`}
       >
       
@@ -5699,17 +5702,17 @@ export default function App() {
               transition={{ duration: 0.25, type: "spring", stiffness: 200, damping: 15 }}
               className={`p-4 rounded-xl shadow-2xl border border-black backdrop-blur-md flex items-center justify-between text-sm font-sub font-black pointer-events-auto ${
                 toast.type === "success" 
-                  ? "bg-[#1C1C1E] text-[#FF5A00] border-l-4 border-l-[#FF5A00]"
+                  ? "bg-[#1C1C1E] text-[#3E5E93] border-l-4 border-l-[#3E5E93]"
                   : toast.type === "stamp"
                   ? "bg-[#2C2C2E] text-white border-l-4 border-l-orange-400 border-orange-400/30"
                   : "bg-black text-[#A0A0A0] border-l-4 border-l-zinc-500"
               }`}
             >
               <div className="flex items-center gap-2.5">
-                {toast.type === "success" ? <Check className="w-5 h-5 text-[#FF5A00] shrink-0" /> : 
+                {toast.type === "success" ? <Check className="w-5 h-5 text-[#3E5E93] shrink-0" /> : 
                   toast.type === "stamp" ? (
                     <img 
-                      src="https://static-prod.dineplan.com/restaurant/restaurants/logos/logo_4118.png?d=1714983479" 
+                      src="/lutho-stamp-logo.png" 
                       alt="Stamp" 
                       className="w-6 h-6 object-contain shrink-0 animate-bounce rounded-full bg-[#1C1C1E]" 
                       referrerPolicy="no-referrer"
@@ -5736,21 +5739,21 @@ export default function App() {
       {onAdminKioskRoute && !(appMode === "STAFF" && activeStaffProfile) ? (
         <div
           className="min-h-screen bg-cover bg-center flex flex-col items-center justify-center p-6 relative z-55 text-white font-sans overflow-y-auto select-none w-full max-w-[500px] mx-auto border-x border-[#1F1F22] shadow-[0_0_80px_rgba(0,0,0,0.85)]"
-          style={{ backgroundImage: "url('https://i.pinimg.com/736x/d1/7d/31/d17d3138e7946042bd5180af48250c35.jpg')" }}
+          style={{ backgroundImage: "url('')" }}
         >
           <div className="absolute inset-0 bg-black/80 backdrop-blur-xs pointer-events-none" />
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(0,0,0,0.35)_0%,rgba(0,0,0,0.9)_100%)] pointer-events-none" />
 
           <div className="w-full max-w-sm relative z-10 flex flex-col items-center gap-5">
             <img
-              src="https://www.rocomamas.co.ke/images//logo-combined.png"
-              alt="RocoMamas Logo"
+              src="/lutho-logo.png"
+              alt="Lutho Logo"
               className="w-36 h-36 object-contain drop-shadow-[0_8px_20px_rgba(0,0,0,0.95)]"
               referrerPolicy="no-referrer"
             />
 
             <div className="text-center">
-              <div className="inline-flex items-center gap-1.5 px-3.5 py-1 bg-[#E78A3E]/20 border border-[#E78A3E]/50 rounded-full text-[10px] font-sans font-black tracking-widest text-[#E78A3E] uppercase mb-3">
+              <div className="inline-flex items-center gap-1.5 px-3.5 py-1 bg-[#3E5E93]/20 border border-[#3E5E93]/50 rounded-full text-[10px] font-sans font-black tracking-widest text-[#3E5E93] uppercase mb-3">
                 Staff kiosk
               </div>
               <h2 className="font-display font-black text-white text-xl tracking-tight uppercase">
@@ -5761,7 +5764,7 @@ export default function App() {
               </p>
             </div>
 
-            <div className="w-full bg-white border-2 border-[#E78A3E] rounded-3xl p-5 shadow-2xl space-y-4">
+            <div className="w-full bg-white border-2 border-[#3E5E93] rounded-3xl p-5 shadow-2xl space-y-4">
               <input
                 type="password"
                 inputMode="numeric"
@@ -5773,7 +5776,7 @@ export default function App() {
                 }}
                 onKeyDown={(e) => e.key === "Enter" && handleUniversalStaffLogin()}
                 placeholder="Staff PIN"
-                className="w-full bg-white border border-zinc-300 rounded-xl px-4 py-3.5 text-base text-black text-center tracking-[0.35em] focus:outline-none focus:border-[#E78A3E] focus:ring-2 focus:ring-[#E78A3E]/30"
+                className="w-full bg-white border border-zinc-300 rounded-xl px-4 py-3.5 text-base text-black text-center tracking-[0.35em] focus:outline-none focus:border-[#3E5E93] focus:ring-2 focus:ring-[#3E5E93]/30"
                 autoFocus
               />
 
@@ -5785,7 +5788,7 @@ export default function App() {
                 type="button"
                 onClick={handleUniversalStaffLogin}
                 disabled={adminPinInput.trim().length < 4}
-                className="w-full py-3.5 bg-[#E78A3E] hover:bg-[#d67a32] text-black font-black uppercase tracking-wider rounded-xl transition-all disabled:opacity-40 disabled:pointer-events-none"
+                className="w-full py-3.5 bg-[#3E5E93] hover:bg-[#d67a32] text-black font-black uppercase tracking-wider rounded-xl transition-all disabled:opacity-40 disabled:pointer-events-none"
               >
                 Open floor layout
               </button>
@@ -5797,7 +5800,7 @@ export default function App() {
           {!hasTableSlug ? (
             <div 
               className="min-h-screen bg-cover bg-center flex flex-col items-center justify-center p-6 relative z-55 text-white font-sans overflow-y-auto select-none w-full max-w-[500px] mx-auto border-x border-[#1F1F22] shadow-[0_0_80px_rgba(0,0,0,0.85)]"
-              style={{ backgroundImage: "url('https://i.pinimg.com/736x/d1/7d/31/d17d3138e7946042bd5180af48250c35.jpg')" }}
+              style={{ backgroundImage: "url('')" }}
             >
               <div className="absolute inset-0 bg-black/75 backdrop-blur-xs pointer-events-none" />
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(0,0,0,0.35)_0%,rgba(0,0,0,0.85)_100%)] pointer-events-none" />
@@ -5822,8 +5825,8 @@ export default function App() {
                   }}
                 >
                   <img
-                    src="https://www.rocomamas.co.ke/images//logo-combined.png"
-                    alt="RocoMamas Logo"
+                    src="/lutho-logo.png"
+                    alt="Lutho Logo"
                     className="w-40 h-40 object-contain drop-shadow-[0_8px_20px_rgba(0,0,0,0.95)]"
                     referrerPolicy="no-referrer"
                   />
@@ -5835,7 +5838,7 @@ export default function App() {
                   </p>
                 )}
 
-                <div className="inline-flex items-center gap-1.5 px-3.5 py-1 bg-[#FF5A00]/25 border border-[#FF5A00]/40 rounded-full text-[10px] font-sans font-black tracking-widest text-[#FF5A00] uppercase mb-3.5">
+                <div className="inline-flex items-center gap-1.5 px-3.5 py-1 bg-[#3E5E93]/25 border border-[#3E5E93]/40 rounded-full text-[10px] font-sans font-black tracking-widest text-[#3E5E93] uppercase mb-3.5">
                   Digital Ordering
                 </div>
 
@@ -5848,14 +5851,14 @@ export default function App() {
               </div>
 
               <div className="w-full max-w-sm bg-black/60 backdrop-blur-lg border border-zinc-800/80 rounded-2xl p-5 shadow-2xl relative overflow-hidden mb-5 flex flex-col items-center gap-4 z-10">
-                <div className="absolute top-0 left-0 right-0 h-[2.5px] bg-gradient-to-r from-transparent via-[#FF5A00] to-transparent" />
+                <div className="absolute top-0 left-0 right-0 h-[2.5px] bg-gradient-to-r from-transparent via-[#3E5E93] to-transparent" />
 
                 {(() => {
                   const remoteUrl = getSecureGuestUrl("14");
                   return (
                     <>
                       <div className="bg-[#121212] border border-zinc-800/80 rounded-2xl p-4 flex flex-col items-center gap-3 text-center">
-                        <div className="font-display font-black text-[#FF5A00] text-xs uppercase tracking-widest">
+                        <div className="font-display font-black text-[#3E5E93] text-xs uppercase tracking-widest">
                           Remote order QR
                         </div>
                         <div className="pointer-events-none">
@@ -5863,7 +5866,7 @@ export default function App() {
                         </div>
                         <a
                           href={remoteUrl}
-                          className="w-full h-11 bg-[#FF5A00] hover:bg-orange-500 font-sans text-[#121214] font-black text-xs uppercase tracking-widest rounded-xl transition-all active:scale-95 flex items-center justify-center cursor-pointer shadow-[0_4px_15px_rgba(255,90,0,0.3)]"
+                          className="w-full h-11 bg-[#3E5E93] hover:bg-orange-500 font-sans text-[#121214] font-black text-xs uppercase tracking-widest rounded-xl transition-all active:scale-95 flex items-center justify-center cursor-pointer shadow-[0_4px_15px_rgba(62, 94, 147,0.3)]"
                         >
                           Start remote order
                         </a>
@@ -5880,13 +5883,13 @@ export default function App() {
           ) : !isValidTable ? (
             <div 
               className="min-h-screen bg-cover bg-center flex flex-col items-center justify-center p-4 relative z-55 text-white font-sans overflow-y-auto select-none w-full max-w-[500px] mx-auto border-x border-[#1F1F22] shadow-[0_0_80px_rgba(0,0,0,0.85)]"
-              style={{ backgroundImage: "url('https://i.pinimg.com/736x/d1/7d/31/d17d3138e7946042bd5180af48250c35.jpg')" }}
+              style={{ backgroundImage: "url('')" }}
             >
               {/* Warm gradient and blur overlay for high contrast and beautiful branding overlay */}
               <div className="absolute inset-0 bg-black/80 backdrop-blur-xs pointer-events-none" />
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(0,0,0,0.45)_0%,rgba(0,0,0,0.95)_100%)] pointer-events-none" />
 
-              {/* RocoMamas Brand Header */}
+              {/* Lutho Brand Header */}
               <div className="w-full max-w-sm text-center mb-6 animate-fade-in relative z-10 flex flex-col items-center">
                 <motion.div
                   initial={{ scale: 0.82, opacity: 0, rotate: -5 }}
@@ -5895,14 +5898,14 @@ export default function App() {
                   onClick={() => playBeep(220, "sawtooth", 0.15)}
                 >
                   <img
-                    src="https://www.rocomamas.co.ke/images//logo-combined.png"
-                    alt="RocoMamas Logo"
+                    src="/lutho-logo.png"
+                    alt="Lutho Logo"
                     className="w-36 h-36 object-contain drop-shadow-[0_8px_20px_rgba(0,0,0,0.95)]"
                     referrerPolicy="no-referrer"
                   />
                 </motion.div>
 
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-red-950/60 border border-red-500/40 rounded-full text-[9px] font-mono font-black tracking-widest text-[#FF5A00] uppercase mb-4 shadow-[0_0_12px_rgba(239,68,68,0.2)] animate-pulse">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-red-950/60 border border-red-500/40 rounded-full text-[9px] font-mono font-black tracking-widest text-[#3E5E93] uppercase mb-4 shadow-[0_0_12px_rgba(239,68,68,0.2)] animate-pulse">
                   ⚠️ 404 TABLE NOT FOUND
                 </div>
                 
@@ -5912,18 +5915,18 @@ export default function App() {
                 
                 {/* Error Frame Box */}
                 <div className="w-full max-w-sm bg-black/75 border border-zinc-800/80 rounded-2xl p-5 shadow-2xl relative overflow-hidden mt-4 text-center">
-                  <div className="absolute top-0 left-0 right-0 h-[2.5px] bg-gradient-to-r from-red-500 via-[#FF5A00] to-red-500" />
+                  <div className="absolute top-0 left-0 right-0 h-[2.5px] bg-gradient-to-r from-red-500 via-[#3E5E93] to-red-500" />
                   
                   <div className="flex justify-center mb-2.5">
-                    <ShieldAlert className="w-12 h-12 text-[#FF5A00] animate-bounce" />
+                    <ShieldAlert className="w-12 h-12 text-[#3E5E93] animate-bounce" />
                   </div>
                   
                   <h3 className="font-mono text-[10px] text-zinc-400 font-bold uppercase tracking-wider mb-2">
-                    ERROR CONSOLE CODE: ROCO-404-COORDINATES-VOID
+                    ERROR CONSOLE CODE: LUTHO-404-COORDINATES-VOID
                   </h3>
                   
                   <p className="text-[11.5px] text-zinc-300 leading-relaxed font-sans font-medium px-1">
-                    Whoops! Looks like this tabletop coordinate does not exist on our restaurant floor plan. RocoMamas dine-in tables range from <strong className="text-[#FF5A00]">Table 1</strong> to <strong className="text-[#FF5A00]">Table 13</strong>, plus our <strong className="text-[#FF5A00]">Remote Table</strong> for online orders.
+                    Whoops! Looks like this tabletop coordinate does not exist on our restaurant floor plan. Lutho dine-in tables range from <strong className="text-[#3E5E93]">Table 1</strong> to <strong className="text-[#3E5E93]">Table 13</strong>, plus our <strong className="text-[#3E5E93]">Remote Table</strong> for online orders.
                   </p>
                   
                   <p className="text-[10px] text-zinc-500 mt-3 font-mono">
@@ -5939,7 +5942,7 @@ export default function App() {
                     playBeep(600, "sine", 0.08);
                     window.location.search = ""; 
                   }}
-                  className="w-full h-12 bg-[#FF5A00] hover:bg-orange-500 hover:scale-[1.02] font-sans text-[#121214] font-black text-xs uppercase tracking-widest rounded-xl transition-all cursor-pointer shadow-[0_4px_15px_rgba(255,90,0,0.3)] flex items-center justify-center gap-1.5 active:scale-95"
+                  className="w-full h-12 bg-[#3E5E93] hover:bg-orange-500 hover:scale-[1.02] font-sans text-[#121214] font-black text-xs uppercase tracking-widest rounded-xl transition-all cursor-pointer shadow-[0_4px_15px_rgba(62, 94, 147,0.3)] flex items-center justify-center gap-1.5 active:scale-95"
                 >
                   ← RETURN TO TABLE SELECTION BOARD
                 </button>
@@ -5957,19 +5960,19 @@ export default function App() {
 
               {/* Footer Secure line */}
               <div className="w-full max-w-sm text-center mt-6 text-[9px] text-[#A1A1AA]/50 relative z-10 font-mono tracking-widest uppercase">
-                🔒 ROCOMAMAS OS SECURITY SUITE V1.0
+                🔒 LUTHO OS SECURITY SUITE V1.0
               </div>
             </div>
           ) : !isTableUnlocked ? (
             <div 
               className="min-h-screen bg-cover bg-center flex flex-col items-center justify-center p-4 relative z-55 text-white font-sans overflow-y-auto select-none w-full max-w-[500px] mx-auto border-x border-[#1F1F22] shadow-[0_0_80px_rgba(0,0,0,0.85)]"
-              style={{ backgroundImage: "url('https://i.pinimg.com/736x/d1/7d/31/d17d3138e7946042bd5180af48250c35.jpg')" }}
+              style={{ backgroundImage: "url('')" }}
             >
               {/* Warm gradient and blur overlay for high contrast and beautiful branding overlay */}
               <div className="absolute inset-0 bg-black/75 backdrop-blur-xs pointer-events-none" />
               <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(0,0,0,0.35)_0%,rgba(0,0,0,0.85)_100%)] pointer-events-none" />
 
-              {/* RocoMamas Brand Header */}
+              {/* Lutho Brand Header */}
               <div className="w-full max-w-sm text-center mb-5 mt-4 animate-fade-in relative z-10 flex flex-col items-center">
                 {/* Large brand logo */}
                 <motion.div
@@ -5979,14 +5982,14 @@ export default function App() {
                   onClick={() => playBeep(880, "sine", 0.05)}
                 >
                   <img
-                    src="https://www.rocomamas.co.ke/images//logo-combined.png"
-                    alt="RocoMamas Logo"
+                    src="/lutho-logo.png"
+                    alt="Lutho Logo"
                     className="w-40 h-40 object-contain drop-shadow-[0_8px_20px_rgba(0,0,0,0.95)]"
                     referrerPolicy="no-referrer"
                   />
                 </motion.div>
 
-                <div className="inline-flex items-center gap-1.5 px-3.5 py-1 bg-[#FF5A00]/25 border border-[#FF5A00]/40 rounded-full text-[10px] font-sans font-black tracking-widest text-[#FF5A00] uppercase mb-3.5">
+                <div className="inline-flex items-center gap-1.5 px-3.5 py-1 bg-[#3E5E93]/25 border border-[#3E5E93]/40 rounded-full text-[10px] font-sans font-black tracking-widest text-[#3E5E93] uppercase mb-3.5">
                   🍔 SECURE YOUR SESSION
                 </div>
                 
@@ -6000,7 +6003,7 @@ export default function App() {
 
               {/* Security Shield Lock Status Frame */}
               <div className="w-full max-w-sm bg-black/60 backdrop-blur-lg border border-zinc-800/80 rounded-2xl p-5 shadow-2xl relative overflow-hidden mb-5 flex flex-col items-center gap-4 z-10">
-                <div className="absolute top-0 left-0 right-0 h-[2.5px] bg-gradient-to-r from-transparent via-[#FF5A00] to-transparent" />
+                <div className="absolute top-0 left-0 right-0 h-[2.5px] bg-gradient-to-r from-transparent via-[#3E5E93] to-transparent" />
                 
                 {/* Active ordering prompt */}
                 <div className="w-full text-center space-y-0.5">
@@ -6021,7 +6024,7 @@ export default function App() {
                         key={idx}
                         className={`w-12 h-14 rounded-xl border border-zinc-800 shadow-md flex items-center justify-center transition-all bg-black font-display font-black text-lg ${
                           char 
-                            ? "border-[#FF5A00] text-[#FF5A00] shadow-[0_0_12px_rgba(255,90,0,0.25)]" 
+                            ? "border-[#3E5E93] text-[#3E5E93] shadow-[0_0_12px_rgba(62, 94, 147,0.25)]" 
                             : "text-zinc-700"
                         }`}
                       >
@@ -6034,14 +6037,14 @@ export default function App() {
                 {/* Lockout Screen overlay block */}
                 {securityLockoutSecs > 0 && (
                   <div className="absolute inset-2 bg-[#09090B]/95 backdrop-blur-md rounded-xl flex flex-col items-center justify-center text-center p-4">
-                    <ShieldAlert className="w-8 h-8 text-[#FF5A00] animate-bounce mb-2" />
-                    <span className="text-xs font-sans font-black text-[#FF5A00] uppercase tracking-widest">
+                    <ShieldAlert className="w-8 h-8 text-[#3E5E93] animate-bounce mb-2" />
+                    <span className="text-xs font-sans font-black text-[#3E5E93] uppercase tracking-widest">
                       RATE LIMIT ENFORCED
                     </span>
                     <p className="text-[10px] text-zinc-400 mt-1 max-w-[220px] leading-relaxed">
                       Please try again in a few moments, or ask a friendly flight captain / waiter for assistance.
                     </p>
-                    <div className="mt-4 px-4 py-2 bg-orange-950/40 border border-orange-500/20 rounded-lg text-xs font-mono font-black text-[#FF5A00] tracking-wider animate-pulse">
+                    <div className="mt-4 px-4 py-2 bg-orange-950/40 border border-orange-500/20 rounded-lg text-xs font-mono font-black text-[#3E5E93] tracking-wider animate-pulse">
                       RETRY IN: {securityLockoutSecs}s
                     </div>
                   </div>
@@ -6061,7 +6064,7 @@ export default function App() {
                         setPinInput(prev => prev + num);
                       }
                     }}
-                    className="h-14 bg-zinc-950/80 hover:bg-[#18181B] active:bg-zinc-900 border border-zinc-850 text-white font-display font-black text-lg rounded-xl transition-all active:scale-95 flex items-center justify-center select-none cursor-pointer hover:border-[#FF5A00]/30 disabled:opacity-40 disabled:pointer-events-none backdrop-blur-xs"
+                    className="h-14 bg-zinc-950/80 hover:bg-[#18181B] active:bg-zinc-900 border border-zinc-850 text-white font-display font-black text-lg rounded-xl transition-all active:scale-95 flex items-center justify-center select-none cursor-pointer hover:border-[#3E5E93]/30 disabled:opacity-40 disabled:pointer-events-none backdrop-blur-xs"
                   >
                     {num}
                   </button>
@@ -6090,7 +6093,7 @@ export default function App() {
                       setPinInput(prev => prev + "0");
                     }
                   }}
-                  className="h-14 bg-zinc-950/80 hover:bg-[#18181B] border border-zinc-850 text-white font-display font-black text-lg rounded-xl transition-all active:scale-95 flex items-center justify-center cursor-pointer hover:border-[#FF5A00]/30 disabled:opacity-40 backdrop-blur-xs"
+                  className="h-14 bg-zinc-950/80 hover:bg-[#18181B] border border-zinc-850 text-white font-display font-black text-lg rounded-xl transition-all active:scale-95 flex items-center justify-center cursor-pointer hover:border-[#3E5E93]/30 disabled:opacity-40 backdrop-blur-xs"
                 >
                   0
                 </button>
@@ -6100,7 +6103,7 @@ export default function App() {
                   type="button"
                   disabled={securityLockoutSecs > 0 || pinInput.length < 4}
                   onClick={() => handlePinSubmit(pinInput)}
-                  className="h-14 bg-[#FF5A00] hover:bg-orange-500 font-sans text-[#121214] font-black text-xs uppercase tracking-widest rounded-xl transition-all active:scale-95 flex items-center justify-center cursor-pointer shadow-[0_4px_15px_rgba(255,90,0,0.3)] disabled:opacity-30 disabled:pointer-events-none"
+                  className="h-14 bg-[#3E5E93] hover:bg-orange-500 font-sans text-[#121214] font-black text-xs uppercase tracking-widest rounded-xl transition-all active:scale-95 flex items-center justify-center cursor-pointer shadow-[0_4px_15px_rgba(62, 94, 147,0.3)] disabled:opacity-30 disabled:pointer-events-none"
                 >
                   OK
                 </button>
@@ -6131,8 +6134,8 @@ export default function App() {
         {/* Left segment: Logo combined and CONTROL button */}
         <div className="flex items-center justify-between sm:justify-start gap-4">
           <img
-            src="https://www.rocomamas.co.ke/images//logo-combined.png"
-            alt="RocoMamas Logo"
+            src="/lutho-logo.png"
+            alt="Lutho Logo"
             className="h-14 md:h-16 object-contain cursor-pointer hover:rotate-3 transition-transform duration-300"
             referrerPolicy="no-referrer"
             onClick={() => {
@@ -6159,7 +6162,7 @@ export default function App() {
                 playBeep(520, "sine", 0.08);
                 setIsControlMenuOpen(true);
               }}
-              className="px-3 py-1.5 bg-[#FF5A00] hover:bg-orange-400 text-black font-sub font-black text-[9px] uppercase rounded-xl tracking-wider transition-all transform active:scale-95 cursor-pointer flex items-center gap-1 shadow-md border border-[#FF5A00] font-bold shrink-0"
+              className="px-3 py-1.5 bg-[#3E5E93] hover:bg-orange-400 text-black font-sub font-black text-[9px] uppercase rounded-xl tracking-wider transition-all transform active:scale-95 cursor-pointer flex items-center gap-1 shadow-md border border-[#3E5E93] font-bold shrink-0"
             >
               <Sliders className="w-3 h-3" />
               <span>CONTROL ⚡</span>
@@ -6171,13 +6174,13 @@ export default function App() {
         <div className="bg-[#121212]/90 px-3 py-1.5 rounded-xl border border-zinc-900 flex items-center justify-between gap-3 shadow-inner sm:max-w-xs flex-1 sm:flex-initial flex-wrap pb-2 sm:pb-1.5">
           <div className="flex items-center gap-2 min-w-0">
             <div
-              className="w-7 h-7 shrink-0 rounded-full bg-[#2C2C2E] border border-[#FF5A00]/25 flex items-center justify-center overflow-hidden"
+              className="w-7 h-7 shrink-0 rounded-full bg-[#2C2C2E] border border-[#3E5E93]/25 flex items-center justify-center overflow-hidden"
               aria-label={formatTableLabel(currentTableId)}
             >
               {currentTableId === REMOTE_TABLE_ID ? (
-                <Globe className="w-3.5 h-3.5 text-[#FF5A00]" aria-hidden="true" />
+                <Globe className="w-3.5 h-3.5 text-[#3E5E93]" aria-hidden="true" />
               ) : (
-                <span className="font-display text-[10px] text-[#FF5A00] font-bold leading-none">
+                <span className="font-display text-[10px] text-[#3E5E93] font-bold leading-none">
                   {formatTableShort(currentTableId || "12")}
                 </span>
               )}
@@ -6185,9 +6188,9 @@ export default function App() {
             <div className="min-w-0">
               <p className="text-[8px] uppercase font-mono tracking-wider text-zinc-500 leading-tight truncate">
                 {currentPlayerName ? (
-                  <>Hey, <span className="text-[#FF5A00] font-sans font-bold">{currentPlayerName}</span></>
+                  <>Hey, <span className="text-[#3E5E93] font-sans font-bold">{currentPlayerName}</span></>
                 ) : (
-                  <>Staff: <span className="text-white font-sans font-bold">Roco Crew</span></>
+                  <>Staff: <span className="text-white font-sans font-bold">Lutho Crew</span></>
                 )}
               </p>
               <p className="text-[8px] uppercase font-mono tracking-wider text-zinc-500 leading-tight truncate">
@@ -6203,8 +6206,8 @@ export default function App() {
                 playBeep(560, "sine", 0.06);
                 setIsHelpOpen(true);
               }}
-              className="cursor-pointer px-2.5 py-1 border border-[#E78A3E]/50 bg-[#E78A3E]/10 rounded-md font-sub font-black text-[10px] uppercase tracking-wider flex items-center gap-1 text-[#E78A3E] hover:bg-[#E78A3E] hover:text-black transition-all duration-300 transform active:scale-95 font-bold"
-              title="How ROCO works"
+              className="cursor-pointer px-2.5 py-1 border border-[#3E5E93]/50 bg-[#3E5E93]/10 rounded-md font-sub font-black text-[10px] uppercase tracking-wider flex items-center gap-1 text-[#3E5E93] hover:bg-[#3E5E93] hover:text-black transition-all duration-300 transform active:scale-95 font-bold"
+              title="How LUTHO works"
             >
               <HelpCircle className="w-2.5 h-2.5" />
               <span>How to</span>
@@ -6222,7 +6225,7 @@ export default function App() {
                 playBeep(440, "sine", 0.05);
                 setIsCustomerChatOpen(true);
               }}
-              className="cursor-pointer px-2.5 py-1 border border-zinc-800 bg-zinc-900 rounded-md font-sub font-black text-[10px] uppercase tracking-wider flex items-center gap-1 text-zinc-400 hover:text-[#FF5A00] hover:border-[#FF5A00]/40 transition-all duration-300 transform active:scale-95 font-bold"
+              className="cursor-pointer px-2.5 py-1 border border-zinc-800 bg-zinc-900 rounded-md font-sub font-black text-[10px] uppercase tracking-wider flex items-center gap-1 text-zinc-400 hover:text-[#3E5E93] hover:border-[#3E5E93]/40 transition-all duration-300 transform active:scale-95 font-bold"
             >
               <MessageSquare className="w-2.5 h-2.5" />
               <span>Chat</span>
@@ -6235,7 +6238,7 @@ export default function App() {
                   playBeep(520, "sine", 0.06);
                   setShowStaffGate(true);
                 }}
-                className="cursor-pointer px-2.5 py-1 border border-[#FF5A00]/35 bg-[#FF5A00]/10 rounded-md font-sub font-black text-[10px] uppercase tracking-wider flex items-center gap-1 text-[#FF5A00] hover:bg-[#FF5A00] hover:text-black transition-all duration-300 transform active:scale-95 font-bold"
+                className="cursor-pointer px-2.5 py-1 border border-[#3E5E93]/35 bg-[#3E5E93]/10 rounded-md font-sub font-black text-[10px] uppercase tracking-wider flex items-center gap-1 text-[#3E5E93] hover:bg-[#3E5E93] hover:text-black transition-all duration-300 transform active:scale-95 font-bold"
                 title="Open staff console"
               >
                 <span>Staff</span>
@@ -6247,7 +6250,7 @@ export default function App() {
               className={`cursor-pointer px-2.5 py-1 border rounded-md font-sub font-black text-[10px] uppercase tracking-wider flex items-center gap-1 transition-all duration-300 transform active:scale-95 ${
                 waiterSummoned
                   ? "bg-red-950 border-red-500 text-red-500 animate-pulse font-bold"
-                  : "border-[#FF5A00]/70 text-[#FF5A00] hover:bg-[#FF5A00] hover:text-black hover:shadow-md"
+                  : "border-[#3E5E93]/70 text-[#3E5E93] hover:bg-[#3E5E93] hover:text-black hover:shadow-md"
               }`}
             >
               <Bell className={`w-2.5 h-2.5 ${waiterSummoned ? "animate-bounce" : ""}`} />
@@ -6260,7 +6263,7 @@ export default function App() {
       {/* Scrolling specials announcement ticker — always renders, never blank */}
       {(() => {
         const FALLBACK_ANNOUNCEMENTS = [
-          "Welcome to ROCO Rondebosch",
+          "Welcome to LUTHO Rondebosch",
           "Smashburgers • Loaded Shakes • Wings",
           "Remote order & collect available",
           "Scan your table QR to get started",
@@ -6278,16 +6281,16 @@ export default function App() {
         return (
           <div className="mx-3 mt-2 rounded-xl border border-zinc-900 bg-black/55 overflow-hidden min-h-[26px]">
             <style>{`
-              @keyframes rocoMarquee {
+              @keyframes luthoMarquee {
                 0% { transform: translateX(0%); }
                 100% { transform: translateX(-50%); }
               }
             `}</style>
-            <div className="py-1.5 px-3 text-[10px] font-mono uppercase tracking-widest text-[#FF5A00] whitespace-nowrap overflow-hidden">
+            <div className="py-1.5 px-3 text-[10px] font-mono uppercase tracking-widest text-[#3E5E93] whitespace-nowrap overflow-hidden">
               <div
                 className="inline-flex"
                 style={{
-                  animation: "rocoMarquee 26s linear infinite",
+                  animation: "luthoMarquee 26s linear infinite",
                 }}
               >
                 <span className="pr-8">{marqueeText}</span>
@@ -6309,7 +6312,7 @@ export default function App() {
             animate={{ 
               opacity: 1, 
               y: 0,
-              borderColor: highlightKitchenOrders ? "#FF5A00" : "rgba(44, 44, 46, 0.4)",
+              borderColor: highlightKitchenOrders ? "#3E5E93" : "rgba(44, 44, 46, 0.4)",
               boxShadow: highlightKitchenOrders 
                 ? "0 0 20px rgba(231, 138, 62, 0.45)" 
                 : "0 10px 15px -3px rgba(0, 0, 0, 0.3)"
@@ -6318,7 +6321,7 @@ export default function App() {
             className={`mx-4 mt-4 bg-[#1C1C1E] border-2 rounded-xl p-3 flex flex-col gap-2.5 relative overflow-hidden transition-all duration-300 shadow-xl`}
           >
             {/* Pulsing indicator line */}
-            <div className="absolute top-0 left-0 w-full h-[3px] bg-gradient-to-r from-orange-600 to-[#FF5A00]" />
+            <div className="absolute top-0 left-0 w-full h-[3px] bg-gradient-to-r from-orange-600 to-[#3E5E93]" />
             
             <div className="flex justify-between items-center">
               <div className="flex items-center gap-1.5">
@@ -6326,7 +6329,7 @@ export default function App() {
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
                 </span>
-                <span className="font-mono text-[9px] uppercase tracking-widest text-[#FF5A00] font-bold">
+                <span className="font-mono text-[9px] uppercase tracking-widest text-[#3E5E93] font-bold">
                   Live Kitchen Feed
                 </span>
               </div>
@@ -6336,7 +6339,7 @@ export default function App() {
             </div>
 
             <div className="flex gap-2.5 items-center">
-              <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-orange-600/10 to-[#FF5A00]/10 flex items-center justify-center font-display text-xl border border-[#FF5A00]/20 shrink-0">
+              <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-orange-600/10 to-[#3E5E93]/10 flex items-center justify-center font-display text-xl border border-[#3E5E93]/20 shrink-0">
                 🍔
               </div>
               <div className="flex-1 min-w-0">
@@ -6345,7 +6348,7 @@ export default function App() {
                 </p>
                 <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
                   <span className="text-[9px] text-[#A0A0A0] uppercase font-mono">Status:</span>
-                  <span className="text-[9.5px] text-[#FF5A00] uppercase font-mono font-black tracking-widest animate-pulse">
+                  <span className="text-[9.5px] text-[#3E5E93] uppercase font-mono font-black tracking-widest animate-pulse">
                     {activeKitchenOrders[0].status === "Sent" ? "KITCHEN RECEIVED" : "CHEF PREPARING..."}
                   </span>
                   <span className="text-zinc-500 font-mono text-[9.5px] font-bold">
@@ -6362,7 +6365,7 @@ export default function App() {
                 {activeKitchenOrders[0].timerRemaining !== undefined && (
                   <div className="mt-2 bg-black/60 border border-zinc-900 rounded-xl p-2 flex flex-col gap-1">
                     <div className="flex justify-between items-center text-[9px] font-mono leading-none">
-                      <span className="text-zinc-500 uppercase tracking-wider">ROCO SPEED STANDARD:</span>
+                      <span className="text-zinc-500 uppercase tracking-wider">LUTHO SPEED STANDARD:</span>
                       {activeKitchenOrders[0].timerRemaining > 0 ? (
                         <span className="text-orange-400 font-black animate-pulse font-bold">{formatTimerRemaining(activeKitchenOrders[0].timerRemaining)} remaining</span>
                       ) : (
@@ -6411,7 +6414,7 @@ export default function App() {
                     setTimeout(() => setHighlightKitchenOrders(false), 2000);
                   }
                 }}
-                className="px-3 py-1.5 bg-zinc-900 hover:bg-[#FF5A00] hover:text-black border border-zinc-800 hover:border-transparent rounded-lg text-[9px] font-mono font-bold text-[#FF5A00] uppercase tracking-wider transition-all transform active:scale-95 cursor-pointer shrink-0"
+                className="px-3 py-1.5 bg-zinc-900 hover:bg-[#3E5E93] hover:text-black border border-zinc-800 hover:border-transparent rounded-lg text-[9px] font-mono font-bold text-[#3E5E93] uppercase tracking-wider transition-all transform active:scale-95 cursor-pointer shrink-0"
               >
                 Locate ↓
               </button>
@@ -6431,13 +6434,13 @@ export default function App() {
           if (spec.imageUrl) return spec.imageUrl;
           const titleLower = (spec.title || "").toLowerCase();
           if (spec.id === "promo-1" || titleLower.includes("double points")) {
-            return "https://cms.rocomamas.com/uploads/29033_RM_Double_Points_Web_800x600_FA_0904278a09.jpg";
+            return "";
           }
           if (spec.id === "promo-2" || titleLower.includes("treat yoself") || titleLower.includes("treat yourself")) {
-            return "https://cms.rocomamas.com/uploads/BA_034_000040_02_Roco_Mamas_Treat_Yoself_VAC_3_Chaselist_800x600_000aac9572.png";
+            return "";
           }
           if (spec.id === "promo-3" || titleLower.includes("chicken smash") || titleLower.includes("southern fried chicken")) {
-            return "https://cms.rocomamas.com/uploads/26020_RM_Chicken_Smash_Drive_Web_Banners_800x600_V2_f1bd35f5d9.jpg";
+            return "";
           }
           return null;
         };
@@ -6451,13 +6454,13 @@ export default function App() {
               onClick={() => {
                 if (hasBgImage) {
                   playBeep(520, "sine", 0.05);
-                  triggerToast(`Special Promo: ${currentSpec.title} ⚡ Ask Roco Crew to redeem!`, "info");
+                  triggerToast(`Special Promo: ${currentSpec.title} ⚡ Ask Lutho Crew to redeem!`, "info");
                 }
               }}
               className={`rounded-2xl border-2 border-dashed border-black overflow-hidden relative shadow-lg transition-all duration-300 ${
                 hasBgImage 
-                  ? "bg-zinc-900 bg-cover bg-center w-full aspect-[4/3] cursor-pointer hover:border-[#FF5A00]/60 active:scale-[0.99] select-none" 
-                  : "bg-[#FF5A00] w-full min-h-[185px] flex flex-col justify-between"
+                  ? "bg-zinc-900 bg-cover bg-center w-full aspect-[4/3] cursor-pointer hover:border-[#3E5E93]/60 active:scale-[0.99] select-none" 
+                  : "bg-[#3E5E93] w-full min-h-[185px] flex flex-col justify-between"
               }`}
               style={hasBgImage ? { backgroundImage: `url('${specImgUrl}')` } : undefined}
             >
@@ -6479,10 +6482,10 @@ export default function App() {
                         image: "https://images.spurcorp.com/a0532576-8922-439d-a8ce-ca7a198e55db"
                       });
                     }}
-                    className="flex-1 py-1.5 px-2 bg-black/95 hover:bg-[#FF5A00] text-white hover:text-black hover:border-transparent border border-zinc-850 rounded-xl flex flex-col items-center justify-center gap-0.5 transition-all transform hover:scale-[1.03] active:scale-95 cursor-pointer text-center group font-sans shadow-lg"
+                    className="flex-1 py-1.5 px-2 bg-black/95 hover:bg-[#3E5E93] text-white hover:text-black hover:border-transparent border border-zinc-850 rounded-xl flex flex-col items-center justify-center gap-0.5 transition-all transform hover:scale-[1.03] active:scale-95 cursor-pointer text-center group font-sans shadow-lg"
                   >
                     <span className="font-display font-extrabold text-[9px] uppercase tracking-wider">Solo Burger</span>
-                    <span className="font-mono text-xs font-black text-[#FF5A00] group-hover:text-black">R69</span>
+                    <span className="font-mono text-xs font-black text-[#3E5E93] group-hover:text-black">R69</span>
                   </button>
 
                   <button 
@@ -6498,10 +6501,10 @@ export default function App() {
                         category: "EAT",
                         emoji: "🍔",
                         sectionName: "Promos",
-                        image: "https://cms.rocomamas.com/uploads/26020_RM_Chicken_Smash_Drive_Web_Banners_800x600_V2_f1bd35f5d9.jpg"
+                        image: ""
                       });
                     }}
-                    className="flex-1 py-1.5 px-2 bg-[#FF5A00] hover:bg-orange-400 text-black rounded-xl flex flex-col items-center justify-center gap-0.5 transition-all transform hover:scale-[1.03] active:scale-95 cursor-pointer text-center font-sans shadow-lg font-bold"
+                    className="flex-1 py-1.5 px-2 bg-[#3E5E93] hover:bg-orange-400 text-black rounded-xl flex flex-col items-center justify-center gap-0.5 transition-all transform hover:scale-[1.03] active:scale-95 cursor-pointer text-center font-sans shadow-lg font-bold"
                   >
                     <span className="font-display font-extrabold text-[9px] uppercase tracking-wider">Full Combo Pack</span>
                     <span className="font-mono text-xs font-black">R129</span>
@@ -6526,7 +6529,7 @@ export default function App() {
                       playBeep(400, "sine", 0.04);
                       setSelectedSpecialIndex(prev => prev === 0 ? specials.length - 1 : prev - 1);
                     }}
-                    className="p-1 rounded bg-black/80 border border-black/30 text-white hover:text-[#FF5A00] transition-colors cursor-pointer"
+                    className="p-1 rounded bg-black/80 border border-black/30 text-white hover:text-[#3E5E93] transition-colors cursor-pointer"
                     aria-label="Previous special"
                   >
                     <ChevronLeft className="w-3.5 h-3.5" />
@@ -6537,7 +6540,7 @@ export default function App() {
                       playBeep(400, "sine", 0.04);
                       setSelectedSpecialIndex(prev => (prev + 1) % specials.length);
                     }}
-                    className="p-1 rounded bg-black/80 border border-black/30 text-white hover:text-[#FF5A00] transition-colors cursor-pointer"
+                    className="p-1 rounded bg-black/80 border border-black/30 text-white hover:text-[#3E5E93] transition-colors cursor-pointer"
                     aria-label="Next special"
                   >
                     <ChevronRight className="w-3.5 h-3.5" />
@@ -6589,7 +6592,7 @@ export default function App() {
                             const item = menuItems.find(m => m.id === "eat-2");
                             if (item) {
                               handleAddToCart(item);
-                              triggerToast("Roco Beef Burger added!", "success");
+                              triggerToast("Lutho Beef Burger added!", "success");
                             }
                           } else {
                             // Search keyword matching
@@ -6616,7 +6619,7 @@ export default function App() {
                           }
                         }
                       }}
-                      className="bg-[#121212] border border-[#FF5A00]/50 hover:border-[#FF5A00] text-xs font-sub font-bold tracking-wider text-[#FF5A00] hover:bg-[#FF5A00] hover:text-black px-3.5 py-1.5 rounded transition-all flex items-center gap-1.5 uppercase cursor-pointer active:scale-95"
+                      className="bg-[#121212] border border-[#3E5E93]/50 hover:border-[#3E5E93] text-xs font-sub font-bold tracking-wider text-[#3E5E93] hover:bg-[#3E5E93] hover:text-black px-3.5 py-1.5 rounded transition-all flex items-center gap-1.5 uppercase cursor-pointer active:scale-95"
                     >
                       <Plus className="w-3 h-3" /> Get Great Deal
                     </button>
@@ -6637,12 +6640,12 @@ export default function App() {
             playBeep(480, "sine", 0.08);
             setIsBookingModalOpen(true);
           }}
-          className="bg-[#1C1C1E] hover:bg-zinc-855 border-2 border-dashed border-[#FF5A00]/30 hover:border-[#FF5A00] text-white p-3.5 rounded-xl flex flex-col items-center justify-center gap-2.5 transition-all transform hover:scale-[1.01] active:scale-95 cursor-pointer text-center relative overflow-hidden group shadow-heavy diagonal-stripes"
+          className="bg-[#1C1C1E] hover:bg-zinc-855 border-2 border-dashed border-[#3E5E93]/30 hover:border-[#3E5E93] text-white p-3.5 rounded-xl flex flex-col items-center justify-center gap-2.5 transition-all transform hover:scale-[1.01] active:scale-95 cursor-pointer text-center relative overflow-hidden group shadow-heavy diagonal-stripes"
         >
-          <div className="absolute -top-1 right-2 bg-[#FF5A00]/10 text-[#FF5A00] text-[8px] font-mono font-bold px-1.5 py-1 rounded-b border border-t-0 border-[#FF5A00]/20 uppercase tracking-widest">
+          <div className="absolute -top-1 right-2 bg-[#3E5E93]/10 text-[#3E5E93] text-[8px] font-mono font-bold px-1.5 py-1 rounded-b border border-t-0 border-[#3E5E93]/20 uppercase tracking-widest">
             RESERVE
           </div>
-          <div className="w-10 h-10 rounded-full bg-[#121212] border border-[#FF5A00]/15 flex items-center justify-center text-xl text-[#FF5A00] group-hover:scale-110 transition-transform">
+          <div className="w-10 h-10 rounded-full bg-[#121212] border border-[#3E5E93]/15 flex items-center justify-center text-xl text-[#3E5E93] group-hover:scale-110 transition-transform">
             📆
           </div>
           <div className="flex flex-col">
@@ -6661,12 +6664,12 @@ export default function App() {
             playBeep(520, "sine", 0.08);
             setIsGamesModalOpen(true);
           }}
-          className="bg-[#1C1C1E] hover:bg-zinc-855 border-2 border-dashed border-[#FF5A00]/30 hover:border-[#FF5A00] text-white p-3.5 rounded-xl flex flex-col items-center justify-center gap-2.5 transition-all transform hover:scale-[1.01] active:scale-95 cursor-pointer text-center relative overflow-hidden group shadow-heavy diagonal-stripes-orange"
+          className="bg-[#1C1C1E] hover:bg-zinc-855 border-2 border-dashed border-[#3E5E93]/30 hover:border-[#3E5E93] text-white p-3.5 rounded-xl flex flex-col items-center justify-center gap-2.5 transition-all transform hover:scale-[1.01] active:scale-95 cursor-pointer text-center relative overflow-hidden group shadow-heavy diagonal-stripes-orange"
         >
           <div className="absolute -top-1 right-2 bg-red-650 text-red-100 text-[8px] font-mono font-bold px-1.5 py-1 rounded-b uppercase tracking-widest animate-pulse">
             ARCADE
           </div>
-          <div className="w-10 h-10 rounded-full bg-[#121212] border border-[#FF5A00]/15 flex items-center justify-center text-xl text-orange-500 group-hover:scale-110 transition-transform">
+          <div className="w-10 h-10 rounded-full bg-[#121212] border border-[#3E5E93]/15 flex items-center justify-center text-xl text-orange-500 group-hover:scale-110 transition-transform">
             🎮
           </div>
           <div className="flex flex-col">
@@ -6692,24 +6695,24 @@ export default function App() {
                   <h5 className="font-display font-black text-xs uppercase tracking-wider text-white">
                     Your Booked Tables
                   </h5>
-                  <p className="text-[9px] font-mono text-[#FF5A00] uppercase tracking-widest mt-0.5 font-bold">
+                  <p className="text-[9px] font-mono text-[#3E5E93] uppercase tracking-widest mt-0.5 font-bold">
                     WE'RE NOT NORMAL 🤘
                   </p>
                 </div>
               </div>
-              <span className="bg-[#FF5A00]/10 text-[#FF5A00] border border-[#FF5A00]/20 text-[8px] font-mono font-bold px-2 py-0.5 rounded uppercase font-black">
+              <span className="bg-[#3E5E93]/10 text-[#3E5E93] border border-[#3E5E93]/20 text-[8px] font-mono font-bold px-2 py-0.5 rounded uppercase font-black">
                 {bookings.length} Confirmed
               </span>
             </div>
 
             <div className="space-y-2.5 max-h-[180px] overflow-y-auto pr-1">
               {bookings.map((b) => {
-                const table = ROCO_TABLES.find(t => t.id === b.tableId);
+                const table = LUTHO_TABLES.find(t => t.id === b.tableId);
                 return (
-                  <div key={b.id} className="bg-black/40 p-3 rounded-xl border border-[#FF5A00]/15 flex items-center justify-between text-xs font-mono">
+                  <div key={b.id} className="bg-black/40 p-3 rounded-xl border border-[#3E5E93]/15 flex items-center justify-between text-xs font-mono">
                     <div className="space-y-1">
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="text-[#FF5A00] font-bold uppercase text-xs">
+                        <span className="text-[#3E5E93] font-bold uppercase text-xs">
                           {table ? `${table.name} (T${b.tableId})` : `TABLE ${b.tableId}`}
                         </span>
                         <span className="text-[8px] px-1 bg-zinc-800 text-zinc-300 rounded uppercase font-sans">
@@ -6720,12 +6723,12 @@ export default function App() {
                         Date: {b.date} • {b.time}
                       </p>
                       {b.occasion && (
-                        <p className="text-[9.5px] text-[#FF5A00] italic font-black">
+                        <p className="text-[9.5px] text-[#3E5E93] italic font-black">
                           Occasion: {b.occasion}
                         </p>
                       )}
                       {b.specialRequests && (
-                        <p className="text-[9.5px] text-zinc-400 truncate max-w-[200px] border-l border-[#FF5A00]/30 pl-1.5 mt-1">
+                        <p className="text-[9.5px] text-zinc-400 truncate max-w-[200px] border-l border-[#3E5E93]/30 pl-1.5 mt-1">
                           "{b.specialRequests}"
                         </p>
                       )}
@@ -6763,9 +6766,9 @@ export default function App() {
             <>
               <div className="flex justify-between items-center">
                 <div className="flex items-center gap-1.5">
-                  <Award className="w-4.5 h-4.5 text-[#FF5A00] animate-pulse" />
+                  <Award className="w-4.5 h-4.5 text-[#3E5E93] animate-pulse" />
                   <div>
-                    <h4 className="font-sub font-black tracking-wider text-xs uppercase text-[#FF5A00] leading-none">
+                    <h4 className="font-sub font-black tracking-wider text-xs uppercase text-[#3E5E93] leading-none">
                       Loyalty Stamp Companion
                     </h4>
                     <p className="text-[9px] font-mono text-zinc-400 mt-1 uppercase font-bold">
@@ -6786,13 +6789,13 @@ export default function App() {
                     <div 
                       key={i} 
                       className={`stamp p-1 text-[11px] font-display aspect-square cursor-default select-none ${
-                        active ? "active text-[#FF5A00]" : "text-zinc-700 bg-black/20"
+                        active ? "active text-[#3E5E93]" : "text-zinc-700 bg-black/20"
                       }`}
                       title={active ? `Loyalty stamp earned!` : `Stamp Spot ${i + 1}`}
                     >
                       {active ? (
                         <img 
-                          src="https://static-prod.dineplan.com/restaurant/restaurants/logos/logo_4118.png?d=1714983479" 
+                          src="/lutho-stamp-logo.png" 
                           alt="Stamp" 
                           className="w-full h-full object-contain rounded-full select-none"
                           referrerPolicy="no-referrer"
@@ -6838,7 +6841,7 @@ export default function App() {
                     >
                       {active ? (
                         <img 
-                          src="https://static-prod.dineplan.com/restaurant/restaurants/logos/logo_4118.png?d=1714983479" 
+                          src="/lutho-stamp-logo.png" 
                           alt="Stamp" 
                           className="w-full h-full object-contain rounded-full select-none"
                           referrerPolicy="no-referrer"
@@ -6872,7 +6875,7 @@ export default function App() {
             }}
             className={`py-3.5 focus:outline-none flex justify-center items-center gap-2 font-display tracking-widest text-lg font-black transition-all duration-200 uppercase cursor-pointer rounded-lg ${
               activeCategory === "EAT"
-                ? "bg-[#FF5A00] text-white shadow-md scale-[1.02] border border-orange-600 font-bold"
+                ? "bg-[#3E5E93] text-white shadow-md scale-[1.02] border border-orange-600 font-bold"
                 : "text-zinc-500 hover:text-zinc-300 bg-transparent"
             }`}
           >
@@ -6890,7 +6893,7 @@ export default function App() {
             }}
             className={`py-3.5 focus:outline-none flex justify-center items-center gap-2 font-display tracking-widest text-lg font-black transition-all duration-200 uppercase cursor-pointer rounded-lg ${
               activeCategory === "DRINK"
-                ? "bg-[#FF5A00] text-white shadow-md scale-[1.02] border border-orange-600 font-bold"
+                ? "bg-[#3E5E93] text-white shadow-md scale-[1.02] border border-orange-600 font-bold"
                 : "text-zinc-500 hover:text-zinc-300 bg-transparent"
             }`}
           >
@@ -6914,7 +6917,7 @@ export default function App() {
                 playBeep(650, "sine", 0.01);
               }}
               placeholder={`Search ${activeCategory === "EAT" ? "burgers, steaks, pizzas, sides..." : "wines, beverages, champagne..."}`}
-              className="w-full bg-[#1C1C1E] text-zinc-100 placeholder-zinc-650 text-xs rounded-lg pl-9 pr-8 py-2.5 border border-zinc-850/80 focus:outline-none focus:border-[#FF5A00] focus:ring-1 focus:ring-[#FF5A00]/20 font-sans transition-all shadow-inner"
+              className="w-full bg-[#1C1C1E] text-zinc-100 placeholder-zinc-650 text-xs rounded-lg pl-9 pr-8 py-2.5 border border-zinc-850/80 focus:outline-none focus:border-[#3E5E93] focus:ring-1 focus:ring-[#3E5E93]/20 font-sans transition-all shadow-inner"
             />
             {searchQuery && (
               <button
@@ -6938,7 +6941,7 @@ export default function App() {
               ? [
                   { id: "all", label: "All Food", icon: Sparkles },
                   { id: "Promos", label: "Promos 🏷️", icon: Award },
-                  { id: "Roco Drop", label: "Roco Drop 🔥", icon: Flame },
+                  { id: "Lutho Drop", label: "Lutho Drop 🔥", icon: Flame },
                   { id: "Smashburgers", label: "Burgers 🍔", icon: Utensils },
                   { id: "Combos", label: "Combos 👑", icon: Award },
                   { id: "Ribs", label: "Ribs 🥩", icon: Flame },
@@ -6972,11 +6975,11 @@ export default function App() {
                   }}
                   className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[10.5px] font-sub font-black uppercase tracking-wider transition-all shrink-0 cursor-pointer ${
                     isSelected
-                      ? "bg-[#FF5A00] text-black border border-[#FF5A00] shadow-[0_2px_8px_rgba(231, 138, 62,0.25)] scale-[1.03]"
+                      ? "bg-[#3E5E93] text-black border border-[#3E5E93] shadow-[0_2px_8px_rgba(231, 138, 62,0.25)] scale-[1.03]"
                       : "bg-[#1C1C1E] text-zinc-400 hover:text-zinc-200 border border-zinc-850"
                   }`}
                 >
-                  <SubIcon className={`w-3 h-3 ${isSelected ? "text-black" : "text-[#FF5A00]/70"}`} />
+                  <SubIcon className={`w-3 h-3 ${isSelected ? "text-black" : "text-[#3E5E93]/70"}`} />
                   <span>{sub.label}</span>
                 </button>
               );
@@ -6984,7 +6987,7 @@ export default function App() {
           </div>
 
           <div className="rounded-xl border border-zinc-800 bg-[#1C1C1E] p-2.5">
-            <p className="text-[9px] font-mono uppercase tracking-widest text-[#E78A3E] font-black mb-2 px-0.5">
+            <p className="text-[9px] font-mono uppercase tracking-widest text-[#3E5E93] font-black mb-2 px-0.5">
               Quick drinks — tap to add
             </p>
             <div className="flex gap-1.5 overflow-x-auto scrollbar-none pb-0.5">
@@ -6999,13 +7002,13 @@ export default function App() {
                       handleAddToCart(drink);
                       triggerToast(`Added ${drink.name}`, "success");
                     }}
-                    className="shrink-0 px-3 py-2 rounded-lg bg-white/5 border border-zinc-800 hover:border-[#E78A3E] text-left transition-all"
+                    className="shrink-0 px-3 py-2 rounded-lg bg-white/5 border border-zinc-800 hover:border-[#3E5E93] text-left transition-all"
                   >
                     <span className="text-sm leading-none">{drink.emoji}</span>
                     <span className="block text-[9px] font-black uppercase text-white mt-1 max-w-[88px] truncate">
                       {drink.name.replace(" 300ml", "").replace(" G-Shake", "")}
                     </span>
-                    <span className="block text-[9px] font-mono text-[#E78A3E] mt-0.5">R{drink.price}</span>
+                    <span className="block text-[9px] font-mono text-[#3E5E93] mt-0.5">R{drink.price}</span>
                   </button>
                 );
               })}
@@ -7016,7 +7019,7 @@ export default function App() {
                   setActiveSubcategory("all");
                   playBeep(500, "triangle", 0.05);
                 }}
-                className="shrink-0 px-3 py-2 rounded-lg bg-[#E78A3E]/15 border border-[#E78A3E]/40 text-[9px] font-black uppercase text-[#E78A3E] self-stretch min-w-[72px]"
+                className="shrink-0 px-3 py-2 rounded-lg bg-[#3E5E93]/15 border border-[#3E5E93]/40 text-[9px] font-black uppercase text-[#3E5E93] self-stretch min-w-[72px]"
               >
                 All drinks →
               </button>
@@ -7049,7 +7052,7 @@ export default function App() {
                   }}
                   className={`bg-[#1C1C1E] rounded-2xl overflow-hidden shadow-lg flex flex-col relative border transition-all duration-300 cursor-pointer ${
                     hasSelected 
-                      ? "border-[#FF5A00] ring-1 ring-[#FF5A00]/25 scale-[1.01]" 
+                      ? "border-[#3E5E93] ring-1 ring-[#3E5E93]/25 scale-[1.01]" 
                       : "border-zinc-900 bg-[#1C1C1E] hover:border-zinc-800 hover:scale-[1.01] hover:shadow-xl"
                   }`}
                 >
@@ -7075,7 +7078,7 @@ export default function App() {
                     
                     {/* Fallback Emoji */}
                     <div 
-                      className="absolute inset-0 bg-gradient-to-br from-[#FF5A00]/10 to-zinc-950 flex items-center justify-center"
+                      className="absolute inset-0 bg-gradient-to-br from-[#3E5E93]/10 to-zinc-950 flex items-center justify-center"
                       style={{ display: getProductResolvedImage(item) ? 'none' : 'flex' }}
                     >
                       <span className="text-4xl filter drop-shadow-md">{item.emoji}</span>
@@ -7084,7 +7087,7 @@ export default function App() {
                     {/* Popularity / Special Indicator overlay */}
                     {item.popularityBadge && (
                       <div className="absolute bottom-2 left-2 z-10">
-                        <span className="bg-black/85 backdrop-blur-sm text-[#FF5A00] text-[7.5px] font-mono tracking-wider font-extrabold uppercase px-2 py-0.5 rounded border border-[#FF5A00]/30 shadow">
+                        <span className="bg-black/85 backdrop-blur-sm text-[#3E5E93] text-[7.5px] font-mono tracking-wider font-extrabold uppercase px-2 py-0.5 rounded border border-[#3E5E93]/30 shadow">
                           {item.popularityBadge.split(" (")[0]}
                         </span>
                       </div>
@@ -7113,20 +7116,20 @@ export default function App() {
                     <div className="flex flex-col gap-2 mt-auto pt-2 border-t border-zinc-900/30">
                       <div className="flex items-center justify-between">
                         <span className="text-[9px] font-mono tracking-widest text-zinc-500 uppercase">PRICE</span>
-                        <span className="font-mono text-sm font-black text-[#FF5A00]">
+                        <span className="font-mono text-sm font-black text-[#3E5E93]">
                           R{item.price}
                         </span>
                       </div>
 
                       {/* Add button or Quantity Controller */}
                       {hasSelected ? (
-                        <div className="flex items-center w-full bg-[#121212] border border-[#FF5A00]/50 rounded-xl overflow-hidden shadow-inner shrink-0">
+                        <div className="flex items-center w-full bg-[#121212] border border-[#3E5E93]/50 rounded-xl overflow-hidden shadow-inner shrink-0">
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
                               handleUpdateQuantity(item.id, -1);
                             }}
-                            className="flex-1 py-1.5 text-[#FF5A00] hover:bg-[#FF5A00] hover:text-black transition-colors flex items-center justify-center cursor-pointer"
+                            className="flex-1 py-1.5 text-[#3E5E93] hover:bg-[#3E5E93] hover:text-black transition-colors flex items-center justify-center cursor-pointer"
                             aria-label={`Decrease quantity of ${item.name}`}
                           >
                             <Minus className="w-3 h-3" />
@@ -7139,7 +7142,7 @@ export default function App() {
                               e.stopPropagation();
                               handleUpdateQuantity(item.id, 1);
                             }}
-                            className="flex-1 py-1.5 text-[#FF5A00] hover:bg-[#FF5A00] hover:text-black transition-colors flex items-center justify-center cursor-pointer"
+                            className="flex-1 py-1.5 text-[#3E5E93] hover:bg-[#3E5E93] hover:text-black transition-colors flex items-center justify-center cursor-pointer"
                             aria-label={`Increase quantity of ${item.name}`}
                           >
                             <Plus className="w-3 h-3" />
@@ -7156,7 +7159,7 @@ export default function App() {
                               handleAddToCart(item);
                             }
                           }}
-                          className="w-full bg-[#FF5A00] hover:bg-orange-400 active:scale-95 text-[#121212] font-sub font-black text-[10px] py-1.5 rounded-xl tracking-wider transition-all uppercase flex items-center justify-center gap-1 font-bold cursor-pointer"
+                          className="w-full bg-[#3E5E93] hover:bg-orange-400 active:scale-95 text-[#121212] font-sub font-black text-[10px] py-1.5 rounded-xl tracking-wider transition-all uppercase flex items-center justify-center gap-1 font-bold cursor-pointer"
                         >
                           <Plus className="w-3 h-3 shrink-0" /> Add to Order
                         </button>
@@ -7174,7 +7177,7 @@ export default function App() {
                 exit={{ opacity: 0, scale: 0.95 }}
                 className="bg-[#1C1C1E]/50 rounded-2xl border border-dashed border-zinc-800/80 p-9 text-center flex flex-col items-center justify-center gap-4 shadow-xl col-span-full"
               >
-                <div className="w-14 h-14 rounded-full bg-zinc-900/90 border border-zinc-800 flex items-center justify-center text-[#FF5A00]">
+                <div className="w-14 h-14 rounded-full bg-zinc-900/90 border border-zinc-800 flex items-center justify-center text-[#3E5E93]">
                   <Utensils className="w-5 h-5 text-zinc-500 animate-bounce" />
                 </div>
                 <div>
@@ -7191,7 +7194,7 @@ export default function App() {
                     setActiveSubcategory("all");
                     playBeep(450, "triangle", 0.05);
                   }}
-                  className="bg-[#121212] border border-[#FF5A00]/50 hover:border-[#FF5A00] text-[10.5px] font-sub font-black uppercase tracking-wider text-[#FF5A00] px-5 py-2.5 rounded-xl transition-all shadow-md active:scale-95 cursor-pointer"
+                  className="bg-[#121212] border border-[#3E5E93]/50 hover:border-[#3E5E93] text-[10.5px] font-sub font-black uppercase tracking-wider text-[#3E5E93] px-5 py-2.5 rounded-xl transition-all shadow-md active:scale-95 cursor-pointer"
                 >
                   Reset Active Filters
                 </button>
@@ -7207,13 +7210,13 @@ export default function App() {
           id="active-kitchen-orders-section" 
           className={`px-4 py-4 border-t border-zinc-900 mt-6 md:pb-8 rounded-xl transition-all duration-500 ${
             highlightKitchenOrders 
-              ? "bg-amber-950/20 ring-2 ring-[#FF5A00] shadow-[0_0_25px_rgba(231, 138, 62,0.45)]" 
+              ? "bg-amber-950/20 ring-2 ring-[#3E5E93] shadow-[0_0_25px_rgba(231, 138, 62,0.45)]" 
               : ""
           }`}
         >
           <div className="flex items-center gap-2 mb-3">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#FF5A00] animate-pulse" />
-            <h3 className="font-sub font-black text-xs uppercase tracking-widest text-[#FF5A00]">
+            <span className="w-2.5 h-2.5 rounded-full bg-[#3E5E93] animate-pulse" />
+            <h3 className="font-sub font-black text-xs uppercase tracking-widest text-[#3E5E93]">
               Active Kitchen Orders
             </h3>
           </div>
@@ -7232,8 +7235,8 @@ export default function App() {
                     <span className="text-zinc-600 text-[10px] font-mono">
                       @{order.timestamp}
                     </span>
-                    <span className="flex items-center gap-1 px-1.5 py-0.5 bg-amber-500/10 text-[#FF5A00] text-[10px] font-mono font-bold rounded border border-amber-500/20">
-                      <Clock className="w-2.5 h-2.5 text-[#FF5A00] animate-pulse" />
+                    <span className="flex items-center gap-1 px-1.5 py-0.5 bg-amber-500/10 text-[#3E5E93] text-[10px] font-mono font-bold rounded border border-amber-500/20">
+                      <Clock className="w-2.5 h-2.5 text-[#3E5E93] animate-pulse" />
                       {getElapsedMinutesAgo(order.createdAt, order.timestamp)}
                     </span>
                   </div>
@@ -7261,7 +7264,7 @@ export default function App() {
                     <button
                       type="button"
                       onClick={() => handleRedownloadOrderPass(order)}
-                      className="flex items-center gap-1 px-2 py-1 rounded border border-[#E78A3E]/40 bg-[#E78A3E]/10 text-[10px] font-mono font-bold uppercase text-[#E78A3E] hover:bg-[#E78A3E] hover:text-black transition-colors"
+                      className="flex items-center gap-1 px-2 py-1 rounded border border-[#3E5E93]/40 bg-[#3E5E93]/10 text-[10px] font-mono font-bold uppercase text-[#3E5E93] hover:bg-[#3E5E93] hover:text-black transition-colors"
                     >
                       <Download className="w-3 h-3" />
                       Pass
@@ -7301,7 +7304,7 @@ export default function App() {
           <div className="flex gap-2.5">
             <button
               onClick={handleRequestBill}
-              className="py-3 px-3.5 rounded-lg border-2 border-zinc-800 hover:border-[#FF5A00] text-zinc-300 hover:text-[#FF5A00] bg-black/30 font-sub font-black text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all active:scale-95 cursor-pointer"
+              className="py-3 px-3.5 rounded-lg border-2 border-zinc-800 hover:border-[#3E5E93] text-zinc-300 hover:text-[#3E5E93] bg-black/30 font-sub font-black text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all active:scale-95 cursor-pointer"
             >
               <Receipt className="w-3.5 h-3.5" /> Bill
             </button>
@@ -7311,7 +7314,7 @@ export default function App() {
                 playBeep(450, "sine", 0.08);
                 setIsCartOpen(true);
               }}
-              className="py-3 px-6 rounded-lg bg-[#FF5A00] hover:bg-orange-400 active:scale-95 text-[#121212] font-sub font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 select-none shadow-md cursor-pointer"
+              className="py-3 px-6 rounded-lg bg-[#3E5E93] hover:bg-orange-400 active:scale-95 text-[#121212] font-sub font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 select-none shadow-md cursor-pointer"
             >
               <ShoppingBag className="w-4 h-4 shrink-0" />
               View Order
@@ -7320,7 +7323,7 @@ export default function App() {
 
         </div>
 
-        {/* Small RocoMamas OS Footer Credit */}
+        {/* Small Lutho OS Footer Credit */}
         <div className="mt-4 pt-2 border-t border-zinc-900 flex justify-between items-center text-[10px] text-zinc-650 font-mono">
           <span>{formatTableLabel(currentTableId)} SYSTEM</span>
           {false && (
@@ -7328,9 +7331,9 @@ export default function App() {
               onClick={() => {
                 playBeep(440, "sine", 0.08);
                 setAppMode("STAFF");
-                triggerToast("Logged in as Roco Crew (Staff View active)", "success");
+                triggerToast("Logged in as Lutho Crew (Staff View active)", "success");
               }}
-              className="tracking-widest uppercase font-bold text-[#FF5A00]/80 hover:text-[#FF5A00] transition-all hover:scale-105 active:scale-95 cursor-pointer bg-[#FF5A00]/5 hover:bg-[#FF5A00]/15 px-2.5 py-1.5 rounded-lg border border-[#FF5A00]/20 font-mono text-[9px] hover:shadow-[0_0_10px_rgba(231, 138, 62,0.15)]"
+              className="tracking-widest uppercase font-bold text-[#3E5E93]/80 hover:text-[#3E5E93] transition-all hover:scale-105 active:scale-95 cursor-pointer bg-[#3E5E93]/5 hover:bg-[#3E5E93]/15 px-2.5 py-1.5 rounded-lg border border-[#3E5E93]/20 font-mono text-[9px] hover:shadow-[0_0_10px_rgba(231, 138, 62,0.15)]"
             >
               Staff View ➔
             </button>
@@ -7357,11 +7360,11 @@ export default function App() {
               animate={{ y: 0 }}
               exit={{ y: "100%" }}
               transition={{ type: "spring", damping: 25, stiffness: 220 }}
-              className="fixed inset-0 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 sm:top-[6%] sm:bottom-[6%] w-full sm:max-w-[520px] bg-[#F7F4EF] border-2 border-[#E78A3E] sm:rounded-3xl z-55 overflow-hidden flex flex-col max-h-[100dvh] sm:max-h-none shadow-2xl"
+              className="fixed inset-0 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 sm:top-[6%] sm:bottom-[6%] w-full sm:max-w-[520px] bg-[#F7F4EF] border-2 border-[#3E5E93] sm:rounded-3xl z-55 overflow-hidden flex flex-col max-h-[100dvh] sm:max-h-none shadow-2xl"
             >
-              <div className="p-4 bg-black border-b-2 border-[#E78A3E] flex justify-between items-center relative shrink-0">
+              <div className="p-4 bg-black border-b-2 border-[#3E5E93] flex justify-between items-center relative shrink-0">
                 <div>
-                  <h3 className="font-display font-black text-[#E78A3E] tracking-widest text-lg uppercase">
+                  <h3 className="font-display font-black text-[#3E5E93] tracking-widest text-lg uppercase">
                     Your Order
                   </h3>
                   <p className="text-[10px] font-mono tracking-wider text-white uppercase">
@@ -7393,8 +7396,8 @@ export default function App() {
                         }}
                         className={`py-2.5 px-3 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all ${
                           remoteOrderMode === "solo"
-                            ? "bg-[#E78A3E] border-[#E78A3E] text-black"
-                            : "bg-[#F7F4EF] border-zinc-300 text-zinc-700 hover:border-[#E78A3E]"
+                            ? "bg-[#3E5E93] border-[#3E5E93] text-black"
+                            : "bg-[#F7F4EF] border-zinc-300 text-zinc-700 hover:border-[#3E5E93]"
                         }`}
                       >
                         Just me
@@ -7407,8 +7410,8 @@ export default function App() {
                         }}
                         className={`py-2.5 px-3 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all ${
                           remoteOrderMode === "group"
-                            ? "bg-black border-[#E78A3E] text-[#E78A3E]"
-                            : "bg-[#F7F4EF] border-zinc-300 text-zinc-700 hover:border-[#E78A3E]"
+                            ? "bg-black border-[#3E5E93] text-[#3E5E93]"
+                            : "bg-[#F7F4EF] border-zinc-300 text-zinc-700 hover:border-[#3E5E93]"
                         }`}
                       >
                         Group order
@@ -7425,15 +7428,15 @@ export default function App() {
                 {isRemoteTable && (
                   <div className="mb-4 bg-gradient-to-br from-zinc-900 to-black p-4 rounded-xl border border-zinc-800 flex flex-col gap-3.5 relative overflow-hidden">
                     <div className="absolute top-2.5 right-2.5 w-12 h-12 pointer-events-none opacity-[0.03]">
-                      <QrCode className="w-12 h-12 text-[#FF5A00]" />
+                      <QrCode className="w-12 h-12 text-[#3E5E93]" />
                     </div>
                     <div className="flex justify-between items-center gap-2">
                       <div>
-                        <span className="text-[10px] font-mono tracking-widest text-[#FF5A00] uppercase font-black bg-[#FF5A00]/10 px-2.5 py-0.5 rounded">
+                        <span className="text-[10px] font-mono tracking-widest text-[#3E5E93] uppercase font-black bg-[#3E5E93]/10 px-2.5 py-0.5 rounded">
                           LIVE SPLITTING CONNECT
                         </span>
                         <h4 className="font-sub font-black text-sm text-white uppercase mt-1 px-0.5 flex items-center gap-1.5">
-                          <Users className="w-4 h-4 text-[#FF5A00]" />
+                          <Users className="w-4 h-4 text-[#3E5E93]" />
                           {isRemoteSplitConnected
                             ? `Split group (${displaySessionMembers.length})`
                             : "Not connected"}
@@ -7446,7 +7449,7 @@ export default function App() {
                           setSplitQrStep("choose");
                           setIsQrModalOpen(true);
                         }}
-                        className="px-3.5 py-2 bg-[#FF5A00] hover:bg-orange-400 text-[#121212] rounded-lg text-[10.5px] font-sub font-black uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer shadow-md active:scale-95 shrink-0"
+                        className="px-3.5 py-2 bg-[#3E5E93] hover:bg-orange-400 text-[#121212] rounded-lg text-[10.5px] font-sub font-black uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer shadow-md active:scale-95 shrink-0"
                       >
                         <QrCode className="w-3.5 h-3.5" />
                         Scan QR Code
@@ -7460,7 +7463,7 @@ export default function App() {
                             <span
                               key={member}
                               className={`px-2.5 py-1 rounded-full text-[10.5px] font-bold font-sub uppercase flex items-center gap-1 border border-zinc-800 shrink-0 ${
-                                member === currentPlayerName ? "bg-zinc-800 text-white" : "bg-zinc-900/80 text-[#FF5A00]"
+                                member === currentPlayerName ? "bg-zinc-800 text-white" : "bg-zinc-900/80 text-[#3E5E93]"
                               }`}
                             >
                               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
@@ -7482,7 +7485,7 @@ export default function App() {
                 )}
 
                 {useRemoteGroupOrderFlow && (
-                  <div className="mb-4 rounded-2xl border-2 border-[#E78A3E] bg-white p-4 shadow-sm">
+                  <div className="mb-4 rounded-2xl border-2 border-[#3E5E93] bg-white p-4 shadow-sm">
                     <div className="flex items-center justify-between gap-2 mb-3">
                       <div>
                         <h4 className="font-black uppercase text-sm text-black tracking-wider">Group order</h4>
@@ -7491,7 +7494,7 @@ export default function App() {
                         </p>
                       </div>
                       {groupOrderDraft?.roundStatus === "submitting" && (
-                        <span className="text-[10px] font-black uppercase text-[#E78A3E] animate-pulse">Sending...</span>
+                        <span className="text-[10px] font-black uppercase text-[#3E5E93] animate-pulse">Sending...</span>
                       )}
                     </div>
 
@@ -7504,7 +7507,7 @@ export default function App() {
                         return (
                           <div
                             key={member}
-                            className={`rounded-xl border p-3 ${isMe ? "border-[#E78A3E] bg-[#E78A3E]/10" : "border-zinc-200 bg-[#F7F4EF]"}`}
+                            className={`rounded-xl border p-3 ${isMe ? "border-[#3E5E93] bg-[#3E5E93]/10" : "border-zinc-200 bg-[#F7F4EF]"}`}
                           >
                             <div className="flex items-center justify-between gap-2">
                               <div className="flex items-center gap-2 min-w-0">
@@ -7593,10 +7596,10 @@ export default function App() {
                   if (alreadyInCart) return null;
 
                   return (
-                    <div className="mt-2.5 p-3 rounded-xl border border-dashed border-[#FF5A00]/40 bg-gradient-to-br from-[#FF5A00]/5 to-transparent flex flex-col gap-2.5 relative overflow-hidden">
+                    <div className="mt-2.5 p-3 rounded-xl border border-dashed border-[#3E5E93]/40 bg-gradient-to-br from-[#3E5E93]/5 to-transparent flex flex-col gap-2.5 relative overflow-hidden">
                       <div className="flex items-center gap-1.5">
-                        <Sparkles className="w-3.5 h-3.5 text-[#FF5A00] animate-pulse" />
-                        <span className="text-[10px] font-mono uppercase tracking-widest text-[#FF5A00] font-black">
+                        <Sparkles className="w-3.5 h-3.5 text-[#3E5E93] animate-pulse" />
+                        <span className="text-[10px] font-mono uppercase tracking-widest text-[#3E5E93] font-black">
                           {hasDrinkOnly ? "Add a side?" : "Thirsty? Add a drink"}
                         </span>
                       </div>
@@ -7620,7 +7623,7 @@ export default function App() {
                             handleAddToCart(upsellItem);
                             triggerToast(`Paired up! Added ${upsellItem.name} to order.`, "success");
                           }}
-                          className="px-3 py-1.5 bg-[#FF5A00] hover:bg-[#FF5A00]/95 text-black hover:text-[#121212] font-sub font-black text-[9px] uppercase rounded-lg transition-colors flex items-center justify-center gap-1 shrink-0 cursor-pointer shadow-md transform active:scale-95"
+                          className="px-3 py-1.5 bg-[#3E5E93] hover:bg-[#3E5E93]/95 text-black hover:text-[#121212] font-sub font-black text-[9px] uppercase rounded-lg transition-colors flex items-center justify-center gap-1 shrink-0 cursor-pointer shadow-md transform active:scale-95"
                         >
                           <Plus className="w-2.5 h-2.5" /> add R{upsellItem.price}
                         </button>
@@ -7642,7 +7645,7 @@ export default function App() {
                       onChange={(e) => setOrderNotes(e.target.value)}
                       disabled={useRemoteGroupOrderFlow && isMyGroupOrderLocked}
                       placeholder="e.g. Medium burger, no onions, extra ice on beer please..."
-                      className="w-full bg-[#F7F4EF] text-black placeholder-zinc-400 text-xs rounded-lg p-3 border border-zinc-300 focus:outline-none focus:border-[#E78A3E] focus:ring-1 focus:ring-[#E78A3E]/30 font-sans transition-all resize-none"
+                      className="w-full bg-[#F7F4EF] text-black placeholder-zinc-400 text-xs rounded-lg p-3 border border-zinc-300 focus:outline-none focus:border-[#3E5E93] focus:ring-1 focus:ring-[#3E5E93]/30 font-sans transition-all resize-none"
                     />
                   </div>
                 )}
@@ -7660,7 +7663,7 @@ export default function App() {
                     </div>
                     <div className="flex justify-between">
                       <span>VAT (15% Included)</span>
-                      <span className="font-sans text-black font-bold text-[#E78A3E]">R{(cartTotal * 0.15).toFixed(2)}</span>
+                      <span className="font-sans text-black font-bold text-[#3E5E93]">R{(cartTotal * 0.15).toFixed(2)}</span>
                     </div>
 
                     {couponApplied && (
@@ -7672,14 +7675,14 @@ export default function App() {
 
                     <div className="flex justify-between text-sm text-black font-sub font-black border-t border-zinc-200 pt-2 uppercase">
                       <span>Total Price</span>
-                      <span className="font-mono text-base text-[#E78A3E]">
+                      <span className="font-mono text-base text-[#3E5E93]">
                         R{Math.max(0, cartTotal - (couponApplied ? 50 : 0))}
                       </span>
                     </div>
                   </div>
 
-                  <div className="p-3 bg-[#F7F4EF] rounded-lg border border-[#E78A3E]/20 flex items-center gap-2.5 text-[11px] font-mono text-zinc-700">
-                    <Award className="w-4 h-4 text-[#E78A3E] shrink-0" />
+                  <div className="p-3 bg-[#F7F4EF] rounded-lg border border-[#3E5E93]/20 flex items-center gap-2.5 text-[11px] font-mono text-zinc-700">
+                    <Award className="w-4 h-4 text-[#3E5E93] shrink-0" />
                     <p className="leading-relaxed text-[10.5px]">
                       Sending this order wins you <span className="text-black font-bold">{cartTotalItems} gold stamp(s)</span> on your card!
                     </p>
@@ -7714,9 +7717,9 @@ export default function App() {
                         playBeep(450, "sine", 0.05);
                         setIsReviewModalOpen(true);
                       }}
-                      className="w-full mt-0.5 py-2.5 px-3 bg-[#1C1C1E] hover:bg-zinc-850 border border-dashed border-[#FF5A00]/35 text-[#FF5A00] hover:text-white rounded-xl text-[10.5px] font-sub font-black uppercase tracking-wider transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-sm shadow-black/20"
+                      className="w-full mt-0.5 py-2.5 px-3 bg-[#1C1C1E] hover:bg-zinc-850 border border-dashed border-[#3E5E93]/35 text-[#3E5E93] hover:text-white rounded-xl text-[10.5px] font-sub font-black uppercase tracking-wider transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-sm shadow-black/20"
                     >
-                      <Star className="w-3.5 h-3.5 fill-[#FF5A00] text-transparent" />
+                      <Star className="w-3.5 h-3.5 fill-[#3E5E93] text-transparent" />
                       Review Us on Google for dynamic R50 Voucher!
                     </button>
                   )}
@@ -7727,7 +7730,7 @@ export default function App() {
                   <div className="flex gap-2.5 mt-1">
                     <button
                       onClick={handleRequestBill}
-                      className="flex-1 py-3.5 bg-zinc-900 border border-zinc-800 text-zinc-300 hover:text-[#FF5A00] hover:border-[#FF5A00] uppercase font-sub font-black text-xs tracking-wider rounded-xl transition-all cursor-pointer"
+                      className="flex-1 py-3.5 bg-zinc-900 border border-zinc-800 text-zinc-300 hover:text-[#3E5E93] hover:border-[#3E5E93] uppercase font-sub font-black text-xs tracking-wider rounded-xl transition-all cursor-pointer"
                     >
                       Request Bill
                     </button>
@@ -7741,7 +7744,7 @@ export default function App() {
                       className={`flex-[2] py-4 font-sub font-black text-xs uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-2 active:scale-95 cursor-pointer shadow-lg ${
                         useRemoteGroupOrderFlow && isMyGroupOrderLocked
                           ? "bg-zinc-800 text-zinc-300 cursor-not-allowed"
-                          : "bg-[#E78A3E] hover:bg-[#d67a32] text-black"
+                          : "bg-[#3E5E93] hover:bg-[#d67a32] text-black"
                       } ${isRemoteTable && remoteOrderMode === "group" && !remoteSplitSession ? "opacity-50 cursor-not-allowed" : ""}`}
                     >
                       {isRemoteTable && remoteOrderMode === "group" && !remoteSplitSession ? (
@@ -7781,13 +7784,13 @@ export default function App() {
               animate={{ y: 0 }}
               exit={{ y: "100%" }}
               transition={{ type: "spring", damping: 25, stiffness: 220 }}
-              className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[500px] bg-[#1C1C1E] border-t-4 border-[#FF5A00] rounded-t-3xl z-55 overflow-hidden flex flex-col max-h-[85vh] shadow-2xl pb-6"
+              className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[500px] bg-[#1C1C1E] border-t-4 border-[#3E5E93] rounded-t-3xl z-55 overflow-hidden flex flex-col max-h-[85vh] shadow-2xl pb-6"
             >
               {/* Header drawer controls */}
               <div className="p-4 bg-[#121212] border-b border-zinc-900 flex justify-between items-center relative">
                 <div>
-                  <h3 className="font-display font-black text-[#FF5A00] tracking-widest text-lg uppercase flex items-center gap-2">
-                    <MessageSquare className="w-5 h-5 text-[#FF5A00]" />
+                  <h3 className="font-display font-black text-[#3E5E93] tracking-widest text-lg uppercase flex items-center gap-2">
+                    <MessageSquare className="w-5 h-5 text-[#3E5E93]" />
                     <span>Lounge Chat</span>
                   </h3>
                   <p className="text-[10px] font-mono tracking-wider text-zinc-550 uppercase">
@@ -7836,7 +7839,7 @@ export default function App() {
                         }`}
                       >
                         <div className="flex items-center gap-1.5 mb-0.5 text-[8px] font-mono uppercase text-zinc-500">
-                          <span>{isStaffMsg ? "Roco Crew (Staff)" : "You (Guest)"}</span>
+                          <span>{isStaffMsg ? "Lutho Crew (Staff)" : "You (Guest)"}</span>
                           <span>•</span>
                           <span>{msg.timestamp}</span>
                         </div>
@@ -7844,7 +7847,7 @@ export default function App() {
                           className={`p-3 rounded-xl text-xs leading-relaxed ${
                             isStaffMsg
                               ? "bg-[#1C1C1E] border border-zinc-850 text-white rounded-tl-none font-sans"
-                              : "bg-[#FF5A00] text-black font-medium font-sans rounded-tr-none"
+                              : "bg-[#3E5E93] text-black font-medium font-sans rounded-tr-none"
                           }`}
                         >
                           {msg.text}
@@ -7869,7 +7872,7 @@ export default function App() {
                     }
                   }}
                   placeholder="Ask crew for assistance, napkins..."
-                  className="flex-1 bg-black border border-zinc-800 p-3 rounded-xl text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-[#FF5A00]"
+                  className="flex-1 bg-black border border-zinc-800 p-3 rounded-xl text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-[#3E5E93]"
                 />
                 <button
                   id="cust-chat-send-btn"
@@ -7892,9 +7895,9 @@ export default function App() {
                     setChatMessages((prev) => appendChatMessage(prev, newMsg));
                     void setTableAlertFlag(tableKey, true);
                     setCustomerChatInput("");
-                    triggerToast("Message dispatched to Roco Crew dashboard! 💬", "success");
+                    triggerToast("Message dispatched to Lutho Crew dashboard! 💬", "success");
                   }}
-                  className="bg-[#FF5A00] hover:bg-orange-400 text-black px-4.5 rounded-xl font-sub font-black text-xs uppercase tracking-wider flex items-center justify-center cursor-pointer font-bold shrink-0 transition-transform active:scale-95"
+                  className="bg-[#3E5E93] hover:bg-orange-400 text-black px-4.5 rounded-xl font-sub font-black text-xs uppercase tracking-wider flex items-center justify-center cursor-pointer font-bold shrink-0 transition-transform active:scale-95"
                 >
                   <Send className="w-4 h-4" />
                 </button>
@@ -7923,11 +7926,11 @@ export default function App() {
               initial={{ opacity: 0, y: 24, scale: 0.96 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 24, scale: 0.96 }}
-              className="fixed inset-x-4 top-[10%] max-w-md mx-auto bg-white border-2 border-[#E78A3E] rounded-3xl z-[9950] overflow-hidden shadow-2xl"
+              className="fixed inset-x-4 top-[10%] max-w-md mx-auto bg-white border-2 border-[#3E5E93] rounded-3xl z-[9950] overflow-hidden shadow-2xl"
             >
-              <div className="p-4 bg-black border-b border-[#E78A3E] flex justify-between items-center">
+              <div className="p-4 bg-black border-b border-[#3E5E93] flex justify-between items-center">
                 <div>
-                  <h3 className="font-display font-black text-[#E78A3E] text-lg uppercase">Split QR</h3>
+                  <h3 className="font-display font-black text-[#3E5E93] text-lg uppercase">Split QR</h3>
                   <p className="text-[10px] font-mono text-white uppercase">
                     {splitQrStep === "choose" && "Host or join a live split"}
                     {splitQrStep === "host" && "Share this QR with your group"}
@@ -7953,14 +7956,14 @@ export default function App() {
                     <button
                       type="button"
                       onClick={() => {
-                        if (!currentPlayerName && !sessionStorage.getItem("roco_my_session_name")) {
+                        if (!currentPlayerName && !sessionStorage.getItem("lutho_my_session_name")) {
                           triggerToast("Set your guest name first.", "info");
                           setIsGuestNameOpen(true);
                           return;
                         }
                         handleHostSplitSession();
                       }}
-                      className="w-full py-4 bg-[#E78A3E] hover:bg-orange-400 text-black font-black uppercase text-sm rounded-2xl transition-all"
+                      className="w-full py-4 bg-[#3E5E93] hover:bg-orange-400 text-black font-black uppercase text-sm rounded-2xl transition-all"
                     >
                       Host
                     </button>
@@ -8002,7 +8005,7 @@ export default function App() {
                         setIsQrModalOpen(false);
                         setSplitQrStep("choose");
                       }}
-                      className="w-full py-3 bg-[#E78A3E] text-black font-black uppercase text-xs rounded-xl"
+                      className="w-full py-3 bg-[#3E5E93] text-black font-black uppercase text-xs rounded-xl"
                     >
                       Done — orders will sync
                     </button>
@@ -8015,19 +8018,19 @@ export default function App() {
                       value={joinSplitInput}
                       onChange={(e) => setJoinSplitInput(e.target.value)}
                       placeholder="Paste split link or session code..."
-                      className="w-full bg-white border border-zinc-300 rounded-xl px-4 py-3 text-sm text-black focus:outline-none focus:border-[#E78A3E] focus:ring-2 focus:ring-[#E78A3E]/30"
+                      className="w-full bg-white border border-zinc-300 rounded-xl px-4 py-3 text-sm text-black focus:outline-none focus:border-[#3E5E93] focus:ring-2 focus:ring-[#3E5E93]/30"
                     />
                     <button
                       type="button"
                       onClick={() => {
-                        if (!currentPlayerName && !sessionStorage.getItem("roco_my_session_name")) {
+                        if (!currentPlayerName && !sessionStorage.getItem("lutho_my_session_name")) {
                           triggerToast("Set your guest name first.", "info");
                           setIsGuestNameOpen(true);
                           return;
                         }
                         handleJoinSplitSession();
                       }}
-                      className="w-full py-3 bg-[#E78A3E] text-black font-black uppercase text-sm rounded-xl"
+                      className="w-full py-3 bg-[#3E5E93] text-black font-black uppercase text-sm rounded-xl"
                     >
                       Join split
                     </button>
@@ -8062,15 +8065,15 @@ export default function App() {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.97, y: 18 }}
               transition={{ type: "spring", damping: 24, stiffness: 230 }}
-              className="fixed inset-x-4 top-[18%] max-w-[420px] mx-auto bg-white border-2 border-[#E78A3E] rounded-3xl z-[9925] overflow-hidden shadow-2xl grunge-pattern"
+              className="fixed inset-x-4 top-[18%] max-w-[420px] mx-auto bg-white border-2 border-[#3E5E93] rounded-3xl z-[9925] overflow-hidden shadow-2xl grunge-pattern"
               role="dialog"
               aria-modal="true"
               aria-label="Google Review voucher"
             >
-              <div className="p-4 bg-black border-b border-[#E78A3E] flex items-center justify-between">
+              <div className="p-4 bg-black border-b border-[#3E5E93] flex items-center justify-between">
                 <div>
-                  <h3 className="font-display font-black text-[#E78A3E] uppercase tracking-widest text-sm flex items-center gap-2">
-                    <Star className="w-4 h-4 fill-[#E78A3E] text-transparent" />
+                  <h3 className="font-display font-black text-[#3E5E93] uppercase tracking-widest text-sm flex items-center gap-2">
+                    <Star className="w-4 h-4 fill-[#3E5E93] text-transparent" />
                     Review &amp; Save R50
                   </h3>
                   <p className="text-[10px] font-mono text-white uppercase mt-1">
@@ -8089,33 +8092,33 @@ export default function App() {
 
               <div className="p-5 space-y-4 text-sm text-zinc-900">
                 <p className="leading-relaxed">
-                  Had a great time at ROCO? Tap below to open our Google review page. After you&apos;ve posted your review, come back and tap &quot;I&apos;ve reviewed&quot; to unlock your <span className="font-black text-[#E78A3E]">R50 voucher</span>.
+                  Had a great time at LUTHO? Tap below to open our Google review page. After you&apos;ve posted your review, come back and tap &quot;I&apos;ve reviewed&quot; to unlock your <span className="font-black text-[#3E5E93]">R50 voucher</span>.
                 </p>
                 <button
                   type="button"
                   onClick={() => {
                     playBeep(520, "sine", 0.08);
-                    window.open(ROCO_GOOGLE_REVIEW_URL, "_blank", "noopener,noreferrer");
+                    window.open(LUTHO_GOOGLE_REVIEW_URL, "_blank", "noopener,noreferrer");
                   }}
-                  className="w-full py-3.5 bg-[#E78A3E] hover:bg-[#d67a32] text-black font-black uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-2"
+                  className="w-full py-3.5 bg-[#3E5E93] hover:bg-[#d67a32] text-black font-black uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-2"
                 >
                   <Star className="w-4 h-4 fill-black text-black" />
                   Open Google Review
                 </button>
               </div>
 
-              <div className="p-4 border-t border-[#E78A3E]/30 bg-white flex flex-col gap-2">
+              <div className="p-4 border-t border-[#3E5E93]/30 bg-white flex flex-col gap-2">
                 <button
                   type="button"
                   onClick={() => {
                     playBeep(659, "sine", 0.1);
-                    const code = `ROCO-REVIEW-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+                    const code = `LUTHO-REVIEW-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
                     setCouponCode(code);
-                    localStorage.setItem("roco_applied_coupon_code", code);
+                    localStorage.setItem("lutho_applied_coupon_code", code);
                     setIsReviewModalOpen(false);
                     triggerToast("R50 voucher unlocked! Apply it before you send your order.", "success");
                   }}
-                  className="w-full py-3 bg-black hover:bg-zinc-900 text-[#E78A3E] font-black uppercase tracking-wider rounded-xl transition-all border border-[#E78A3E]"
+                  className="w-full py-3 bg-black hover:bg-zinc-900 text-[#3E5E93] font-black uppercase tracking-wider rounded-xl transition-all border border-[#3E5E93]"
                 >
                   I&apos;ve reviewed — give me R50
                 </button>
@@ -8148,18 +8151,18 @@ export default function App() {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.97, y: 18 }}
               transition={{ type: "spring", damping: 24, stiffness: 230 }}
-              className="fixed inset-x-4 top-[10%] bottom-[10%] max-w-[520px] mx-auto bg-white border-2 border-[#E78A3E] rounded-3xl z-[9925] overflow-hidden shadow-2xl flex flex-col grunge-pattern"
+              className="fixed inset-x-4 top-[10%] bottom-[10%] max-w-[520px] mx-auto bg-white border-2 border-[#3E5E93] rounded-3xl z-[9925] overflow-hidden shadow-2xl flex flex-col grunge-pattern"
               role="dialog"
               aria-modal="true"
               aria-label="Terms and Conditions"
             >
-              <div className="p-4 bg-black border-b border-[#E78A3E] flex items-center justify-between">
+              <div className="p-4 bg-black border-b border-[#3E5E93] flex items-center justify-between">
                 <div>
-                  <h3 className="font-display font-black text-[#E78A3E] uppercase tracking-widest text-sm">
+                  <h3 className="font-display font-black text-[#3E5E93] uppercase tracking-widest text-sm">
                     Terms & Conditions
                   </h3>
                   <p className="text-[10px] font-mono text-white uppercase mt-1">
-                    ROCO OS guest usage guidelines
+                    LUTHO OS guest usage guidelines
                   </p>
                 </div>
                 <button
@@ -8174,7 +8177,7 @@ export default function App() {
 
               <div className="flex-1 overflow-y-auto p-5 text-sm text-zinc-900 leading-relaxed space-y-3">
                 <p>
-                  By using ROCO OS, you agree to order respectfully. Requests are routed to the restaurant team and may be delayed during peak periods.
+                  By using LUTHO OS, you agree to order respectfully. Requests are routed to the restaurant team and may be delayed during peak periods.
                 </p>
                 <ul className="list-disc pl-5 space-y-2 text-zinc-800">
                   <li>Menu availability may change without notice.</li>
@@ -8188,11 +8191,11 @@ export default function App() {
                 </p>
               </div>
 
-              <div className="p-4 border-t border-[#E78A3E]/30 bg-white">
+              <div className="p-4 border-t border-[#3E5E93]/30 bg-white">
                 <button
                   type="button"
                   onClick={() => setIsTermsOpen(false)}
-                  className="w-full py-3 bg-[#E78A3E] hover:bg-[#d67a32] text-black font-black uppercase tracking-wider rounded-xl transition-all"
+                  className="w-full py-3 bg-[#3E5E93] hover:bg-[#d67a32] text-black font-black uppercase tracking-wider rounded-xl transition-all"
                 >
                   Got it
                 </button>
@@ -8216,13 +8219,13 @@ export default function App() {
               initial={{ opacity: 0, scale: 0.96, y: 16 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.96, y: 16 }}
-              className="fixed inset-x-4 top-[20%] max-w-[420px] mx-auto bg-white border-2 border-[#E78A3E] rounded-3xl z-[9919] overflow-hidden shadow-2xl"
+              className="fixed inset-x-4 top-[20%] max-w-[420px] mx-auto bg-white border-2 border-[#3E5E93] rounded-3xl z-[9919] overflow-hidden shadow-2xl"
               role="dialog"
               aria-modal="true"
               aria-label="Choose your name"
             >
-              <div className="p-4 bg-black border-b border-[#E78A3E]">
-                <h3 className="font-display font-black text-[#E78A3E] uppercase tracking-widest text-sm">Welcome to ROCO</h3>
+              <div className="p-4 bg-black border-b border-[#3E5E93]">
+                <h3 className="font-display font-black text-[#3E5E93] uppercase tracking-widest text-sm">Welcome to LUTHO</h3>
                 <p className="text-[10px] font-mono text-white uppercase mt-1">What would you like to be called?</p>
               </div>
               <div className="p-5 space-y-4">
@@ -8233,13 +8236,13 @@ export default function App() {
                   onChange={(e) => setGuestNicknameInput(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleConfirmGuestName()}
                   placeholder="Your nickname"
-                  className="w-full bg-white border border-zinc-300 rounded-xl px-4 py-3 text-base text-black focus:outline-none focus:border-[#E78A3E] focus:ring-2 focus:ring-[#E78A3E]/30"
+                  className="w-full bg-white border border-zinc-300 rounded-xl px-4 py-3 text-base text-black focus:outline-none focus:border-[#3E5E93] focus:ring-2 focus:ring-[#3E5E93]/30"
                   autoFocus
                 />
                 <button
                   type="button"
                   onClick={handleConfirmGuestName}
-                  className="w-full py-3.5 bg-[#E78A3E] hover:bg-[#d67a32] text-black font-black uppercase tracking-wider rounded-xl transition-all"
+                  className="w-full py-3.5 bg-[#3E5E93] hover:bg-[#d67a32] text-black font-black uppercase tracking-wider rounded-xl transition-all"
                 >
                   Continue
                 </button>
@@ -8271,10 +8274,10 @@ export default function App() {
               aria-label="Onboarding assistant"
             >
               <div className="relative p-4 border-b border-zinc-900 flex items-center justify-between overflow-hidden">
-                <div className="absolute inset-0 pointer-events-none opacity-40" style={{ backgroundImage: "radial-gradient(circle at 20% 20%, rgba(255,90,0,0.35), transparent 55%), radial-gradient(circle at 85% 40%, rgba(255,90,0,0.18), transparent 55%)" }} />
+                <div className="absolute inset-0 pointer-events-none opacity-40" style={{ backgroundImage: "radial-gradient(circle at 20% 20%, rgba(62, 94, 147,0.35), transparent 55%), radial-gradient(circle at 85% 40%, rgba(62, 94, 147,0.18), transparent 55%)" }} />
                 <div>
                   <h3 className="font-display font-black text-white uppercase tracking-[0.18em] text-sm">
-                    How ROCO Works
+                    How LUTHO Works
                   </h3>
                   <p className="text-[10px] font-mono text-zinc-400 uppercase mt-1 tracking-widest">
                     Complete guest guide
@@ -8291,8 +8294,8 @@ export default function App() {
               </div>
 
               <div className="flex-1 overflow-y-auto p-4 text-sm text-zinc-300 leading-relaxed space-y-3">
-                <div className={`rounded-2xl p-4 border ${isRemoteTable ? "border-[#E78A3E] bg-[#E78A3E]/10" : "border-zinc-900 bg-gradient-to-br from-black/70 to-zinc-950/40"}`}>
-                  <p className="text-[10px] font-mono uppercase tracking-widest text-[#E78A3E] font-black">
+                <div className={`rounded-2xl p-4 border ${isRemoteTable ? "border-[#3E5E93] bg-[#3E5E93]/10" : "border-zinc-900 bg-gradient-to-br from-black/70 to-zinc-950/40"}`}>
+                  <p className="text-[10px] font-mono uppercase tracking-widest text-[#3E5E93] font-black">
                     {isRemoteTable ? "Remote table guide" : "Dine-in guide"}
                   </p>
                   <p className="mt-1 font-display font-black uppercase tracking-wider text-white text-sm">
@@ -8301,7 +8304,7 @@ export default function App() {
                   <p className="text-[12px] text-zinc-300 mt-1">
                     {isRemoteTable
                       ? "Remote Table orders don't need a host — your shared bill updates live even when you order solo. After you send an order you'll get a 4-digit claim code and a downloadable pass (choose PDF or PNG). Show the pass QR or read out your code to staff at collection. Lost it? Re-download anytime from Active Kitchen Orders below."
-                      : "Scan the QR at your table to join that table's session — your orders route straight to your seat. Roco Crew is assigned automatically; call them anytime with the header Call button, and request your bill or split it whenever you're ready."}
+                      : "Scan the QR at your table to join that table's session — your orders route straight to your seat. Lutho Crew is assigned automatically; call them anytime with the header Call button, and request your bill or split it whenever you're ready."}
                   </p>
                 </div>
                 {[
@@ -8362,7 +8365,7 @@ export default function App() {
                   }
                 ].map((section) => (
                   <div key={section.step} className="rounded-2xl p-4 border border-zinc-900 bg-gradient-to-br from-black/70 to-zinc-950/40">
-                    <p className="text-[10px] font-mono uppercase tracking-widest text-[#E78A3E] font-black">
+                    <p className="text-[10px] font-mono uppercase tracking-widest text-[#3E5E93] font-black">
                       {section.step}
                     </p>
                     <p className="mt-1 font-display font-black uppercase tracking-wider text-white text-sm">
@@ -8398,10 +8401,10 @@ export default function App() {
               initial={{ opacity: 0, scale: 0.96 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.96 }}
-              className="fixed inset-x-4 top-[25%] max-w-[360px] mx-auto bg-white border-2 border-[#E78A3E] rounded-3xl z-[9955] overflow-hidden shadow-2xl"
+              className="fixed inset-x-4 top-[25%] max-w-[360px] mx-auto bg-white border-2 border-[#3E5E93] rounded-3xl z-[9955] overflow-hidden shadow-2xl"
             >
-              <div className="p-4 bg-black border-b border-[#E78A3E]">
-                <h3 className="font-display font-black text-[#E78A3E] uppercase text-sm">Staff PIN required</h3>
+              <div className="p-4 bg-black border-b border-[#3E5E93]">
+                <h3 className="font-display font-black text-[#3E5E93] uppercase text-sm">Staff PIN required</h3>
                 <p className="text-[10px] font-mono text-white uppercase mt-1">Open {formatTableLabel(staffTablePinPrompt)}</p>
               </div>
               <div className="p-5 space-y-3">
@@ -8413,14 +8416,14 @@ export default function App() {
                   onChange={(e) => setStaffTablePinInput(e.target.value.replace(/\D/g, ""))}
                   onKeyDown={(e) => e.key === "Enter" && handleStaffTablePinSubmit()}
                   placeholder="Enter 4-digit PIN"
-                  className="w-full bg-white border border-zinc-300 rounded-xl px-4 py-3 text-base text-black text-center tracking-[0.3em] focus:outline-none focus:border-[#E78A3E]"
+                  className="w-full bg-white border border-zinc-300 rounded-xl px-4 py-3 text-base text-black text-center tracking-[0.3em] focus:outline-none focus:border-[#3E5E93]"
                   autoFocus
                 />
                 {staffAuthError && <p className="text-red-600 text-xs font-mono text-center">{staffAuthError}</p>}
                 <button
                   type="button"
                   onClick={handleStaffTablePinSubmit}
-                  className="w-full py-3 bg-[#E78A3E] hover:bg-[#d67a32] text-black font-black uppercase rounded-xl"
+                  className="w-full py-3 bg-[#3E5E93] hover:bg-[#d67a32] text-black font-black uppercase rounded-xl"
                 >
                   Unlock table
                 </button>
@@ -8453,7 +8456,7 @@ export default function App() {
             >
               <div
                 className="h-full bg-cover bg-center flex flex-col items-center justify-center p-4 relative text-white font-sans overflow-y-auto select-none"
-                style={{ backgroundImage: "url('https://i.pinimg.com/736x/d1/7d/31/d17d3138e7946042bd5180af48250c35.jpg')" }}
+                style={{ backgroundImage: "url('')" }}
               >
                 <div className="absolute inset-0 bg-black/75 backdrop-blur-xs pointer-events-none" />
                 <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(0,0,0,0.35)_0%,rgba(0,0,0,0.85)_100%)] pointer-events-none" />
@@ -8477,14 +8480,14 @@ export default function App() {
                     onClick={() => playBeep(880, "sine", 0.05)}
                   >
                     <img
-                      src="https://www.rocomamas.co.ke/images//logo-combined.png"
-                      alt="RocoMamas Logo"
+                      src="/lutho-logo.png"
+                      alt="Lutho Logo"
                       className="w-32 h-32 object-contain drop-shadow-[0_8px_20px_rgba(0,0,0,0.95)]"
                       referrerPolicy="no-referrer"
                     />
                   </motion.div>
 
-                  <div className="inline-flex items-center gap-1.5 px-3.5 py-1 bg-red-950/50 border border-red-500/30 rounded-full text-[10px] font-sans font-black tracking-widest text-[#FF5A00] uppercase mb-3.5">
+                  <div className="inline-flex items-center gap-1.5 px-3.5 py-1 bg-red-950/50 border border-red-500/30 rounded-full text-[10px] font-sans font-black tracking-widest text-[#3E5E93] uppercase mb-3.5">
                     Staff terminal gateway
                   </div>
 
@@ -8497,7 +8500,7 @@ export default function App() {
                 </div>
 
                 <div className="w-full max-w-sm bg-black/60 backdrop-blur-lg border border-zinc-800/80 rounded-2xl p-5 shadow-2xl relative overflow-hidden mb-2 flex flex-col gap-4 z-10">
-                  <div className="absolute top-0 left-0 right-0 h-[2.5px] bg-gradient-to-r from-transparent via-[#FF5A00] to-transparent" />
+                  <div className="absolute top-0 left-0 right-0 h-[2.5px] bg-gradient-to-r from-transparent via-[#3E5E93] to-transparent" />
 
                   <div className="space-y-2">
                     <label className="text-[10px] font-mono text-zinc-500 uppercase font-black block">Staff profile</label>
@@ -8507,7 +8510,7 @@ export default function App() {
                         setSelectedStaffProfileId(e.target.value);
                         setStaffAuthError("");
                       }}
-                      className="w-full bg-[#121212] border border-zinc-800 text-white rounded-xl px-3 py-3 outline-none focus:border-[#FF5A00]"
+                      className="w-full bg-[#121212] border border-zinc-800 text-white rounded-xl px-3 py-3 outline-none focus:border-[#3E5E93]"
                     >
                       <option value={DEFAULT_GENERAL_PROFILE.id}>
                         {DEFAULT_GENERAL_PROFILE.name} • {DEFAULT_GENERAL_PROFILE.role}
@@ -8535,7 +8538,7 @@ export default function App() {
                         if (e.key === "Enter") handleStaffLogin();
                       }}
                       placeholder="Enter your PIN"
-                      className="w-full bg-[#121212] border border-zinc-800 text-white rounded-xl px-3 py-3 outline-none focus:border-[#FF5A00]"
+                      className="w-full bg-[#121212] border border-zinc-800 text-white rounded-xl px-3 py-3 outline-none focus:border-[#3E5E93]"
                     />
                   </div>
 
@@ -8549,7 +8552,7 @@ export default function App() {
                     type="button"
                     onClick={handleStaffLogin}
                     disabled={!selectedStaffProfileId || staffPinInput.trim().length < 4}
-                    className="h-12 bg-[#FF5A00] hover:bg-orange-500 font-sans text-[#121214] font-black text-xs uppercase tracking-widest rounded-xl transition-all active:scale-95 flex items-center justify-center cursor-pointer shadow-[0_4px_15px_rgba(255,90,0,0.3)] disabled:opacity-30 disabled:pointer-events-none"
+                    className="h-12 bg-[#3E5E93] hover:bg-orange-500 font-sans text-[#121214] font-black text-xs uppercase tracking-widest rounded-xl transition-all active:scale-95 flex items-center justify-center cursor-pointer shadow-[0_4px_15px_rgba(62, 94, 147,0.3)] disabled:opacity-30 disabled:pointer-events-none"
                   >
                     Open Staff Console
                   </button>
@@ -8560,7 +8563,7 @@ export default function App() {
         )}
       </AnimatePresence>
 
-          {/* --- THE ULTIMATE "TYPEFORM STYLE" RocoMamas BOOKING ENGINE MODAL --- */}
+          {/* --- THE ULTIMATE "TYPEFORM STYLE" Lutho BOOKING ENGINE MODAL --- */}
           {createPortal(
             <AnimatePresence>
               {isBookingModalOpen && (
@@ -8585,22 +8588,22 @@ export default function App() {
                       animate={{ opacity: 1, scale: 1, y: 0 }}
                       exit={{ opacity: 0, scale: 0.95, y: 30 }}
                       transition={{ type: "spring", damping: 26, stiffness: 210 }}
-                      className="w-full max-w-[460px] h-[88vh] max-h-[92%] sm:max-h-[580px] bg-[#FF5A00] text-zinc-950 rounded-3xl shadow-[0_0_50px_rgba(231,138,62,0.4)] overflow-hidden flex flex-col font-sans pointer-events-auto"
+                      className="w-full max-w-[460px] h-[88vh] max-h-[92%] sm:max-h-[580px] bg-[#3E5E93] text-zinc-950 rounded-3xl shadow-[0_0_50px_rgba(231,138,62,0.4)] overflow-hidden flex flex-col font-sans pointer-events-auto"
                     >
                   {/* Title Bar (Typeform minimalist layout) */}
-                  <div className="p-4 bg-zinc-950 text-white flex justify-between items-center shrink-0 border-b border-[#FF5A00]/20">
+                  <div className="p-4 bg-zinc-950 text-white flex justify-between items-center shrink-0 border-b border-[#3E5E93]/20">
                     <div className="flex items-center gap-2.5">
                       <img 
-                        src="https://static-prod.dineplan.com/restaurant/restaurants/logos/logo_4118.png?d=1714983479" 
-                        alt="RocoMamas Logo" 
-                        className="w-8 h-8 object-contain rounded-full border border-[#FF5A00]/30 shadow-inner p-0.5 bg-[#121212]"
+                        src="/lutho-stamp-logo.png" 
+                        alt="Lutho Logo" 
+                        className="w-8 h-8 object-contain rounded-full border border-[#3E5E93]/30 shadow-inner p-0.5 bg-[#121212]"
                         referrerPolicy="no-referrer"
                       />
                       <div>
                         <h4 className="font-display font-black text-white text-xs uppercase tracking-wider flex items-center gap-1.5">
-                          ROCO TABLE WIZARD
+                          LUTHO TABLE WIZARD
                         </h4>
-                        <p className="text-[8px] font-mono text-[#FF5A00] uppercase tracking-widest mt-0.5 font-bold">
+                        <p className="text-[8px] font-mono text-[#3E5E93] uppercase tracking-widest mt-0.5 font-bold">
                           OFFICIAL BOOKING OS 🤘
                         </p>
                       </div>
@@ -8662,7 +8665,7 @@ export default function App() {
                                 }}
                                 className={`p-3 rounded-2xl border-2 font-display font-black text-xs uppercase tracking-wider transition-all cursor-pointer ${
                                   bookingGuests === num
-                                    ? "bg-zinc-950 text-[#FF5A00] border-zinc-950 shadow-md scale-[1.03]"
+                                    ? "bg-zinc-950 text-[#3E5E93] border-zinc-950 shadow-md scale-[1.03]"
                                     : "bg-white/80 hover:bg-white text-zinc-950 border-black/10 hover:border-zinc-950"
                                 }`}
                               >
@@ -8773,13 +8776,13 @@ export default function App() {
                           </h3>
 
                           {/* Seating Map Container (black contrast overlay) */}
-                          <div className="bg-zinc-950 text-zinc-300 p-3.5 rounded-2xl border border-[#FF5A00]/30 shadow-inner">
+                          <div className="bg-zinc-950 text-zinc-300 p-3.5 rounded-2xl border border-[#3E5E93]/30 shadow-inner">
                             <div className="flex justify-between items-center mb-2 flex-wrap gap-1">
                               <span className="text-[7.5px] font-mono text-zinc-550 uppercase tracking-wider font-extrabold">
                                 📍 INTUITIVE FLOOR MATRIX
                               </span>
                               {bookingTableId ? (
-                                <span className="text-[8.5px] bg-[#FF5A00] text-black px-1.5 py-0.5 rounded font-mono font-black uppercase">
+                                <span className="text-[8.5px] bg-[#3E5E93] text-black px-1.5 py-0.5 rounded font-mono font-black uppercase">
                                   SELECTED: TABLE {bookingTableId}
                                 </span>
                               ) : (
@@ -8792,15 +8795,15 @@ export default function App() {
                             {/* Legend explaining table types */}
                             <div className="grid grid-cols-3 gap-1 mb-2.5 bg-black/60 p-1.5 rounded-xl text-[7px] font-mono text-zinc-500 uppercase tracking-wider border border-zinc-900">
                               <div className="flex items-center gap-1.5">
-                                <div className="w-2.5 h-2 bg-[#5a3a22] border border-[#FF5A00]/20 rounded-sm" />
+                                <div className="w-2.5 h-2 bg-[#5a3a22] border border-[#3E5E93]/20 rounded-sm" />
                                 <span>Booth (6 max)</span>
                               </div>
                               <div className="flex items-center gap-1.5">
-                                <div className="w-2.5 h-2.5 rounded-full bg-[#5a3a22] border border-[#FF5A00]/20" />
+                                <div className="w-2.5 h-2.5 rounded-full bg-[#5a3a22] border border-[#3E5E93]/20" />
                                 <span>Round (6 max)</span>
                               </div>
                               <div className="flex items-center gap-1.5">
-                                <div className="w-2 h-2 rotate-45 bg-[#5a3a22] border border-[#FF5A00]/20" />
+                                <div className="w-2 h-2 rotate-45 bg-[#5a3a22] border border-[#3E5E93]/20" />
                                 <span>Small (4 max)</span>
                               </div>
                             </div>
@@ -8810,7 +8813,7 @@ export default function App() {
                               className="grid grid-cols-5 gap-1.5 p-2 rounded-xl border border-zinc-950 shadow-2xl max-w-sm mx-auto relative overflow-hidden"
                               style={{
                                 backgroundColor: "#0b0b0c",
-                                backgroundImage: "repeating-linear-gradient(45deg, rgba(255, 90, 0, 0.035) 0px, rgba(255, 90, 0, 0.035) 2px, transparent 2px, transparent 14px), repeating-linear-gradient(-45deg, rgba(0, 0, 0, 0.5) 0px, rgba(0, 0, 0, 0.5) 4px, transparent 4px, transparent 8px)"
+                                backgroundImage: "repeating-linear-gradient(45deg, rgba(62, 94, 147, 0.035) 0px, rgba(62, 94, 147, 0.035) 2px, transparent 2px, transparent 14px), repeating-linear-gradient(-45deg, rgba(0, 0, 0, 0.5) 0px, rgba(0, 0, 0, 0.5) 4px, transparent 4px, transparent 8px)"
                               }}
                             >
                               {Array.from({ length: 6 }, (_, rIdx) => {
@@ -8824,9 +8827,9 @@ export default function App() {
                                       return (
                                         <div 
                                           key="kitchen-zone-span"
-                                          className="col-span-4 rounded-lg border border-dashed border-[#FF5A00]/25 bg-[#FF5A00]/5 flex flex-col items-center justify-center text-center p-1 min-h-[46px]"
+                                          className="col-span-4 rounded-lg border border-dashed border-[#3E5E93]/25 bg-[#3E5E93]/5 flex flex-col items-center justify-center text-center p-1 min-h-[46px]"
                                         >
-                                          <span className="text-[7px] font-mono uppercase font-black leading-none tracking-widest text-[#FF5A00]">
+                                          <span className="text-[7px] font-mono uppercase font-black leading-none tracking-widest text-[#3E5E93]">
                                             🍳 KITCHEN
                                           </span>
                                         </div>
@@ -8842,16 +8845,16 @@ export default function App() {
                                     return (
                                       <div 
                                         key={`kitchen-ext-${r}`}
-                                        className="rounded-lg border border-dashed border-[#FF5A00]/25 bg-[#FF5A00]/5 flex flex-col items-center justify-center text-center p-1 min-h-[46px]"
+                                        className="rounded-lg border border-dashed border-[#3E5E93]/25 bg-[#3E5E93]/5 flex flex-col items-center justify-center text-center p-1 min-h-[46px]"
                                       >
-                                        <span className="text-[6px] font-mono uppercase font-black leading-none tracking-wider text-[#FF5A00]/80">
+                                        <span className="text-[6px] font-mono uppercase font-black leading-none tracking-wider text-[#3E5E93]/80">
                                           🍳 KITCHEN
                                         </span>
                                       </div>
                                     );
                                   }
 
-                                  const table = ROCO_TABLES.find(t => t.row === r && t.col === c);
+                                  const table = LUTHO_TABLES.find(t => t.row === r && t.col === c);
 
                                   if (table) {
                                     const tableId = table.id;
@@ -8877,7 +8880,7 @@ export default function App() {
                                           isBooked 
                                             ? "bg-red-950/20 border-red-500/25 text-red-500 cursor-not-allowed opacity-50" 
                                             : isSelected
-                                            ? "bg-[#FF5A00]/15 border-[#FF5A00] text-[#FF5A00] shadow-[0_0_8px_rgba(231,138,62,0.3)] scale-[1.03]"
+                                            ? "bg-[#3E5E93]/15 border-[#3E5E93] text-[#3E5E93] shadow-[0_0_8px_rgba(231,138,62,0.3)] scale-[1.03]"
                                             : "bg-zinc-900/40 border-zinc-800 text-zinc-300 hover:border-zinc-700"
                                         }`}
                                         title={`${table.name} (Max ${table.capacity} guests)`}
@@ -8885,21 +8888,21 @@ export default function App() {
                                         {table.type === "booth" && (
                                           table.orientation === "vertical" ? (
                                             <div className="flex items-center gap-0.5 w-full h-[36px] p-0.5">
-                                              <div className={`w-1 h-full rounded-l shrink-0 ${isSelected ? "bg-[#FF5A00]" : isBooked ? "bg-red-950/70" : "bg-[#2f190a]"}`} />
-                                              <div className={`flex-1 h-full rounded flex flex-col items-center justify-center font-mono text-[8px] font-black leading-none ${isSelected ? "bg-[#5a3a22] border border-[#FF5A00]" : "bg-[#4a2f1b] border border-[#3e2413]"}`}>
+                                              <div className={`w-1 h-full rounded-l shrink-0 ${isSelected ? "bg-[#3E5E93]" : isBooked ? "bg-red-950/70" : "bg-[#2f190a]"}`} />
+                                              <div className={`flex-1 h-full rounded flex flex-col items-center justify-center font-mono text-[8px] font-black leading-none ${isSelected ? "bg-[#5a3a22] border border-[#3E5E93]" : "bg-[#4a2f1b] border border-[#3e2413]"}`}>
                                                 <span>T{tableId}</span>
                                                 <span className="text-[4.5px] opacity-75 font-sans leading-none mt-0.5 font-bold">BTH</span>
                                               </div>
-                                              <div className={`w-1 h-full rounded-r shrink-0 ${isSelected ? "bg-[#FF5A00]" : isBooked ? "bg-red-950/70" : "bg-[#2f190a]"}`} />
+                                              <div className={`w-1 h-full rounded-r shrink-0 ${isSelected ? "bg-[#3E5E93]" : isBooked ? "bg-red-950/70" : "bg-[#2f190a]"}`} />
                                             </div>
                                           ) : (
                                             <div className="flex flex-col items-center gap-0.5 w-full h-[36px] p-0.5">
-                                              <div className={`h-1 w-full rounded-t shrink-0 ${isSelected ? "bg-[#FF5A00]" : isBooked ? "bg-red-950/70" : "bg-[#2f190a]"}`} />
-                                              <div className={`w-full flex-1 rounded flex flex-col items-center justify-center font-mono text-[8px] font-black leading-none ${isSelected ? "bg-[#5a3a22] border border-[#FF5A00]" : "bg-[#4a2f1b] border border-[#3e2413]"}`}>
+                                              <div className={`h-1 w-full rounded-t shrink-0 ${isSelected ? "bg-[#3E5E93]" : isBooked ? "bg-red-950/70" : "bg-[#2f190a]"}`} />
+                                              <div className={`w-full flex-1 rounded flex flex-col items-center justify-center font-mono text-[8px] font-black leading-none ${isSelected ? "bg-[#5a3a22] border border-[#3E5E93]" : "bg-[#4a2f1b] border border-[#3e2413]"}`}>
                                                 <span>T{tableId}</span>
                                                 <span className="text-[4.5px] opacity-75 font-sans leading-none mt-0.5 font-bold">BTH</span>
                                               </div>
-                                              <div className={`h-1 w-full rounded-b shrink-0 ${isSelected ? "bg-[#FF5A00]" : isBooked ? "bg-red-950/70" : "bg-[#2f190a]"}`} />
+                                              <div className={`h-1 w-full rounded-b shrink-0 ${isSelected ? "bg-[#3E5E93]" : isBooked ? "bg-red-950/70" : "bg-[#2f190a]"}`} />
                                             </div>
                                           )
                                         )}
@@ -8909,11 +8912,11 @@ export default function App() {
                                             {[0, 60, 120, 180, 240, 300].map((angle, k) => (
                                               <div 
                                                 key={k}
-                                                className={`absolute w-1 h-1 rounded-full border ${k % 2 === 0 ? "bg-[#FF5A00] border-[#2f190a]" : "bg-black border-zinc-800"}`}
+                                                className={`absolute w-1 h-1 rounded-full border ${k % 2 === 0 ? "bg-[#3E5E93] border-[#2f190a]" : "bg-black border-zinc-800"}`}
                                                 style={{ transform: `rotate(${angle}deg) translateY(-11px)` }}
                                               />
                                             ))}
-                                            <div className={`w-6.5 h-6.5 rounded-full border flex flex-col items-center justify-center font-mono text-[8px] font-black leading-none z-10 ${isSelected ? "border-[#FF5A00] bg-[#5a3a22]" : "border-[#3e2413] bg-[#4a2f1b]"}`}>
+                                            <div className={`w-6.5 h-6.5 rounded-full border flex flex-col items-center justify-center font-mono text-[8px] font-black leading-none z-10 ${isSelected ? "border-[#3E5E93] bg-[#5a3a22]" : "border-[#3e2413] bg-[#4a2f1b]"}`}>
                                               <span>T{tableId}</span>
                                             </div>
                                           </div>
@@ -8924,11 +8927,11 @@ export default function App() {
                                             {[0, 90, 180, 270].map((angle, k) => (
                                               <div 
                                                 key={k}
-                                                className={`absolute w-1 h-1 rounded-sm border ${k % 2 === 0 ? "bg-[#FF5A00] border-[#2f190a]" : "bg-black border-zinc-800"}`}
+                                                className={`absolute w-1 h-1 rounded-sm border ${k % 2 === 0 ? "bg-[#3E5E93] border-[#2f190a]" : "bg-black border-zinc-800"}`}
                                                 style={{ transform: `rotate(${angle}deg) translateY(-10px)` }}
                                               />
                                             ))}
-                                            <div className={`w-5.5 h-5.5 rotate-45 border rounded flex items-center justify-center relative ${isSelected ? "border-[#FF5A00] bg-[#5a3a22]" : "border-[#3e2413] bg-[#4a2f1b]"}`}>
+                                            <div className={`w-5.5 h-5.5 rotate-45 border rounded flex items-center justify-center relative ${isSelected ? "border-[#3E5E93] bg-[#5a3a22]" : "border-[#3e2413] bg-[#4a2f1b]"}`}>
                                               <div className="-rotate-45 flex flex-col items-center justify-center font-mono text-[7.5px] font-black leading-none">
                                                 <span>T{tableId}</span>
                                               </div>
@@ -8953,12 +8956,12 @@ export default function App() {
                                       <div 
                                         key={`empty-${r}-${c}`} 
                                         className={`rounded-lg border border-dashed flex items-center justify-center text-center p-0.5 min-h-[46px] ${
-                                          isEnt ? "border-[#FF5A00]/40 bg-[#FF5A00]/5" : "border-zinc-900/60 bg-zinc-950/20"
+                                          isEnt ? "border-[#3E5E93]/40 bg-[#3E5E93]/5" : "border-zinc-900/60 bg-zinc-950/20"
                                         }`}
                                       >
                                         {label ? (
                                           <span className={`text-[5px] font-mono uppercase font-black leading-none tracking-widest ${
-                                            isEnt ? "text-[#FF5A00]" : "text-zinc-650"
+                                            isEnt ? "text-[#3E5E93]" : "text-zinc-650"
                                           }`}>
                                             {label}
                                           </span>
@@ -9072,13 +9075,13 @@ export default function App() {
                           </h3>
 
                           {/* Retro ticket design block */}
-                          <div className="bg-zinc-950 text-[#FF5A00] p-4 rounded-2xl border-2 border-dashed border-[#FF5A00] font-mono relative overflow-hidden shadow-2xl space-y-3">
-                            <div className="absolute -left-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-[#FF5A00]" />
-                            <div className="absolute -right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-[#FF5A00]" />
+                          <div className="bg-zinc-950 text-[#3E5E93] p-4 rounded-2xl border-2 border-dashed border-[#3E5E93] font-mono relative overflow-hidden shadow-2xl space-y-3">
+                            <div className="absolute -left-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-[#3E5E93]" />
+                            <div className="absolute -right-3 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-[#3E5E93]" />
 
-                            <div className="text-center pb-2 border-b-2 border-dashed border-[#FF5A00]/30">
+                            <div className="text-center pb-2 border-b-2 border-dashed border-[#3E5E93]/30">
                               <h6 className="text-[12px] font-black text-white tracking-widest uppercase">
-                                ROCOMAMAS CRUSADE TICKET
+                                LUTHO CRUSADE TICKET
                               </h6>
                               <p className="text-[8px] text-zinc-400 mt-0.5">
                                 SERIAL: {Date.now().toString(36).toUpperCase()}-OS
@@ -9096,7 +9099,7 @@ export default function App() {
                               </div>
                               <div className="flex justify-between">
                                 <span className="text-zinc-500">PARTY SIZE:</span>
-                                <span className="font-bold text-[#FF5A00]">{bookingGuests} GUESTS</span>
+                                <span className="font-bold text-[#3E5E93]">{bookingGuests} GUESTS</span>
                               </div>
                               <div className="flex justify-between">
                                 <span className="text-zinc-500">DATE & HOUR:</span>
@@ -9104,7 +9107,7 @@ export default function App() {
                               </div>
                               <div className="flex justify-between">
                                 <span className="text-zinc-500">TABLE CHOSEN:</span>
-                                <span className="font-bold text-[#FF5A00] uppercase">
+                                <span className="font-bold text-[#3E5E93] uppercase">
                                   {bookingTableId ? `TABLE ${bookingTableId}` : "NOT CHOSEN ❌"}
                                 </span>
                               </div>
@@ -9113,14 +9116,14 @@ export default function App() {
                                 <span className="font-bold text-white uppercase">{bookingOccasion}</span>
                               </div>
                               {bookingSpecialRequests && (
-                                <div className="border-t border-[#FF5A00]/20 pt-1.5 mt-2">
+                                <div className="border-t border-[#3E5E93]/20 pt-1.5 mt-2">
                                   <span className="text-zinc-500 text-[10px]">CRAZY GUESTS REQUESTS:</span>
                                   <p className="text-zinc-300 italic text-[10.5px] mt-0.5">"{bookingSpecialRequests}"</p>
                                 </div>
                               )}
                             </div>
 
-                            <div className="text-center pt-2 border-t-2 border-dashed border-[#FF5A00]/30 text-[9px] text-[#FF5A00]/80">
+                            <div className="text-center pt-2 border-t-2 border-dashed border-[#3E5E93]/30 text-[9px] text-[#3E5E93]/80">
                               <p className="font-extrabold tracking-widest uppercase">
                                 🤘 WE'RE NOT NORMAL 🤘
                               </p>
@@ -9131,7 +9134,7 @@ export default function App() {
                     </div>
 
                     {/* Slogan & Wizard Controls Footer section (Sticky Bottom Bar) */}
-                    <div className="p-4 sm:p-5 border-t border-black/10 bg-[#FF5A00] shrink-0 mt-auto flex flex-col gap-3">
+                    <div className="p-4 sm:p-5 border-t border-black/10 bg-[#3E5E93] shrink-0 mt-auto flex flex-col gap-3">
                       <div className="text-center">
                         <span className="text-[10px] font-display font-black tracking-widest text-zinc-950 uppercase select-none opacity-80 animate-pulse">
                           WE'RE NOT NORMAL SQUAD 🤘
@@ -9275,7 +9278,7 @@ export default function App() {
                       className={`w-full h-[90vh] max-h-[725px] bg-[#141614] border-2 rounded-3xl overflow-hidden flex flex-col font-sans pointer-events-auto transition-all duration-300 ${
                         isThuneePlaying 
                           ? "max-w-[980px] border-emerald-500 shadow-[0_0_50px_rgba(16,185,129,0.3)]" 
-                          : "max-w-[440px] border-[#FF5A00] shadow-[0_0_40px_rgba(231,138,62,0.3)]"
+                          : "max-w-[440px] border-[#3E5E93] shadow-[0_0_40px_rgba(231,138,62,0.3)]"
                       }`}
                     >
                   {/* Header Bar */}
@@ -9283,8 +9286,8 @@ export default function App() {
                     <div className="flex items-center gap-2">
                       <span className="text-xl animate-bounce">{isThuneePlaying ? "🃏" : "🍺"}</span>
                       <div>
-                        <h4 className={`font-display font-black text-xs uppercase tracking-widest leading-none ${isThuneePlaying ? 'text-emerald-400' : 'text-[#FF5A00]'}`}>
-                          {isThuneePlaying ? "DURBANITE THUNEE CARD COCKPIT" : "ROCOMAMAS OS GAMES"}
+                        <h4 className={`font-display font-black text-xs uppercase tracking-widest leading-none ${isThuneePlaying ? 'text-emerald-400' : 'text-[#3E5E93]'}`}>
+                          {isThuneePlaying ? "DURBANITE THUNEE CARD COCKPIT" : "LUTHO OS GAMES"}
                         </h4>
                         <p className="text-[9px] font-mono text-zinc-500 uppercase mt-1 border-none pb-0">
                           {isThuneePlaying ? `MODE: ${thuneeGameMode || "LOBBY RECEPTION"}` : selectedDrinkingGame ? `GAME: ${selectedDrinkingGame.replace("_", " ")}` : "CONNECTED OFFLINE PLAYGROUND"}
@@ -9309,7 +9312,7 @@ export default function App() {
                     <div className="absolute inset-x-0 top-0 h-[350px] bg-[linear-gradient(to_right,#1c1c1e_12%,transparent_12%),linear-gradient(to_bottom,#1c1c1e_12%,transparent_12%)] bg-[size:20px_20px] opacity-[0.16] pointer-events-none" />
                     <div className="absolute inset-0 bg-[radial-gradient(#2c2c30_1px,transparent_1px)] bg-[size:16px_16px] pointer-events-none opacity-[0.25]" />
                     <div className="absolute top-0 inset-x-0 h-40 bg-gradient-to-b from-orange-500/[0.04] to-transparent pointer-events-none" />
-                    <div className="absolute top-0 inset-x-0 h-[1.5px] bg-gradient-to-r from-transparent via-[#FF5A00]/40 to-transparent pointer-events-none" />
+                    <div className="absolute top-0 inset-x-0 h-[1.5px] bg-gradient-to-r from-transparent via-[#3E5E93]/40 to-transparent pointer-events-none" />
                     
                     {/* TOP TAB CONTROL - Only visible in the main lobby selection */}
                     {selectedDrinkingGame === null && (
@@ -9323,7 +9326,7 @@ export default function App() {
                             }}
                             className={`flex-1 py-3 text-center font-display font-black text-[10px] uppercase tracking-wider rounded-t-xl transition-all border-b-2 cursor-pointer ${
                               activeGameTab === tab
-                                ? "bg-[#1C1C1E] text-[#FF5A00] border-b-[#FF5A00] font-bold"
+                                ? "bg-[#1C1C1E] text-[#3E5E93] border-b-[#3E5E93] font-bold"
                                 : "text-zinc-500 hover:text-zinc-300 border-b-transparent"
                             }`}
                           >
@@ -9343,12 +9346,12 @@ export default function App() {
                             {/* Centers Brand Header */}
                             <div className="flex flex-col items-center justify-center pt-2 pb-1 text-center">
                               <img 
-                                src="https://www.rocomamas.co.ke/images//logo-combined.png" 
-                                alt="RocoMamas" 
+                                src="/lutho-logo.png" 
+                                alt="Lutho" 
                                 className="w-16 h-16 object-contain hover:scale-105 transition-transform duration-300 pointer-events-none" 
                                 referrerPolicy="no-referrer"
                               />
-                              <h2 className="text-[#FF5A00] font-display font-black text-xl tracking-[0.14em] uppercase drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] mt-1 leading-none">
+                              <h2 className="text-[#3E5E93] font-display font-black text-xl tracking-[0.14em] uppercase drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] mt-1 leading-none">
                                 PARTY ARENA
                               </h2>
                             </div>
@@ -9380,7 +9383,7 @@ export default function App() {
                                   playBeep(900, "sine", 0.08);
                                   setIsThuneePlaying(true);
                                   setIsGamesModalOpen(false); // Close the Games Arena modal trigger so it does not lie open underneath!
-                                  localStorage.removeItem("roco_thunee_room_" + currentTableId);
+                                  localStorage.removeItem("lutho_thunee_room_" + currentTableId);
                                   setThuneeGameMode(null);
                                   setThuneeSeats([null, null, null, null]);
                                   setThuneeGameScores({ ourTeam: 0, enemyTeam: 0 });
@@ -9425,7 +9428,7 @@ export default function App() {
                                   }}
                                   className="bg-[#1C1C1E] hover:bg-zinc-900 border border-zinc-800 text-left p-3 rounded-2xl flex flex-col items-center justify-center text-center gap-1.5 transition-all transform hover:scale-[1.02] active:scale-95 cursor-pointer relative overflow-hidden group shadow-md min-h-[125px]"
                                 >
-                                  <div className="w-9 h-9 rounded-full bg-black/60 border border-[#FF5A00]/20 flex items-center justify-center text-base text-orange-500 shadow-inner group-hover:scale-110 transition-transform">
+                                  <div className="w-9 h-9 rounded-full bg-black/60 border border-[#3E5E93]/20 flex items-center justify-center text-base text-orange-500 shadow-inner group-hover:scale-110 transition-transform">
                                     {g.icon}
                                   </div>
                                   <div className="flex flex-col items-center flex-1 justify-center">
@@ -9452,7 +9455,7 @@ export default function App() {
                                 <div className="flex justify-between items-center bg-black/80 px-3 py-1.5 rounded-xl border border-zinc-900">
                                   <div className="text-left font-mono">
                                     <p className="text-[8px] uppercase text-zinc-500">Toppings Caught</p>
-                                    <p className="text-sm font-sub font-black text-[#FF5A00]">{burgerCatcherScore} PTS</p>
+                                    <p className="text-sm font-sub font-black text-[#3E5E93]">{burgerCatcherScore} PTS</p>
                                   </div>
                                   <div className="flex items-center gap-1">
                                     <span className="text-[10px] font-mono text-zinc-400 mr-1 uppercase">Lives:</span>
@@ -9512,7 +9515,7 @@ export default function App() {
                                       e.preventDefault();
                                       setIsPressingLeft(false);
                                     }}
-                                    className="flex-1 py-3.5 bg-[#1C1C1E] active:bg-[#FF5A00] active:text-black hover:border-zinc-700 border border-zinc-800 text-zinc-300 font-sans font-black text-xs uppercase tracking-wide rounded-xl transition-all cursor-pointer text-center select-none touch-none"
+                                    className="flex-1 py-3.5 bg-[#1C1C1E] active:bg-[#3E5E93] active:text-black hover:border-zinc-700 border border-zinc-800 text-zinc-300 font-sans font-black text-xs uppercase tracking-wide rounded-xl transition-all cursor-pointer text-center select-none touch-none"
                                   >
                                     ◀◀ PRESS & HOLD LEFT
                                   </button>
@@ -9532,7 +9535,7 @@ export default function App() {
                                       e.preventDefault();
                                       setIsPressingRight(false);
                                     }}
-                                    className="flex-1 py-3.5 bg-[#1C1C1E] active:bg-[#FF5A00] active:text-black hover:border-zinc-700 border border-zinc-800 text-zinc-300 font-sans font-black text-xs uppercase tracking-wide rounded-xl transition-all cursor-pointer text-center select-none touch-none"
+                                    className="flex-1 py-3.5 bg-[#1C1C1E] active:bg-[#3E5E93] active:text-black hover:border-zinc-700 border border-zinc-800 text-zinc-300 font-sans font-black text-xs uppercase tracking-wide rounded-xl transition-all cursor-pointer text-center select-none touch-none"
                                   >
                                     PRESS & HOLD RIGHT ▶▶
                                   </button>
@@ -9554,7 +9557,7 @@ export default function App() {
                                 <div className="flex justify-between items-center bg-black/80 px-3 py-1.5 rounded-xl border border-zinc-900">
                                   <div className="text-left font-mono">
                                     <p className="text-[8px] uppercase text-zinc-500">Volts / Score</p>
-                                    <p className="text-xs font-bold text-[#FF5A00]">{defuserScore} PTS</p>
+                                    <p className="text-xs font-bold text-[#3E5E93]">{defuserScore} PTS</p>
                                   </div>
                                   <div className="text-center font-mono">
                                     <p className="text-[8px] uppercase text-zinc-500">HI-SCORE</p>
@@ -9578,7 +9581,7 @@ export default function App() {
                                       NEW ROCK RECORD!
                                     </h4>
                                     <p className="text-[10px] text-zinc-400 max-w-[280px]">
-                                      You scored <span className="text-[#FF5A00] font-black">{defuserScore} PTS</span>! Input your rocker name to record your place on the local griddle charts!
+                                      You scored <span className="text-[#3E5E93] font-black">{defuserScore} PTS</span>! Input your rocker name to record your place on the local griddle charts!
                                     </p>
                                     <div className="w-full space-y-1.5">
                                       <input
@@ -9587,7 +9590,7 @@ export default function App() {
                                         placeholder="E.G. SLASH"
                                         value={leaderboardNameInput}
                                         onChange={(e) => setLeaderboardNameInput(e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, ''))}
-                                        className="w-full p-2 bg-zinc-900 border border-zinc-800 text-center uppercase font-mono text-xs rounded-lg text-[#FF5A00] focus:outline-none focus:border-[#FF5A00] font-bold"
+                                        className="w-full p-2 bg-zinc-900 border border-zinc-800 text-center uppercase font-mono text-xs rounded-lg text-[#3E5E93] focus:outline-none focus:border-[#3E5E93] font-bold"
                                       />
                                       <button
                                         onClick={() => {
@@ -9605,13 +9608,13 @@ export default function App() {
                                             const updated = [...prev, nextEntry]
                                               .sort((a,b) => b.score - a.score)
                                               .slice(0, 5);
-                                            localStorage.setItem("roco_defuser_leaderboard", JSON.stringify(updated));
+                                            localStorage.setItem("lutho_defuser_leaderboard", JSON.stringify(updated));
                                             return updated;
                                           });
                                           setShowLeaderboardSubmit(false);
                                           triggerToast("Record saved to leaderboard! 🤘", "success");
                                         }}
-                                        className="w-full py-2 bg-[#FF5A00] hover:bg-orange-400 text-black font-sans font-black text-xs uppercase rounded-lg tracking-wide cursor-pointer font-bold"
+                                        className="w-full py-2 bg-[#3E5E93] hover:bg-orange-400 text-black font-sans font-black text-xs uppercase rounded-lg tracking-wide cursor-pointer font-bold"
                                       >
                                         Record Placement 🤘
                                       </button>
@@ -9638,7 +9641,7 @@ export default function App() {
                                                     triggerToast("💀 Chili bomb exploded! Game Over!", "info");
                                                     setDefuserHighScore(currentHigh => {
                                                       if (defuserScore > currentHigh) {
-                                                        localStorage.setItem("roco_defuser_highscore", defuserScore.toString());
+                                                        localStorage.setItem("lutho_defuser_highscore", defuserScore.toString());
                                                         return defuserScore;
                                                       }
                                                       return currentHigh;
@@ -9678,7 +9681,7 @@ export default function App() {
                                                   ? "bg-red-950/70 border-red-500 shadow-[0_0_12px_rgba(239,68,68,0.5)] animate-pulse"
                                                   : cell.type === "GOLD"
                                                   ? "bg-amber-950/70 border-amber-500 shadow-[0_0_12px_rgba(245,158,11,0.5)]"
-                                                  : "bg-orange-950/70 border-[#FF5A00] shadow-[0_0_12px_rgba(255,90,0,0.5)]"
+                                                  : "bg-orange-950/70 border-[#3E5E93] shadow-[0_0_12px_rgba(62, 94, 147,0.5)]"
                                                 : "bg-[#1C1C1E]/40 border-zinc-900/60 opacity-60 hover:bg-[#1C1C1E]/70"
                                             }`}
                                           >
@@ -9687,7 +9690,7 @@ export default function App() {
                                                 <span className="text-lg select-none leading-none">
                                                   {cell.type === "CHILI" ? "🌶️" : cell.type === "GOLD" ? "🍟" : "💥"}
                                                 </span>
-                                                <span className={`text-[7.5px] font-bold uppercase tracking-wider ${cell.type === "CHILI" ? "text-red-400" : cell.type === "GOLD" ? "text-amber-400" : "text-[#FF5A00]"} select-none leading-none`}>
+                                                <span className={`text-[7.5px] font-bold uppercase tracking-wider ${cell.type === "CHILI" ? "text-red-400" : cell.type === "GOLD" ? "text-amber-400" : "text-[#3E5E93]"} select-none leading-none`}>
                                                   {cell.type === "CHILI" ? "AVOID!" : cell.type === "GOLD" ? "BONUS!" : "DEFUSE!"}
                                                 </span>
                                                 
@@ -9748,7 +9751,7 @@ export default function App() {
                                       playBeep(250, "sine", 0.05);
                                       setIsGamesModalOpen(false);
                                     }}
-                                    className="px-4 py-2 bg-[#FF5A00] text-black hover:bg-orange-400 font-sans font-black text-[10px] uppercase tracking-wide rounded-xl transition-all cursor-pointer"
+                                    className="px-4 py-2 bg-[#3E5E93] text-black hover:bg-orange-400 font-sans font-black text-[10px] uppercase tracking-wide rounded-xl transition-all cursor-pointer"
                                   >
                                     Go to Fullscreen Arena
                                   </button>
@@ -9854,7 +9857,7 @@ export default function App() {
                                             host: currentPlayerName,
                                             lastUpdated: Date.now()
                                           };
-                                          localStorage.setItem("roco_thunee_room_" + currentTableId, JSON.stringify(stateObj));
+                                          localStorage.setItem("lutho_thunee_room_" + currentTableId, JSON.stringify(stateObj));
                                           triggerToast("Multiplayer Table Lounge opened! 👥", "success");
                                         }}
                                         className="p-5 bg-black/60 hover:bg-[#1a1208]/50 border border-amber-900/40 hover:border-amber-500/50 rounded-2xl text-left transition-all duration-300 group cursor-pointer hover:shadow-[0_0_20px_rgba(245,158,11,0.08)] flex flex-col justify-between space-y-4"
@@ -9911,7 +9914,7 @@ export default function App() {
                                       {/* Outer wood bumper table wrapper */}
                                       <div className="w-[280px] h-[190px] rounded-[100px] border-8 border-amber-950 bg-radial-gradient from-emerald-800 to-emerald-950 relative shadow-2xl flex items-center justify-center p-3 my-12">
                                         <span className="text-[10px] font-mono font-black text-emerald-950 select-none uppercase tracking-widest opacity-40">
-                                          ROCOMAMAS felt
+                                          LUTHO felt
                                         </span>
 
                                         {/* SEAT 0: Bottom Seat */}
@@ -10396,7 +10399,7 @@ export default function App() {
                                             onClick={() => {
                                               startThuneeRound();
                                             }}
-                                            className="w-full py-3 bg-[#FF5A00] hover:bg-orange-400 text-black font-sans font-black text-xs uppercase rounded-xl tracking-wider cursor-pointer font-bold transition-all duration-200 text-center"
+                                            className="w-full py-3 bg-[#3E5E93] hover:bg-orange-400 text-black font-sans font-black text-xs uppercase rounded-xl tracking-wider cursor-pointer font-bold transition-all duration-200 text-center"
                                           >
                                             🔥 DEAL FOUR CARDS
                                           </button>
@@ -10557,7 +10560,7 @@ export default function App() {
                                                   });
                                                   triggerToast("😱 THUNEE CALL ACTIVATED! SWEEP COMPELLED!", "success");
                                                 }}
-                                                className="flex-1 py-3 bg-gradient-to-r from-red-600 to-[#FF5A00] hover:from-red-500 hover:to-orange-500 text-black font-sans font-black text-xs uppercase tracking-widest rounded-xl cursor-pointer shadow-[0_4px_12px_rgba(239,68,68,0.3)] text-center transition-all active:scale-95 font-bold"
+                                                className="flex-1 py-3 bg-gradient-to-r from-red-600 to-[#3E5E93] hover:from-red-500 hover:to-orange-500 text-black font-sans font-black text-xs uppercase tracking-widest rounded-xl cursor-pointer shadow-[0_4px_12px_rgba(239,68,68,0.3)] text-center transition-all active:scale-95 font-bold"
                                               >
                                                 🚨 DECLARE THUNEE!
                                               </button>
@@ -10685,7 +10688,7 @@ export default function App() {
                                 <div className="flex justify-between items-center bg-black/80 px-3 py-1.5 rounded-xl border border-zinc-900 mb-3">
                                   <div className="text-left font-mono">
                                     <p className="text-[8px] text-zinc-500 uppercase">Score / Moves</p>
-                                    <p className="text-xs font-bold text-[#FF5A00]">{memoryScore} PTS / {memoryMoves} MOVES</p>
+                                    <p className="text-xs font-bold text-[#3E5E93]">{memoryScore} PTS / {memoryMoves} MOVES</p>
                                   </div>
                                   <span className="text-[10px] font-mono uppercase text-emerald-500 animate-pulse">{memoryStatus}</span>
                                 </div>
@@ -10768,7 +10771,7 @@ export default function App() {
                                       setMemoryScore(0);
                                       setMemoryStatus("TAP TILES TO BEGIN!");
                                     }}
-                                    className="flex-1 py-2.5 bg-[#FF5A00] text-black font-sub font-black text-xs uppercase tracking-wider rounded-xl hover:bg-orange-400 transition-all font-bold cursor-pointer text-center"
+                                    className="flex-1 py-2.5 bg-[#3E5E93] text-black font-sub font-black text-xs uppercase tracking-wider rounded-xl hover:bg-orange-400 transition-all font-bold cursor-pointer text-center"
                                   >
                                     RESET MATCH 🔄
                                   </button>
@@ -10791,7 +10794,7 @@ export default function App() {
                                     <span className="text-3xl">🍔</span>
                                     <div>
                                       <h4 className="font-display font-black text-white text-xs uppercase tracking-wider">
-                                        Roco Burger Catcher
+                                        Lutho Burger Catcher
                                       </h4>
                                       <p className="text-[10px] text-zinc-400 mt-0.5 leading-tight">
                                         Stack the cheese, meat, & buns! Catch good ingredients on your bottom bun, avoid highly toxic skulls 💀!
@@ -10807,7 +10810,7 @@ export default function App() {
                                       setBurgerPosition(160);
                                       setFallingIngredients([]);
                                     }}
-                                    className="w-full py-2.5 bg-[#FF5A00] hover:bg-orange-400 text-black font-sans font-black text-xs uppercase rounded-xl tracking-wider cursor-pointer font-bold text-center"
+                                    className="w-full py-2.5 bg-[#3E5E93] hover:bg-orange-400 text-black font-sans font-black text-xs uppercase rounded-xl tracking-wider cursor-pointer font-bold text-center"
                                   >
                                     Launch Burger Stacker 🎮
                                   </button>
@@ -10838,7 +10841,7 @@ export default function App() {
                                       setMemoryScore(0);
                                       setMemoryStatus("TAP TILES TO BEGIN!");
                                     }}
-                                    className="w-full py-2.5 bg-zinc-900 border border-zinc-800 hover:border-[#FF5A00]/50 text-[#FF5A00] font-sans font-black text-xs uppercase rounded-xl tracking-wider cursor-pointer font-bold text-center"
+                                    className="w-full py-2.5 bg-zinc-900 border border-zinc-800 hover:border-[#3E5E93]/50 text-[#3E5E93] font-sans font-black text-xs uppercase rounded-xl tracking-wider cursor-pointer font-bold text-center"
                                   >
                                     Launch Memory Match 🧠
                                   </button>
@@ -10869,7 +10872,7 @@ export default function App() {
                                       setLeaderboardNameInput("");
                                       setDefuserGrid(Array.from({ length: 9 }).map((_, idx) => ({ id: idx, type: "CHEESE", fuse: 100, active: false })));
                                     }}
-                                    className="w-full py-2.5 bg-[#FF5A00] hover:bg-orange-400 text-black font-sans font-black text-xs uppercase rounded-xl tracking-wider cursor-pointer font-bold text-center"
+                                    className="w-full py-2.5 bg-[#3E5E93] hover:bg-orange-400 text-black font-sans font-black text-xs uppercase rounded-xl tracking-wider cursor-pointer font-bold text-center"
                                   >
                                     Defuse the Griddle 🔥
                                   </button>
@@ -10887,13 +10890,13 @@ export default function App() {
                                     {defuserLeaderboard.map((e, idx) => (
                                       <div key={idx} className="flex justify-between items-center text-[11px] font-mono py-1 border-b border-zinc-900/10 last:border-0">
                                         <div className="flex items-center gap-2">
-                                          <span className={`text-[10px] font-bold ${idx === 0 ? 'text-[#FF5A00]' : idx === 1 ? 'text-zinc-300' : 'text-zinc-650'}`}>
+                                          <span className={`text-[10px] font-bold ${idx === 0 ? 'text-[#3E5E93]' : idx === 1 ? 'text-zinc-300' : 'text-zinc-650'}`}>
                                             #{idx + 1}
                                           </span>
                                           <span className="text-zinc-300 font-bold uppercase">{e.name}</span>
                                         </div>
                                         <div className="flex items-center gap-3">
-                                          <span className="text-[#FF5A00] font-black">{e.score} PTS</span>
+                                          <span className="text-[#3E5E93] font-black">{e.score} PTS</span>
                                           <span className="text-[8.5px] text-zinc-650 uppercase font-bold">{e.date}</span>
                                         </div>
                                       </div>
@@ -11001,7 +11004,7 @@ export default function App() {
                                           playBeep(880, "sine", 0.08);
                                           triggerToast("🏆 Posted successfully to Table Leaderboard!", "success");
                                         }}
-                                        className="px-3.5 py-2 bg-[#FF5A00] text-black font-sub font-black text-[10px] uppercase rounded-lg cursor-pointer shrink-0"
+                                        className="px-3.5 py-2 bg-[#3E5E93] text-black font-sub font-black text-[10px] uppercase rounded-lg cursor-pointer shrink-0"
                                       >
                                         Post 🚀
                                       </button>
@@ -11040,7 +11043,7 @@ export default function App() {
                                         setStopwatchSeconds(0);
                                         setIsStopwatchRunning(false);
                                       }}
-                                      className="w-full bg-[#1C1C1E] hover:border-[#FF5A00]/40 border border-zinc-850 p-2.5 rounded-xl text-left flex gap-3 transition-all hover:scale-[1.01] active:scale-99 cursor-pointer"
+                                      className="w-full bg-[#1C1C1E] hover:border-[#3E5E93]/40 border border-zinc-850 p-2.5 rounded-xl text-left flex gap-3 transition-all hover:scale-[1.01] active:scale-99 cursor-pointer"
                                     >
                                       <span className="text-2xl pt-0.5 shrink-0">{ch.emoji}</span>
                                       <div>
@@ -11063,7 +11066,7 @@ export default function App() {
                                       <div 
                                         key={idx} 
                                         className={`flex items-center justify-between text-[10px] font-mono p-1.5 px-2.5 rounded-lg ${
-                                          entry.table === "T-12" ? "bg-orange-950/20 text-[#FF5A00] border border-orange-500/20" : "bg-[#1C1C1E] text-zinc-300"
+                                          entry.table === "T-12" ? "bg-orange-950/20 text-[#3E5E93] border border-orange-500/20" : "bg-[#1C1C1E] text-zinc-300"
                                         }`}
                                       >
                                         <div className="flex items-center gap-2">
@@ -11088,9 +11091,9 @@ export default function App() {
                         )}
 
                         {/* Extra brand badge and exit panel info */}
-                        <div className="py-2.5 mt-8 border-t border-zinc-900 text-center font-mono text-[9px] text-[#FF5A00]/45 tracking-widest uppercase flex items-center justify-center gap-2 shrink-0">
-                          <span>ROCO ARENA STATIONS ACTIVE</span>
-                          <span className="w-1.5 h-1.5 rounded-full bg-[#FF5A00] animate-ping" />
+                        <div className="py-2.5 mt-8 border-t border-zinc-900 text-center font-mono text-[9px] text-[#3E5E93]/45 tracking-widest uppercase flex items-center justify-center gap-2 shrink-0">
+                          <span>LUTHO ARENA STATIONS ACTIVE</span>
+                          <span className="w-1.5 h-1.5 rounded-full bg-[#3E5E93] animate-ping" />
                         </div>
                       </div>
                     ) : (
@@ -11104,7 +11107,7 @@ export default function App() {
                             playBeep(450, "sine", 0.05);
                             setSelectedDrinkingGame(null);
                           }}
-                          className="self-start px-3.5 py-1.5 bg-zinc-950 border border-zinc-850 hover:text-[#FF5A00] hover:border-zinc-800 text-zinc-400 font-sub font-black text-[9px] uppercase tracking-wider rounded-xl transition-all cursor-pointer flex items-center gap-1.5 mb-4"
+                          className="self-start px-3.5 py-1.5 bg-zinc-950 border border-zinc-850 hover:text-[#3E5E93] hover:border-zinc-800 text-zinc-400 font-sub font-black text-[9px] uppercase tracking-wider rounded-xl transition-all cursor-pointer flex items-center gap-1.5 mb-4"
                         >
                           ← BACK TO LOBBY
                         </button>
@@ -11114,13 +11117,13 @@ export default function App() {
                           {/* 1) KINGS CUP BOARD */}
                           {selectedDrinkingGame === "KINGS_CUP" && (
                             <div className="flex flex-col items-center text-center gap-5">
-                              <span className="text-[10px] uppercase font-mono tracking-widest text-[#FF5A00] font-bold">👑 KINGS CUP CLASSIC DECK</span>
+                              <span className="text-[10px] uppercase font-mono tracking-widest text-[#3E5E93] font-bold">👑 KINGS CUP CLASSIC DECK</span>
                               
                               {kingsCupCard ? (
                                 <motion.div 
                                   initial={{ rotateY: 90, scale: 0.8 }}
                                   animate={{ rotateY: 0, scale: 1 }}
-                                  className="w-[190px] h-[260px] bg-white text-zinc-950 rounded-2xl p-5 border-4 border-[#FF5A00] flex flex-col justify-between relative shadow-[0_15px_30px_rgba(0,0,0,0.8)] select-none"
+                                  className="w-[190px] h-[260px] bg-white text-zinc-950 rounded-2xl p-5 border-4 border-[#3E5E93] flex flex-col justify-between relative shadow-[0_15px_30px_rgba(0,0,0,0.8)] select-none"
                                 >
                                   {/* Suit symbol in corners */}
                                   <div className="absolute top-3 left-3 flex flex-col items-center leading-none">
@@ -11134,7 +11137,7 @@ export default function App() {
 
                                   {/* Main card center value & suit */}
                                   <div className="flex-1 flex flex-col justify-center items-center gap-2 mt-2 px-1">
-                                    <span className="text-sm font-sub font-black tracking-wider uppercase text-zinc-900 bg-[#FF5A00]/10 px-2 py-0.5 rounded border border-[#FF5A00]/20">{kingsCupCard.title}</span>
+                                    <span className="text-sm font-sub font-black tracking-wider uppercase text-zinc-900 bg-[#3E5E93]/10 px-2 py-0.5 rounded border border-[#3E5E93]/20">{kingsCupCard.title}</span>
                                     <span className={`text-5xl my-1.5 ${["♥", "♦"].includes(kingsCupCard.suit) ? "text-red-650" : "text-zinc-900"}`}>{kingsCupCard.suit}</span>
                                     <p className="text-[10.5px] font-sans font-semibold text-zinc-700 leading-normal max-w-[170px]">
                                       {kingsCupCard.rule}
@@ -11174,9 +11177,9 @@ export default function App() {
                                       rule: schema.rule
                                     });
                                   }}
-                                  className="w-[190px] h-[260px] bg-gradient-to-br from-zinc-900 to-[#121212] rounded-2xl p-5 border-4 border-dashed border-[#FF5A00]/50 flex flex-col items-center justify-center text-center gap-4 shadow-[#FF5A00]/10 shadow-[0_10px_35px] cursor-pointer hover:border-[#FF5A00] transition-all group scale-98 active:scale-95 animate-pulse"
+                                  className="w-[190px] h-[260px] bg-gradient-to-br from-zinc-900 to-[#121212] rounded-2xl p-5 border-4 border-dashed border-[#3E5E93]/50 flex flex-col items-center justify-center text-center gap-4 shadow-[#3E5E93]/10 shadow-[0_10px_35px] cursor-pointer hover:border-[#3E5E93] transition-all group scale-98 active:scale-95 animate-pulse"
                                 >
-                                  <div className="w-12 h-12 rounded-full bg-black border border-[#FF5A00]/20 flex items-center justify-center text-2xl group-hover:scale-110 transition-transform">
+                                  <div className="w-12 h-12 rounded-full bg-black border border-[#3E5E93]/20 flex items-center justify-center text-2xl group-hover:scale-110 transition-transform">
                                     🍺
                                   </div>
                                   <div>
@@ -11220,7 +11223,7 @@ export default function App() {
                                       rule: schema.rule
                                     });
                                   }}
-                                  className="px-6 py-2.5 bg-[#FF5A00] hover:bg-orange-400 text-black uppercase font-sub font-black text-xs tracking-wider rounded-xl transition-all shadow-md active:scale-95 cursor-pointer font-bold"
+                                  className="px-6 py-2.5 bg-[#3E5E93] hover:bg-orange-400 text-black uppercase font-sub font-black text-xs tracking-wider rounded-xl transition-all shadow-md active:scale-95 cursor-pointer font-bold"
                                 >
                                   🃏 DRAW NEW CARD
                                 </button>
@@ -11231,7 +11234,7 @@ export default function App() {
                           {/* 2) TRUTH OR DARE BOARD */}
                           {selectedDrinkingGame === "TRUTH_DARE" && (
                             <div className="flex flex-col items-center text-center gap-5">
-                              <span className="text-[10px] uppercase font-mono tracking-widest text-[#FF5A00] font-bold">❓ TRUTH OR DARE CHALLENGE</span>
+                              <span className="text-[10px] uppercase font-mono tracking-widest text-[#3E5E93] font-bold">❓ TRUTH OR DARE CHALLENGE</span>
                               
                               <div className="w-full max-w-[320px] bg-[#121212] border border-zinc-805 rounded-2xl p-5 min-h-[160px] flex flex-col justify-center items-center shadow-lg">
                                 {truthOrDarePrompt ? (
@@ -11282,7 +11285,7 @@ export default function App() {
                                     playBeep(560, "sine", 0.08);
                                     const dares = [
                                       "Munch a fry from the plate using absolutely no hands!",
-                                      "Gently ask Roco Crew the waiter for his autograph as if he's an international rockstar.",
+                                      "Gently ask Lutho Crew the waiter for his autograph as if he's an international rockstar.",
                                       "Let the person to your left send any emoji of their choice to anyone on your chat app.",
                                       "Do a 10-second dramatic toast declaring your undying absolute love for Table 12.",
                                       "Exchange sunglasses or a piece of outer apparel with someone until the slot booking finishes.",
@@ -11302,7 +11305,7 @@ export default function App() {
                           {/* 3) NEVER HAVE I EVER */}
                           {selectedDrinkingGame === "NEVER_EVER" && (
                             <div className="flex flex-col items-center text-center gap-5">
-                              <span className="text-[10px] uppercase font-mono tracking-widest text-[#FF5A00] font-bold">🚫 NEVER HAVE I EVER</span>
+                              <span className="text-[10px] uppercase font-mono tracking-widest text-[#3E5E93] font-bold">🚫 NEVER HAVE I EVER</span>
                               
                               <div className="w-full max-w-[320px] bg-zinc-950 border border-zinc-850 rounded-2xl p-6 min-h-[140px] flex items-center justify-center select-text">
                                 <p className="text-white text-base font-sans font-bold italic leading-relaxed text-center px-1">
@@ -11311,7 +11314,7 @@ export default function App() {
                               </div>
 
                               <div className="text-[10px] uppercase tracking-widest font-mono text-zinc-500">
-                                📢 <span className="text-[#FF5A00] font-bold">CONFESS OR DRINK UP!</span> IF YOU ARE GUILTY.
+                                📢 <span className="text-[#3E5E93] font-bold">CONFESS OR DRINK UP!</span> IF YOU ARE GUILTY.
                               </div>
 
                               <button
@@ -11330,7 +11333,7 @@ export default function App() {
                                   setNeverEverPrompt(s);
                                   triggerToast("Drawn new statement!", "success");
                                 }}
-                                className="w-full max-w-[320px] py-3.5 bg-[#FF5A00] hover:bg-orange-400 text-black font-sub font-black text-xs uppercase rounded-xl transition-all cursor-pointer tracking-wider active:scale-95 font-bold shadow-md"
+                                className="w-full max-w-[320px] py-3.5 bg-[#3E5E93] hover:bg-orange-400 text-black font-sub font-black text-xs uppercase rounded-xl transition-all cursor-pointer tracking-wider active:scale-95 font-bold shadow-md"
                               >
                                 🃏 NEXT STATEMENT
                               </button>
@@ -11340,7 +11343,7 @@ export default function App() {
                           {/* 4) MOST LIKELY TO */}
                           {selectedDrinkingGame === "MOST_LIKELY" && (
                             <div className="flex flex-col items-center text-center gap-5">
-                              <span className="text-[10px] uppercase font-mono tracking-widest text-[#FF5A00] font-bold">👥 MOST LIKELY TO</span>
+                              <span className="text-[10px] uppercase font-mono tracking-widest text-[#3E5E93] font-bold">👥 MOST LIKELY TO</span>
                               
                               <div className="w-full max-w-[320px] bg-zinc-950 border border-zinc-850 rounded-2xl p-6 min-h-[140px] flex items-center justify-center select-text">
                                 <p className="text-white text-base font-sans font-bold italic leading-relaxed text-center px-1">
@@ -11358,7 +11361,7 @@ export default function App() {
                                   const scenarios = [
                                     "Most likely to pay the entire master food bill tonight",
                                     "Most likely to lose their credit card or keys inside the taxi on the ride home",
-                                    "Most likely to challenge Roco Crew the waiter to an impromptu arm wrestling contest",
+                                    "Most likely to challenge Lutho Crew the waiter to an impromptu arm wrestling contest",
                                     "Most likely to shed tears during a sad country song in the background",
                                     "Most likely to suggest ordering another round of fries before the current drinks are even finished",
                                     "Most likely to order chips for the table and eat exactly 90% of them alone",
@@ -11368,7 +11371,7 @@ export default function App() {
                                   setMostLikelyPrompt(s);
                                   triggerToast("Drawn next voting scenario!", "success");
                                 }}
-                                className="w-full max-w-[320px] py-3.5 bg-[#FF5A00] hover:bg-orange-400 text-black font-sub font-black text-xs uppercase rounded-xl transition-all cursor-pointer tracking-wider active:scale-95 font-bold shadow-md"
+                                className="w-full max-w-[320px] py-3.5 bg-[#3E5E93] hover:bg-orange-400 text-black font-sub font-black text-xs uppercase rounded-xl transition-all cursor-pointer tracking-wider active:scale-95 font-bold shadow-md"
                               >
                                 🎲 NEXT SCENARIO
                               </button>
@@ -11378,7 +11381,7 @@ export default function App() {
                           {/* 5) SPIN THE BOTTLE */}
                           {selectedDrinkingGame === "SPIN_BOTTLE" && (
                             <div className="flex flex-col items-center text-center gap-5">
-                              <span className="text-[10px] uppercase font-mono tracking-widest text-[#FF5A00] font-black">🔄 SPIN THE BOTTLE WHEEL</span>
+                              <span className="text-[10px] uppercase font-mono tracking-widest text-[#3E5E93] font-black">🔄 SPIN THE BOTTLE WHEEL</span>
                               
                               <div className="relative w-[210px] h-[210px] flex items-center justify-center select-none bg-zinc-950/60 rounded-full border border-zinc-900 shadow-inner">
                                 {/* sectors markers */}
@@ -11394,7 +11397,7 @@ export default function App() {
                                   className="w-18 h-18 relative flex items-center justify-center pointer-events-none drop-shadow-2xl"
                                 >
                                   {/* Pointer Vector bottle */}
-                                  <div className="w-2.5 h-16 bg-gradient-to-t from-emerald-800 to-orange-400 rounded-full border border-[#FF5A00]/40 shadow-xl relative">
+                                  <div className="w-2.5 h-16 bg-gradient-to-t from-emerald-800 to-orange-400 rounded-full border border-[#3E5E93]/40 shadow-xl relative">
                                     {/* Cap indicator pointing UP */}
                                     <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-4 h-4 bg-orange-500 rounded-full border border-white animate-pulse" />
                                   </div>
@@ -11424,7 +11427,7 @@ export default function App() {
                                     "YOU MUNCH FRIES! Take 2 massive fries! 🍟",
                                     "LEFT SIDE MUNCHES! Everybody sitting on your left eats 1 golden chip! 👈",
                                     "RIGHT SIDE MUNCHES! Everybody sitting on your right eats 1 golden chip! 👉",
-                                    "THE ASSIGNED CHOSEN MASTER: Roco Crew chooses who gets a free cheese bomb! 👨‍🍳",
+                                    "THE ASSIGNED CHOSEN MASTER: Lutho Crew chooses who gets a free cheese bomb! 👨‍🍳",
                                     "PARTNERS: Pick any buddy! Both of you eat 2 fries! 👥",
                                     "EVERYONE MUNCHES! Everyone raises a tasty fry for Table 12! 🍟",
                                     "YOU ARE SAFE! Hand control to the person opposite to spin. 😎"
@@ -11440,7 +11443,7 @@ export default function App() {
                                     triggerToast("🎯 Spin Outcome: " + outcomes[targetIdx].split("!")[0], "success");
                                   }, 3500);
                                 }}
-                                className={`w-full max-w-[320px] py-3.5 ${isBottleSpinning ? "bg-zinc-805 text-zinc-500" : "bg-[#FF5A00] hover:bg-orange-400 text-black cursor-pointer"} font-sub font-black text-xs uppercase rounded-xl transition-all font-bold tracking-wider active:scale-95 shadow-md`}
+                                className={`w-full max-w-[320px] py-3.5 ${isBottleSpinning ? "bg-zinc-805 text-zinc-500" : "bg-[#3E5E93] hover:bg-orange-400 text-black cursor-pointer"} font-sub font-black text-xs uppercase rounded-xl transition-all font-bold tracking-wider active:scale-95 shadow-md`}
                               >
                                 {isBottleSpinning ? "🚨 DISK SPINNING REELS..." : "⚡ SPIN BOTTLE 🍟"}
                               </button>
@@ -11450,7 +11453,7 @@ export default function App() {
                           {/* 6) WOULD YOU RATHER */}
                           {selectedDrinkingGame === "WOULD_RATHER" && (
                             <div className="flex flex-col items-center text-center gap-5">
-                              <span className="text-[10px] uppercase font-mono tracking-widest text-[#FF5A00] font-bold">⚖️ WOULD YOU RATHER</span>
+                              <span className="text-[10px] uppercase font-mono tracking-widest text-[#3E5E93] font-bold">⚖️ WOULD YOU RATHER</span>
                               
                               <span className="text-[10px] text-zinc-500 uppercase tracking-wider font-mono">
                                 CHOOSE PREFERRED OPTION. <span className="text-orange-400 font-bold">MINORITY MUNCHES FRIES!</span>
@@ -11474,7 +11477,7 @@ export default function App() {
                                         ? wouldRatherVotes[0] < wouldRatherVotes[1] 
                                           ? "border-red-500 bg-red-950/20 text-red-400" 
                                           : "border-emerald-500 bg-[#121212]/40 text-emerald-400"
-                                        : "border-zinc-800 bg-[#121212]/90 hover:border-[#FF5A00]/50 text-[#FF5A00] hover:text-white cursor-pointer active:scale-98"
+                                        : "border-zinc-800 bg-[#121212]/90 hover:border-[#3E5E93]/50 text-[#3E5E93] hover:text-white cursor-pointer active:scale-98"
                                     } flex flex-col gap-1`}
                                   >
                                     <div className="flex justify-between items-center w-full">
@@ -11506,7 +11509,7 @@ export default function App() {
                                         ? wouldRatherVotes[1] < wouldRatherVotes[0] 
                                           ? "border-red-500 bg-red-950/20 text-red-400" 
                                           : "border-emerald-500 bg-[#121212]/40 text-emerald-400"
-                                        : "border-zinc-800 bg-[#121212]/90 hover:border-[#FF5A00]/50 text-[#FF5A00] hover:text-white cursor-pointer active:scale-98"
+                                        : "border-zinc-800 bg-[#121212]/90 hover:border-[#3E5E93]/50 text-[#3E5E93] hover:text-white cursor-pointer active:scale-98"
                                     } flex flex-col gap-1`}
                                   >
                                     <div className="flex justify-between items-center w-full">
@@ -11532,7 +11535,7 @@ export default function App() {
                                     playBeep(523.25, "sine", 0.08);
                                     const dilemmas: [string, string][] = [
                                       ["Only eat double cheezebombs for breakfast", "Only eat smashburgers for dinner for a month"],
-                                      ["Sing the opening verse of a song karaoke starter", "Give Roco Crew waiter a generous R100 direct tip"],
+                                      ["Sing the opening verse of a song karaoke starter", "Give Lutho Crew waiter a generous R100 direct tip"],
                                       ["Eat standard pub fries for 48 hours straight", "Never eat South African biltong again for rest of life"],
                                       ["Dance on top of your chair for exactly 30 seconds", "Do 15 quick pushups right next to Table 12"],
                                       ["Let people draw a face tattoo using erasable marker", "Eat the hottest wings on the table with no blue cheese sauce"]
@@ -11542,7 +11545,7 @@ export default function App() {
                                     setWouldRatherVotes(null);
                                     triggerToast("New dilemma loaded!", "success");
                                   }}
-                                  className="w-full max-w-[320px] py-3.5 bg-neutral-900 border border-zinc-800 text-white font-sub font-black text-xs uppercase rounded-xl transition-all cursor-pointer tracking-wider font-bold shadow-md active:scale-95 group-hover:border-[#FF5A00]"
+                                  className="w-full max-w-[320px] py-3.5 bg-neutral-900 border border-zinc-800 text-white font-sub font-black text-xs uppercase rounded-xl transition-all cursor-pointer tracking-wider font-bold shadow-md active:scale-95 group-hover:border-[#3E5E93]"
                                 >
                                   ⚖️ NEXT DILEMMA
                                 </button>
@@ -11553,9 +11556,9 @@ export default function App() {
                         </div>
 
                         {/* Quick switch inside active game to return to select screen */}
-                        <div className="pt-3 mt-4 border-t border-[#FF5A00]/20 flex justify-between items-center text-[10px] font-mono text-zinc-500">
+                        <div className="pt-3 mt-4 border-t border-[#3E5E93]/20 flex justify-between items-center text-[10px] font-mono text-zinc-500">
                           <span>TABLE: 12 • OUTCOME SAVED</span>
-                          <span className="text-[#FF5A00]">ROCOMAMAS OS ENGINE</span>
+                          <span className="text-[#3E5E93]">LUTHO OS ENGINE</span>
                         </div>
 
                       </div>
@@ -11639,12 +11642,12 @@ export default function App() {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.94, y: 20 }}
               transition={{ type: "spring", damping: 25, stiffness: 220 }}
-              className="fixed inset-x-4 top-[6%] bottom-[6%] max-w-[480px] mx-auto bg-white border-2 border-[#E78A3E] rounded-3xl z-[9935] overflow-hidden flex flex-col shadow-2xl"
+              className="fixed inset-x-4 top-[6%] bottom-[6%] max-w-[480px] mx-auto bg-white border-2 border-[#3E5E93] rounded-3xl z-[9935] overflow-hidden flex flex-col shadow-2xl"
             >
               {/* Header */}
-              <div className="p-4 bg-black border-b border-[#E78A3E] flex justify-between items-center relative">
+              <div className="p-4 bg-black border-b border-[#3E5E93] flex justify-between items-center relative">
                 <div>
-                  <h3 className="font-display font-black text-[#E78A3E] tracking-widest text-lg uppercase flex items-center gap-1.5">
+                  <h3 className="font-display font-black text-[#3E5E93] tracking-widest text-lg uppercase flex items-center gap-1.5">
                     <Receipt className="w-5 h-5" /> REQUEST BILL
                   </h3>
                   <p className="text-[10px] font-mono tracking-wider text-white uppercase">
@@ -11667,16 +11670,16 @@ export default function App() {
                   <div className="flex-1 overflow-y-auto px-4 py-4 flex flex-col gap-4">
                     <div className="bg-gradient-to-br from-zinc-900 to-black p-4 rounded-xl border border-zinc-800 flex flex-col gap-3.5 relative overflow-hidden shrink-0 min-h-[160px]">
                       <div className="absolute top-2.5 right-2.5 w-12 h-12 pointer-events-none opacity-[0.03]">
-                        <QrCode className="w-12 h-12 text-[#FF5A00]" />
+                        <QrCode className="w-12 h-12 text-[#3E5E93]" />
                       </div>
 
                       <div className="flex justify-between items-center">
                         <div>
-                          <span className="text-[10px] font-mono tracking-widest text-[#FF5A00] uppercase font-black bg-[#FF5A00]/10 px-2.5 py-0.5 rounded">
+                          <span className="text-[10px] font-mono tracking-widest text-[#3E5E93] uppercase font-black bg-[#3E5E93]/10 px-2.5 py-0.5 rounded">
                             LIVE SPLITTING CONNECT
                           </span>
                           <h4 className="font-sub font-black text-sm text-white uppercase mt-1 px-0.5 flex items-center gap-1.5">
-                            <Users className="w-4 h-4 text-[#FF5A00]" />
+                            <Users className="w-4 h-4 text-[#3E5E93]" />
                             {isRemoteTable
                               ? isRemoteSplitConnected
                                 ? `Split group (${displaySessionMembers.length})`
@@ -11691,7 +11694,7 @@ export default function App() {
                             setSplitQrStep("choose");
                             setIsQrModalOpen(true);
                           }}
-                          className="px-3.5 py-2 bg-[#FF5A00] hover:bg-orange-400 text-[#121212] rounded-lg text-[10.5px] font-sub font-black uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer shadow-md active:scale-95 text-center"
+                          className="px-3.5 py-2 bg-[#3E5E93] hover:bg-orange-400 text-[#121212] rounded-lg text-[10.5px] font-sub font-black uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer shadow-md active:scale-95 text-center"
                         >
                           <QrCode className="w-3.5 h-3.5" />
                           Scan QR Code
@@ -11702,8 +11705,8 @@ export default function App() {
                         <div className="bg-black/40 p-3 rounded-lg border border-zinc-900">
                           <p className="text-[10px] text-zinc-400 leading-relaxed">
                             Ordering solo — your bill updates live below. Want to split with friends? Scan a split QR to{" "}
-                            <span className="text-[#FF5A00] font-bold">Host</span> or{" "}
-                            <span className="text-[#FF5A00] font-bold">Join Split</span> and share one synced bill.
+                            <span className="text-[#3E5E93] font-bold">Host</span> or{" "}
+                            <span className="text-[#3E5E93] font-bold">Join Split</span> and share one synced bill.
                           </p>
                         </div>
                       ) : (
@@ -11720,7 +11723,7 @@ export default function App() {
                                 className={`px-2.5 py-1 rounded-full text-[10.5px] font-bold font-sub uppercase flex items-center gap-1 border border-zinc-800 shrink-0 ${
                                   member === currentPlayerName
                                     ? "bg-zinc-800 text-white"
-                                    : "bg-zinc-900/80 text-[#FF5A00]"
+                                    : "bg-zinc-900/80 text-[#3E5E93]"
                                 }`}
                               >
                                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
@@ -11783,7 +11786,7 @@ export default function App() {
                     )}
 
                     {billRequestSubmitted && (
-                      <div className="rounded-xl border border-[#E78A3E] bg-[#E78A3E]/10 p-3">
+                      <div className="rounded-xl border border-[#3E5E93] bg-[#3E5E93]/10 p-3">
                         <p className="text-[11px] font-black uppercase text-black tracking-wider text-center">
                           Bill request sent — awaiting staff
                         </p>
@@ -11812,10 +11815,10 @@ export default function App() {
                           </h4>
                         </div>
                         <div className="text-right">
-                          <p className="text-[10px] font-mono uppercase tracking-wider text-[#FF5A00]">
+                          <p className="text-[10px] font-mono uppercase tracking-wider text-[#3E5E93]">
                             Remaining Unpaid
                           </p>
-                          <h4 className="font-mono text-xl font-black text-[#FF5A00]">
+                          <h4 className="font-mono text-xl font-black text-[#3E5E93]">
                             R{billRemainingTotal}
                           </h4>
                         </div>
@@ -11824,7 +11827,7 @@ export default function App() {
                       {/* Custom Progress Bar */}
                       <div className="w-full bg-[#1C1C1E] h-3 rounded-full overflow-hidden border border-zinc-850 p-0.5 flex relative">
                         <div 
-                          className="bg-gradient-to-r from-orange-600 to-[#FF5A00] h-full rounded-full transition-all duration-500 shadow-[0_0_8px_rgba(231, 138, 62,0.5)]"
+                          className="bg-gradient-to-r from-orange-600 to-[#3E5E93] h-full rounded-full transition-all duration-500 shadow-[0_0_8px_rgba(231, 138, 62,0.5)]"
                           style={{ width: `${billPaidPercent}%` }}
                         />
                       </div>
@@ -11841,16 +11844,16 @@ export default function App() {
                         <div className="flex items-center gap-2">
                           <span className="text-base">🧾</span>
                           <div>
-                            <span className="text-[10px] font-mono uppercase text-[#FF5A00] font-bold block leading-none">Receipt Export Center</span>
+                            <span className="text-[10px] font-mono uppercase text-[#3E5E93] font-bold block leading-none">Receipt Export Center</span>
                             <span className="text-[11px] font-sans text-zinc-400">Save full {formatTableLabel(currentTableId)} bill</span>
                           </div>
                         </div>
                         <button
                           type="button"
                           onClick={handleExportFullReceipt}
-                          className="px-3.5 py-2 bg-zinc-900 hover:bg-[#FF5A00] hover:text-black border border-zinc-800 hover:border-transparent rounded-lg text-[10px] uppercase font-mono font-black tracking-wide flex items-center gap-1.5 text-zinc-300 transition-all cursor-pointer active:scale-95 shadow-md"
+                          className="px-3.5 py-2 bg-zinc-900 hover:bg-[#3E5E93] hover:text-black border border-zinc-800 hover:border-transparent rounded-lg text-[10px] uppercase font-mono font-black tracking-wide flex items-center gap-1.5 text-zinc-300 transition-all cursor-pointer active:scale-95 shadow-md"
                         >
-                          <Download className="w-3.5 h-3.5 text-[#FF5A00] group-hover:text-black" /> Export Receipt
+                          <Download className="w-3.5 h-3.5 text-[#3E5E93] group-hover:text-black" /> Export Receipt
                         </button>
                       </div>
                     </div>
@@ -11865,7 +11868,7 @@ export default function App() {
                           Fully Settled!
                         </h4>
                         <p className="text-xs text-black max-w-[280px] mt-1">
-                          This bill is fully sorted. Roco Crew is happy, the kitchen is ready. You&apos;re set!
+                          This bill is fully sorted. Lutho Crew is happy, the kitchen is ready. You&apos;re set!
                         </p>
                       </div>
                     ) : (
@@ -11879,7 +11882,7 @@ export default function App() {
                             }}
                             className={`py-2 px-1 text-center font-sub text-[10px] tracking-wider font-extrabold uppercase rounded-lg transition-all ${
                               billSplitMode === "EQUAL"
-                                ? "bg-[#FF5A00] text-black shadow-md font-black"
+                                ? "bg-[#3E5E93] text-black shadow-md font-black"
                                 : "text-zinc-400 hover:text-white"
                             }`}
                           >
@@ -11893,7 +11896,7 @@ export default function App() {
                             }}
                             className={`py-2 px-1 text-center font-sub text-[10px] tracking-wider font-extrabold uppercase rounded-lg transition-all ${
                               billSplitMode === "ITEMS"
-                                ? "bg-[#FF5A00] text-black shadow-md font-black"
+                                ? "bg-[#3E5E93] text-black shadow-md font-black"
                                 : "text-zinc-400 hover:text-white"
                             }`}
                           >
@@ -11907,7 +11910,7 @@ export default function App() {
                             }}
                             className={`py-2 px-1 text-center font-sub text-[10px] tracking-wider font-extrabold uppercase rounded-lg transition-all ${
                               billSplitMode === "CUSTOM"
-                                ? "bg-[#FF5A00] text-black shadow-md font-black"
+                                ? "bg-[#3E5E93] text-black shadow-md font-black"
                                 : "text-zinc-400 hover:text-white"
                             }`}
                           >
@@ -11935,7 +11938,7 @@ export default function App() {
                                       setSplitCount(splitCount - 1);
                                     }
                                   }}
-                                  className="px-3.5 py-1.5 text-zinc-400 hover:text-[#FF5A00] transitions-all"
+                                  className="px-3.5 py-1.5 text-zinc-400 hover:text-[#3E5E93] transitions-all"
                                   disabled={splitCount <= 1}
                                   aria-label="Decrease split share count"
                                 >
@@ -11951,7 +11954,7 @@ export default function App() {
                                       setSplitCount(splitCount + 1);
                                     }
                                   }}
-                                  className="px-3.5 py-1.5 text-zinc-400 hover:text-[#FF5A00] transition-all"
+                                  className="px-3.5 py-1.5 text-zinc-400 hover:text-[#3E5E93] transition-all"
                                   disabled={splitCount >= 12}
                                   aria-label="Increase split share count"
                                 >
@@ -11962,7 +11965,7 @@ export default function App() {
 
                             <div className="border-t border-zinc-850/50 mt-2 pt-2.5 flex items-center justify-between">
                               <span className="text-xs text-zinc-400">YOUR SHARE TO PAY:</span>
-                              <span className="font-mono text-lg font-black text-[#FF5A00]">
+                              <span className="font-mono text-lg font-black text-[#3E5E93]">
                                 R{(billRemainingTotal / splitCount).toFixed(2)}
                               </span>
                             </div>
@@ -11993,7 +11996,7 @@ export default function App() {
                                       key={item.id} 
                                       className={`flex items-center justify-between p-2.5 rounded-lg border transition-all ${
                                         shareSelected > 0 
-                                          ? "bg-[#1C1C1E] border-[#FF5A00]/50" 
+                                          ? "bg-[#1C1C1E] border-[#3E5E93]/50" 
                                           : "bg-black/30 border-zinc-900 hover:border-zinc-850"
                                       }`}
                                     >
@@ -12018,7 +12021,7 @@ export default function App() {
                                         >
                                           <Minus className="w-3 h-3" />
                                         </button>
-                                        <span className={`px-2.5 font-mono text-xs font-bold ${shareSelected > 0 ? "text-[#FF5A00] font-black" : "text-zinc-600"}`}>
+                                        <span className={`px-2.5 font-mono text-xs font-bold ${shareSelected > 0 ? "text-[#3E5E93] font-black" : "text-zinc-600"}`}>
                                           {shareSelected}
                                         </span>
                                         <button
@@ -12037,7 +12040,7 @@ export default function App() {
 
                             <div className="border-t border-zinc-850/50 mt-1 pt-2 flex justify-between items-center text-xs">
                               <span className="text-zinc-400 font-mono">SELECTED ITEMS TOTAL:</span>
-                              <span className="font-mono text-base font-black text-[#FF5A00]">
+                              <span className="font-mono text-base font-black text-[#3E5E93]">
                                 R{selectedItemsPayTotal}
                               </span>
                             </div>
@@ -12065,7 +12068,7 @@ export default function App() {
                                 }}
                                 max={billRemainingTotal}
                                 placeholder={`Enter amount (max R${billRemainingTotal})`}
-                                className="w-full bg-black border border-zinc-800 focus:border-[#FF5A00] focus:ring-1 focus:ring-[#FF5A00] rounded-xl pl-8 pr-4 py-3 font-mono text-sm text-white focus:outline-none placeholder-zinc-700"
+                                className="w-full bg-black border border-zinc-800 focus:border-[#3E5E93] focus:ring-1 focus:ring-[#3E5E93] rounded-xl pl-8 pr-4 py-3 font-mono text-sm text-white focus:outline-none placeholder-zinc-700"
                               />
                             </div>
                             
@@ -12089,7 +12092,7 @@ export default function App() {
                                     className={`py-1.5 rounded bg-[#1C1C1E] border border-zinc-800 text-[10px] font-mono tracking-wider font-bold uppercase transition-all ${
                                       disabled 
                                         ? "opacity-30 text-zinc-700" 
-                                        : "text-[#FF5A00] hover:bg-[#FF5A00] hover:text-black hover:border-transparent cursor-pointer"
+                                        : "text-[#3E5E93] hover:bg-[#3E5E93] hover:text-black hover:border-transparent cursor-pointer"
                                     }`}
                                   >
                                     {preset.label}
@@ -12100,10 +12103,10 @@ export default function App() {
                           </div>
                         )}
 
-                        {/* GRATUITY SELECTOR (Roco Crew Tip Panel) */}
+                        {/* GRATUITY SELECTOR (Lutho Crew Tip Panel) */}
                         <div className="bg-[#121212]/30 p-2.5 rounded-xl border border-zinc-900 flex flex-col gap-1.5">
                           <label className="text-[10px] font-mono uppercase tracking-wider text-zinc-500">
-                            Support Roco Crew (Tip Option)
+                            Support Lutho Crew (Tip Option)
                           </label>
 
                           <div className="grid grid-cols-5 gap-1.5">
@@ -12122,7 +12125,7 @@ export default function App() {
                                 }}
                                 className={`py-1.5 px-0.5 rounded-lg border text-center font-sub text-[10px] font-extrabold uppercase transition-all flex flex-col items-center justify-center cursor-pointer ${
                                   selectedTipPercent === tip.pct
-                                    ? "bg-[#FF5A00]/10 border-[#FF5A00] text-[#FF5A00] font-black"
+                                    ? "bg-[#3E5E93]/10 border-[#3E5E93] text-[#3E5E93] font-black"
                                     : "bg-black/30 border-zinc-850 text-zinc-500 hover:text-zinc-200"
                                 }`}
                               >
@@ -12147,13 +12150,13 @@ export default function App() {
                           {currentPayTipAmount > 0 && (
                             <div className="flex justify-between">
                               <span>Waiter Gratuity ({selectedTipPercent}%)</span>
-                              <span className="text-[#FF5A00]">R{currentPayTipAmount.toFixed(2)}</span>
+                              <span className="text-[#3E5E93]">R{currentPayTipAmount.toFixed(2)}</span>
                             </div>
                           )}
 
                           <div className="flex justify-between border-t border-zinc-850 pt-2 text-sm text-white font-sub font-black uppercase">
                             <span>Final Charge Amount</span>
-                            <span className="font-mono text-[#FF5A00] text-base font-black">
+                            <span className="font-mono text-[#3E5E93] text-base font-black">
                               R{currentPayFinalAmount.toFixed(2)}
                             </span>
                           </div>
@@ -12173,7 +12176,7 @@ export default function App() {
                             disabled={billRequestSubmitted || (currentPaySubtotal <= 0 && billRemainingTotal > 0)}
                             className={`flex-[2] py-4 rounded-xl flex items-center justify-center gap-2 font-sub font-black text-xs uppercase tracking-wider transition-all transform active:scale-95 cursor-pointer ${
                               !billRequestSubmitted && (currentPaySubtotal > 0 || billRemainingTotal <= 0)
-                                ? "bg-[#E78A3E] hover:bg-[#d67a32] text-black shadow-lg"
+                                ? "bg-[#3E5E93] hover:bg-[#d67a32] text-black shadow-lg"
                                 : "bg-zinc-800 border-zinc-850 text-zinc-500 cursor-not-allowed opacity-50"
                             }`}
                           >
@@ -12201,7 +12204,7 @@ export default function App() {
                 playBeep(440, "sine", 0.05);
                 setStaffSidebarOpen(true);
               }}
-              className="fixed left-0 top-1/2 -translate-y-1/2 z-50 w-9 h-20 bg-[#1C1C1E] border border-l-0 border-[#E78A3E] rounded-r-2xl flex items-center justify-center text-[#E78A3E] hover:bg-[#E78A3E] hover:text-black transition-all shadow-lg"
+              className="fixed left-0 top-1/2 -translate-y-1/2 z-50 w-9 h-20 bg-[#1C1C1E] border border-l-0 border-[#3E5E93] rounded-r-2xl flex items-center justify-center text-[#3E5E93] hover:bg-[#3E5E93] hover:text-black transition-all shadow-lg"
               aria-label="Open staff menu"
             >
               <ChevronRight className="w-5 h-5" />
@@ -12218,19 +12221,19 @@ export default function App() {
           )}
 
           <aside
-            className={`fixed inset-y-0 left-0 z-50 w-[min(300px,88vw)] shrink-0 bg-[#1C1C1E] border-r border-[#E78A3E]/40 flex flex-col gap-4 shadow-2xl p-4 overflow-y-auto transition-transform duration-300 ease-out ${
+            className={`fixed inset-y-0 left-0 z-50 w-[min(300px,88vw)] shrink-0 bg-[#1C1C1E] border-r border-[#3E5E93]/40 flex flex-col gap-4 shadow-2xl p-4 overflow-y-auto transition-transform duration-300 ease-out ${
               staffSidebarOpen ? "translate-x-0" : "-translate-x-full"
             }`}
           >
             <div className="flex items-center gap-3">
               <img
-                src="https://www.rocomamas.co.ke/images//logo-combined.png"
-                alt="RocoMamas Logo"
+                src="/lutho-logo.png"
+                alt="Lutho Logo"
                 className="h-12 w-auto object-contain"
                 referrerPolicy="no-referrer"
               />
               <div>
-                <p className="text-[9px] uppercase tracking-[0.2em] text-[#FF5A00] font-black">Staff Console</p>
+                <p className="text-[9px] uppercase tracking-[0.2em] text-[#3E5E93] font-black">Staff Console</p>
                 <h2 className="text-white font-black uppercase text-sm">{activeStaffProfile?.name || "Staff"}</h2>
                 <p className="text-zinc-500 text-[10px] uppercase">{activeStaffProfile?.role || "general"} • {activeStaffProfile?.onShift ? "on shift" : "off shift"}</p>
               </div>
@@ -12266,7 +12269,7 @@ export default function App() {
                   }}
                   className={`w-full text-left px-3 py-3 rounded-2xl border text-sm font-bold transition-all ${
                     staffWorkspace === key
-                      ? "bg-[#FF5A00] text-black border-[#FF5A00]"
+                      ? "bg-[#3E5E93] text-black border-[#3E5E93]"
                       : "bg-black/40 text-zinc-300 border-zinc-800 hover:border-zinc-700 hover:text-white"
                   }`}
                 >
@@ -12279,7 +12282,7 @@ export default function App() {
                   setIsClaimScannerOpen(true);
                   setStaffSidebarOpen(false);
                 }}
-                className="w-full text-left px-3 py-3 rounded-2xl border text-sm font-bold transition-all bg-[#E78A3E]/10 text-[#E78A3E] border-[#E78A3E]/40 hover:bg-[#E78A3E] hover:text-black flex items-center gap-2"
+                className="w-full text-left px-3 py-3 rounded-2xl border text-sm font-bold transition-all bg-[#3E5E93]/10 text-[#3E5E93] border-[#3E5E93]/40 hover:bg-[#3E5E93] hover:text-black flex items-center gap-2"
               >
                 <ScanLine className="w-4 h-4" />
                 Scan claim
@@ -12310,7 +12313,7 @@ export default function App() {
             {/* ALWAYS-VISIBLE CLOCK IN/OUT + CLAIM SCANNER BAR */}
             {activeStaffProfile && (
               <div className="shrink-0 p-3 md:p-4 pb-0">
-                <div className="rounded-2xl bg-[#1C1C1E] border border-[#E78A3E]/40 p-3 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                <div className="rounded-2xl bg-[#1C1C1E] border border-[#3E5E93]/40 p-3 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
                   <div className="flex items-center gap-3 min-w-0">
                     <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${activeStaffProfile.onShift ? "bg-emerald-400 animate-pulse" : "bg-zinc-600"}`} />
                     <div className="min-w-0">
@@ -12330,7 +12333,7 @@ export default function App() {
                       className={`flex-1 sm:flex-initial px-5 py-3 rounded-2xl font-black uppercase text-sm flex items-center justify-center gap-2 transition-all active:scale-95 ${
                         activeStaffProfile.onShift
                           ? "bg-red-950/40 text-red-300 border border-red-500/30 hover:bg-red-950/60"
-                          : "bg-[#E78A3E] text-black hover:bg-[#d67a32]"
+                          : "bg-[#3E5E93] text-black hover:bg-[#d67a32]"
                       }`}
                     >
                       {activeStaffProfile.onShift ? <LogOut className="w-4 h-4" /> : <LogIn className="w-4 h-4" />}
@@ -12342,7 +12345,7 @@ export default function App() {
                         playBeep(600, "sine", 0.06);
                         setIsClaimScannerOpen(true);
                       }}
-                      className="px-4 py-3 rounded-2xl bg-black/50 border border-[#E78A3E]/40 text-[#E78A3E] font-black uppercase text-xs flex items-center gap-2 hover:bg-[#E78A3E] hover:text-black transition-all active:scale-95"
+                      className="px-4 py-3 rounded-2xl bg-black/50 border border-[#3E5E93]/40 text-[#3E5E93] font-black uppercase text-xs flex items-center gap-2 hover:bg-[#3E5E93] hover:text-black transition-all active:scale-95"
                       title="Scan a guest's claim code"
                     >
                       <ScanLine className="w-4 h-4" />
@@ -12358,14 +12361,14 @@ export default function App() {
               <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="px-2.5 py-0.5 bg-[#FF5A00] text-black font-mono text-[9px] font-black uppercase rounded tracking-widest">
+                    <span className="px-2.5 py-0.5 bg-[#3E5E93] text-black font-mono text-[9px] font-black uppercase rounded tracking-widest">
                       Staff View Active
                     </span>
                     <span className="px-2.5 py-0.5 bg-black border border-zinc-800 text-zinc-400 font-mono text-[9px] rounded uppercase">
                       {activeStaffProfile?.role || "general"}
                     </span>
                   </div>
-                  <h1 className="text-white text-2xl font-black uppercase mt-2">Roco Floor Control</h1>
+                  <h1 className="text-white text-2xl font-black uppercase mt-2">Lutho Floor Control</h1>
                   <p className="text-zinc-500 text-xs mt-1">
                     Decluttered workflow for manual order handling, bill requests, and table coverage.
                   </p>
@@ -12396,13 +12399,13 @@ export default function App() {
             <div className={`flex-1 min-h-0 overflow-y-auto ${staffWorkspace === "tables" ? "p-0" : "p-4 md:p-6 pt-4"}`}>
             {staffWorkspace === "overview" && (
               <div className="grid xl:grid-cols-2 gap-4">
-                <div className="xl:col-span-2 rounded-3xl border-2 border-[#E78A3E] bg-gradient-to-r from-black via-[#1C1C1E] to-black p-5 flex flex-col sm:flex-row sm:items-center gap-4">
+                <div className="xl:col-span-2 rounded-3xl border-2 border-[#3E5E93] bg-gradient-to-r from-black via-[#1C1C1E] to-black p-5 flex flex-col sm:flex-row sm:items-center gap-4">
                   <div className="flex items-start gap-3 flex-1 min-w-0">
-                    <div className="w-12 h-12 rounded-2xl bg-[#E78A3E] text-black flex items-center justify-center shrink-0">
+                    <div className="w-12 h-12 rounded-2xl bg-[#3E5E93] text-black flex items-center justify-center shrink-0">
                       <BookOpen className="w-6 h-6" />
                     </div>
                     <div>
-                      <p className="text-[#E78A3E] text-[10px] font-mono font-black uppercase tracking-widest">First training session</p>
+                      <p className="text-[#3E5E93] text-[10px] font-mono font-black uppercase tracking-widest">First training session</p>
                       <h3 className="text-white font-black uppercase text-base mt-0.5">Staff & Admin Training Manual</h3>
                       <p className="text-zinc-400 text-xs mt-1 max-w-xl">
                         Branded PDF with guest journey, floor ops, remote claim passes, bills, and 50 live scenarios. Download and share with the crew.
@@ -12412,7 +12415,7 @@ export default function App() {
                   <button
                     type="button"
                     onClick={() => { void handleDownloadTrainingManual(); }}
-                    className="px-5 py-3 rounded-2xl bg-[#E78A3E] text-black font-black uppercase text-xs flex items-center justify-center gap-2 shrink-0 hover:brightness-110 transition-all"
+                    className="px-5 py-3 rounded-2xl bg-[#3E5E93] text-black font-black uppercase text-xs flex items-center justify-center gap-2 shrink-0 hover:brightness-110 transition-all"
                   >
                     <Download className="w-4 h-4" />
                     Download PDF
@@ -12439,7 +12442,7 @@ export default function App() {
                                 await updateDoc(doc(db, "service_requests", request.id), { status: "ACKNOWLEDGED" });
                                 triggerToast(`Request at ${formatTableLabel(request.tableId)} acknowledged.`, "success");
                               }}
-                              className="px-3 py-2 rounded-xl bg-[#FF5A00] text-black text-xs font-black uppercase"
+                              className="px-3 py-2 rounded-xl bg-[#3E5E93] text-black text-xs font-black uppercase"
                             >
                               Acknowledge
                             </button>
@@ -12475,7 +12478,7 @@ export default function App() {
                     <button
                       type="button"
                       onClick={() => { void handleResetTableAssignments(); }}
-                      className="px-4 py-2.5 rounded-xl bg-black border border-[#E78A3E] text-[#E78A3E] text-[10px] font-black uppercase flex items-center justify-center gap-2 shrink-0 hover:bg-[#E78A3E] hover:text-black transition-colors"
+                      className="px-4 py-2.5 rounded-xl bg-black border border-[#3E5E93] text-[#3E5E93] text-[10px] font-black uppercase flex items-center justify-center gap-2 shrink-0 hover:bg-[#3E5E93] hover:text-black transition-colors"
                     >
                       <RotateCcw className="w-3.5 h-3.5" />
                       Reset table assignments
@@ -12487,7 +12490,7 @@ export default function App() {
                     tableWaiterAssignments={tableWaiterAssignments}
                     tableServices={tableServices}
                     tableNotifications={Object.fromEntries(
-                      ROCO_TABLES.map((t) => {
+                      LUTHO_TABLES.map((t) => {
                         const service = tableServices[t.id]?.active ? tableServices[t.id] : null;
                         const reqs = serviceRequests.filter(
                           (r) =>
@@ -12530,7 +12533,7 @@ export default function App() {
                       Copy a Pilot summary, punch lines into Pilot POS manually, then keep this ticket moving: Sent → Preparing → Ready → Served.
                     </p>
                   </div>
-                  <span className="text-[10px] font-mono text-[#FF5A00] uppercase">{sharedStaffOrders.length} synced</span>
+                  <span className="text-[10px] font-mono text-[#3E5E93] uppercase">{sharedStaffOrders.length} synced</span>
                 </div>
                 <div className="space-y-3">
                   {sharedStaffOrders.length === 0 && (
@@ -12554,7 +12557,7 @@ export default function App() {
                           </p>
                           <p className="text-zinc-500 text-xs mt-1">
                             {(order.isRemoteGroupOrder || String(order.tableId) === REMOTE_TABLE_ID) && (
-                              <span className="text-[#E78A3E] font-bold uppercase">
+                              <span className="text-[#3E5E93] font-bold uppercase">
                                 {order.isRemoteGroupOrder ? "Remote split guest" : "Remote solo"}
                                 {order.orderedBy ? ` • ${order.orderedBy}` : ""} •{" "}
                               </span>
@@ -12565,7 +12568,7 @@ export default function App() {
                           </p>
                           {order.notes && <p className="text-amber-400 text-xs mt-2">Note: {order.notes}</p>}
                           {needsStatusUpdate && (
-                            <p className="text-[10px] text-[#E78A3E] font-mono uppercase mt-2 tracking-wider">
+                            <p className="text-[10px] text-[#3E5E93] font-mono uppercase mt-2 tracking-wider">
                               Reminder: update status after you enter this into Pilot
                             </p>
                           )}
@@ -12584,7 +12587,7 @@ export default function App() {
                         <button
                           type="button"
                           onClick={() => handleCopyPilotSummary(order)}
-                          className="px-3 py-2 rounded-xl text-xs font-black uppercase border bg-[#E78A3E]/15 border-[#E78A3E]/50 text-[#E78A3E]"
+                          className="px-3 py-2 rounded-xl text-xs font-black uppercase border bg-[#3E5E93]/15 border-[#3E5E93]/50 text-[#3E5E93]"
                         >
                           Pilot summary
                         </button>
@@ -12595,7 +12598,7 @@ export default function App() {
                             onClick={() => updateSharedOrderStatus(order.id, status)}
                             className={`px-3 py-2 rounded-xl text-xs font-black uppercase border ${
                               order.status === status
-                                ? "bg-[#FF5A00] text-black border-[#FF5A00]"
+                                ? "bg-[#3E5E93] text-black border-[#3E5E93]"
                                 : "bg-black/40 text-zinc-300 border-zinc-800 hover:text-white"
                             }`}
                           >
@@ -12606,7 +12609,7 @@ export default function App() {
                           <button
                             type="button"
                             onClick={() => updateSharedOrderStatus(order.id, "Served")}
-                            className="px-3 py-2 rounded-xl text-xs font-black uppercase bg-[#E78A3E] text-black border border-[#E78A3E]"
+                            className="px-3 py-2 rounded-xl text-xs font-black uppercase bg-[#3E5E93] text-black border border-[#3E5E93]"
                           >
                             Mark served
                           </button>
@@ -12635,7 +12638,7 @@ export default function App() {
                         playBeep(600, "sine", 0.06);
                         setIsClaimScannerOpen(true);
                       }}
-                      className="px-3 py-2 rounded-xl bg-[#E78A3E]/10 border border-[#E78A3E]/50 text-[#E78A3E] text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 hover:bg-[#E78A3E] hover:text-black transition-colors"
+                      className="px-3 py-2 rounded-xl bg-[#3E5E93]/10 border border-[#3E5E93]/50 text-[#3E5E93] text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 hover:bg-[#3E5E93] hover:text-black transition-colors"
                     >
                       <ScanLine className="w-3.5 h-3.5" />
                       Scan claim
@@ -12646,7 +12649,7 @@ export default function App() {
                         playBeep(523, "sine", 0.06);
                         openQrPrintSheet(true);
                       }}
-                      className="px-3 py-2 rounded-xl bg-[#E78A3E] text-black text-[10px] font-black uppercase tracking-wider"
+                      className="px-3 py-2 rounded-xl bg-[#3E5E93] text-black text-[10px] font-black uppercase tracking-wider"
                     >
                       Customize QRs
                     </button>
@@ -12669,7 +12672,7 @@ export default function App() {
                     tableWaiterAssignments={tableWaiterAssignments}
                     tableServices={tableServices}
                     tableNotifications={Object.fromEntries(
-                      ROCO_TABLES.map((t) => {
+                      LUTHO_TABLES.map((t) => {
                         const service = tableServices[t.id]?.active ? tableServices[t.id] : null;
                         const reqs = serviceRequests.filter(
                           (r) =>
@@ -12728,7 +12731,7 @@ export default function App() {
                             }}
                             className={`px-3 py-2 rounded-xl text-xs font-black uppercase border ${
                               request.status === status
-                                ? "bg-[#FF5A00] text-black border-[#FF5A00]"
+                                ? "bg-[#3E5E93] text-black border-[#3E5E93]"
                                 : "bg-black/40 text-zinc-300 border-zinc-800"
                             }`}
                           >
@@ -12760,7 +12763,7 @@ export default function App() {
                         <div>
                           <p className="text-white font-black uppercase">{profile.name}</p>
                           <p className="text-zinc-500 text-xs">{profile.role} • {profile.onShift ? "on shift" : "off shift"}</p>
-                          <p className="text-[10px] text-[#E78A3E] font-mono uppercase mt-1">
+                          <p className="text-[10px] text-[#3E5E93] font-mono uppercase mt-1">
                             {sittingsForWaiter(tableSittings, profile.name).length} tables served on record
                           </p>
                         </div>
@@ -12800,7 +12803,7 @@ export default function App() {
                           <option value="general">Regular staff</option>
                           <option value="admin">Admin</option>
                         </select>
-                        <button onClick={handleCreateStaffProfile} className="w-full px-3 py-3 rounded-2xl bg-[#FF5A00] text-black font-black uppercase">Create profile</button>
+                        <button onClick={handleCreateStaffProfile} className="w-full px-3 py-3 rounded-2xl bg-[#3E5E93] text-black font-black uppercase">Create profile</button>
                       </div>
                     ) : (
                       <div className="rounded-2xl bg-black/30 border border-dashed border-zinc-800 p-5 text-center text-zinc-500">
@@ -12818,12 +12821,12 @@ export default function App() {
                         Every cleared table sitting — guest tickets and items — stays on the waiter&apos;s record.
                       </p>
                     </div>
-                    <span className="text-[10px] font-mono text-[#E78A3E] uppercase shrink-0">{tableSittings.length} sittings</span>
+                    <span className="text-[10px] font-mono text-[#3E5E93] uppercase shrink-0">{tableSittings.length} sittings</span>
                   </div>
                   <div className="space-y-3 max-h-[70vh] overflow-y-auto">
                     {tableSittings.length === 0 && (
                       <div className="rounded-2xl bg-black/30 border border-dashed border-zinc-800 p-8 text-center text-zinc-500 text-sm">
-                        No cleared sittings yet. Use <span className="text-[#E78A3E] font-bold">Clear table</span> on a table inspector when the party leaves.
+                        No cleared sittings yet. Use <span className="text-[#3E5E93] font-bold">Clear table</span> on a table inspector when the party leaves.
                       </div>
                     )}
                     {tableSittings.map((sitting) => {
@@ -12843,7 +12846,7 @@ export default function App() {
                                 {new Date(sitting.clearedAt).toLocaleString()} • {sitting.orderCount} order{sitting.orderCount === 1 ? "" : "s"} • {sitting.itemCount} items
                               </p>
                               {sitting.guestNames.length > 0 && (
-                                <p className="text-[#E78A3E] text-[10px] uppercase font-bold mt-1">
+                                <p className="text-[#3E5E93] text-[10px] uppercase font-bold mt-1">
                                   Guests: {sitting.guestNames.join(", ")}
                                 </p>
                               )}
@@ -12890,7 +12893,7 @@ export default function App() {
                     <button
                       type="button"
                       onClick={() => openQrPrintSheet(true)}
-                      className="px-4 py-3 rounded-2xl bg-[#E78A3E] text-black font-black uppercase text-xs"
+                      className="px-4 py-3 rounded-2xl bg-[#3E5E93] text-black font-black uppercase text-xs"
                     >
                       Customize table QRs
                     </button>
@@ -12918,7 +12921,7 @@ export default function App() {
                 <div className="bg-[#1C1C1E] border border-zinc-800 rounded-3xl p-5 space-y-4">
                   <h3 className="text-white font-black uppercase text-sm">Tools</h3>
                   <div className="flex flex-wrap gap-2">
-                    <button type="button" onClick={() => openQrPrintSheet(true)} className="px-4 py-3 rounded-2xl bg-[#E78A3E] text-black font-black uppercase text-xs">
+                    <button type="button" onClick={() => openQrPrintSheet(true)} className="px-4 py-3 rounded-2xl bg-[#3E5E93] text-black font-black uppercase text-xs">
                       Customize table QRs
                     </button>
                     <button type="button" onClick={() => openQrPrintSheet(false)} className="px-4 py-3 rounded-2xl bg-zinc-900 border border-zinc-800 text-zinc-300 font-black uppercase text-xs">
@@ -12927,7 +12930,7 @@ export default function App() {
                     <button
                       type="button"
                       onClick={() => { void handleDownloadTrainingManual(); }}
-                      className="px-4 py-3 rounded-2xl bg-black border border-[#E78A3E] text-[#E78A3E] font-black uppercase text-xs flex items-center gap-2"
+                      className="px-4 py-3 rounded-2xl bg-black border border-[#3E5E93] text-[#3E5E93] font-black uppercase text-xs flex items-center gap-2"
                     >
                       <BookOpen className="w-3.5 h-3.5" />
                       Download training PDF
@@ -12936,7 +12939,7 @@ export default function App() {
                   <h3 className="text-white font-black uppercase text-sm pt-2">Reset my PIN</h3>
                   <input value={staffResetCurrentPin} onChange={(e) => setStaffResetCurrentPin(e.target.value)} placeholder="Current PIN" className="w-full bg-[#121212] border border-zinc-800 rounded-xl px-3 py-3 text-white" />
                   <input value={staffResetNewPin} onChange={(e) => setStaffResetNewPin(e.target.value)} placeholder="New PIN" className="w-full bg-[#121212] border border-zinc-800 rounded-xl px-3 py-3 text-white" />
-                  <button onClick={handleResetOwnPin} className="px-4 py-3 rounded-2xl bg-[#FF5A00] text-black font-black uppercase">Update PIN</button>
+                  <button onClick={handleResetOwnPin} className="px-4 py-3 rounded-2xl bg-[#3E5E93] text-black font-black uppercase">Update PIN</button>
                 </div>
 
                 <div className="bg-[#1C1C1E] border border-zinc-800 rounded-3xl p-5 space-y-4">
@@ -12947,7 +12950,7 @@ export default function App() {
                   <button
                     type="button"
                     onClick={() => { void handleDownloadTrainingManual(); }}
-                    className="w-full px-4 py-4 rounded-2xl bg-[#E78A3E] text-black font-black uppercase text-sm flex items-center justify-center gap-2"
+                    className="w-full px-4 py-4 rounded-2xl bg-[#3E5E93] text-black font-black uppercase text-sm flex items-center justify-center gap-2"
                   >
                     <Download className="w-4 h-4" />
                     Download training manual (PDF)
@@ -13017,11 +13020,11 @@ export default function App() {
                   initial={{ opacity: 0, scale: 0.95, y: 16 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.95, y: 16 }}
-                  className="fixed inset-x-3 top-[4%] bottom-[4%] sm:inset-x-6 max-w-2xl mx-auto bg-white border-2 border-[#E78A3E] rounded-3xl z-[125] overflow-hidden flex flex-col shadow-2xl"
+                  className="fixed inset-x-3 top-[4%] bottom-[4%] sm:inset-x-6 max-w-2xl mx-auto bg-white border-2 border-[#3E5E93] rounded-3xl z-[125] overflow-hidden flex flex-col shadow-2xl"
                 >
-                  <div className="p-4 bg-black border-b border-[#E78A3E] flex justify-between items-center gap-3">
+                  <div className="p-4 bg-black border-b border-[#3E5E93] flex justify-between items-center gap-3">
                     <div>
-                      <h3 className="font-display font-black text-[#E78A3E] text-lg uppercase">{formatTableLabel(tableId)}</h3>
+                      <h3 className="font-display font-black text-[#3E5E93] text-lg uppercase">{formatTableLabel(tableId)}</h3>
                       <p className="text-[10px] font-mono text-white uppercase">
                         {tablesState[tableId] || "Available"} • {tableService?.assignedStaffName || tableWaiterAssignments[tableId] || "Unassigned"}
                         {tableService ? ` • ${tableService.covers || "?"} covers` : ""}
@@ -13040,15 +13043,15 @@ export default function App() {
                     )}
 
                     {isRemoteStaffTable && (
-                      <div className="rounded-xl border border-[#E78A3E] bg-[#E78A3E]/10 p-3">
-                        <p className="text-[10px] font-mono uppercase tracking-widest text-[#E78A3E] font-black">Remote / split prep</p>
+                      <div className="rounded-xl border border-[#3E5E93] bg-[#3E5E93]/10 p-3">
+                        <p className="text-[10px] font-mono uppercase tracking-widest text-[#3E5E93] font-black">Remote / split prep</p>
                         <p className="text-xs text-black mt-1">
                           Guests may order solo or as a group. Check guest names on each ticket before you fire Pilot lines.
                         </p>
                         {splitGuests.length > 0 ? (
                           <div className="flex flex-wrap gap-1.5 mt-2">
                             {splitGuests.map((guest) => (
-                              <span key={guest} className="px-2 py-1 rounded-full bg-black text-[#E78A3E] text-[10px] font-black uppercase">
+                              <span key={guest} className="px-2 py-1 rounded-full bg-black text-[#3E5E93] text-[10px] font-black uppercase">
                                 {guest}
                               </span>
                             ))}
@@ -13065,7 +13068,7 @@ export default function App() {
                           key={state}
                           type="button"
                           onClick={() => setTablesState(prev => ({ ...prev, [tableId]: state }))}
-                          className={`py-2 rounded-xl text-[10px] font-black uppercase border ${tablesState[tableId] === state ? "bg-[#E78A3E] text-black border-[#E78A3E]" : "bg-zinc-100 text-zinc-700 border-zinc-300"}`}
+                          className={`py-2 rounded-xl text-[10px] font-black uppercase border ${tablesState[tableId] === state ? "bg-[#3E5E93] text-black border-[#3E5E93]" : "bg-zinc-100 text-zinc-700 border-zinc-300"}`}
                         >
                           {state}
                         </button>
@@ -13088,7 +13091,7 @@ export default function App() {
                     </div>
 
                     {!isRemoteStaffTable && (
-                      <div className={`rounded-xl border p-3 ${tableService?.covers ? "border-[#E78A3E]/50 bg-[#E78A3E]/10" : "border-red-300 bg-red-50"}`}>
+                      <div className={`rounded-xl border p-3 ${tableService?.covers ? "border-[#3E5E93]/50 bg-[#3E5E93]/10" : "border-red-300 bg-red-50"}`}>
                         <div className="flex items-center justify-between gap-3">
                           <div>
                             <p className="text-[10px] font-mono uppercase tracking-widest font-black">
@@ -13108,7 +13111,7 @@ export default function App() {
                             onClick={() => {
                               void handleUpdateTableCovers(tableId);
                             }}
-                            className="shrink-0 px-3 py-2 rounded-lg bg-[#E78A3E] text-black text-[10px] font-black uppercase"
+                            className="shrink-0 px-3 py-2 rounded-lg bg-[#3E5E93] text-black text-[10px] font-black uppercase"
                           >
                             {tableService?.covers ? "Edit covers" : "Set covers"}
                           </button>
@@ -13120,13 +13123,13 @@ export default function App() {
                       <div className="rounded-xl border-2 border-black overflow-hidden">
                         <div className="bg-black text-white px-3 py-2 flex items-center justify-between gap-2">
                           <div>
-                            <h4 className="text-xs font-black uppercase text-[#E78A3E]">Waiter order</h4>
+                            <h4 className="text-xs font-black uppercase text-[#3E5E93]">Waiter order</h4>
                             <p className="text-[9px] font-mono uppercase">For guests who have not scanned</p>
                           </div>
                           <button
                             type="button"
                             onClick={() => setStaffManualOrderOpen((open) => !open)}
-                            className="px-3 py-1.5 rounded-lg bg-[#E78A3E] text-black text-[10px] font-black uppercase"
+                            className="px-3 py-1.5 rounded-lg bg-[#3E5E93] text-black text-[10px] font-black uppercase"
                           >
                             {staffManualOrderOpen ? "Close" : "Add order"}
                           </button>
@@ -13137,7 +13140,7 @@ export default function App() {
                               value={staffManualOrderSearch}
                               onChange={(event) => setStaffManualOrderSearch(event.target.value)}
                               placeholder="Search food or drinks..."
-                              className="w-full bg-white border border-zinc-300 focus:border-[#E78A3E] focus:ring-2 focus:ring-[#E78A3E]/30 rounded-xl px-3 py-2.5 text-sm text-black"
+                              className="w-full bg-white border border-zinc-300 focus:border-[#3E5E93] focus:ring-2 focus:ring-[#3E5E93]/30 rounded-xl px-3 py-2.5 text-sm text-black"
                             />
                             <div className="max-h-52 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                               {manualMenuMatches.map((item) => (
@@ -13145,7 +13148,7 @@ export default function App() {
                                   key={item.id}
                                   type="button"
                                   onClick={() => handleAddManualOrderItem(item)}
-                                  className="text-left rounded-lg border border-zinc-200 p-2 hover:border-[#E78A3E] transition-colors"
+                                  className="text-left rounded-lg border border-zinc-200 p-2 hover:border-[#3E5E93] transition-colors"
                                 >
                                   <span className="block text-xs font-black">{item.name}</span>
                                   <span className="text-[10px] font-mono text-zinc-600">R{item.price.toFixed(2)} • Tap to add</span>
@@ -13159,7 +13162,7 @@ export default function App() {
                                     <span className="font-bold">{entry.quantity}× {entry.menuItem.name}</span>
                                     <div className="flex items-center gap-1">
                                       <button type="button" onClick={() => setStaffManualOrderCart((prev) => prev.map((item) => item.menuItem.id === entry.menuItem.id ? { ...item, quantity: Math.max(0, item.quantity - 1) } : item).filter((item) => item.quantity > 0))} className="w-7 h-7 rounded bg-white border border-zinc-300 font-black">−</button>
-                                      <button type="button" onClick={() => handleAddManualOrderItem(entry.menuItem)} className="w-7 h-7 rounded bg-[#E78A3E] text-black font-black">+</button>
+                                      <button type="button" onClick={() => handleAddManualOrderItem(entry.menuItem)} className="w-7 h-7 rounded bg-[#3E5E93] text-black font-black">+</button>
                                     </div>
                                   </div>
                                 ))}
@@ -13174,7 +13177,7 @@ export default function App() {
                                   onClick={() => {
                                     void handleSubmitStaffManualOrder(tableId);
                                   }}
-                                  className="w-full py-3 rounded-xl bg-[#E78A3E] text-black font-black uppercase text-xs"
+                                  className="w-full py-3 rounded-xl bg-[#3E5E93] text-black font-black uppercase text-xs"
                                 >
                                   Send {staffManualOrderCart.reduce((sum, entry) => sum + entry.quantity, 0)} item(s) • R{staffManualOrderCart.reduce((sum, entry) => sum + entry.menuItem.price * entry.quantity, 0).toFixed(2)}
                                 </button>
@@ -13198,7 +13201,7 @@ export default function App() {
                             className="flex-1 bg-white border border-zinc-300 rounded-lg px-3 py-2 text-xs"
                           >
                             <option value="">Choose empty table…</option>
-                            {ROCO_TABLES.filter(
+                            {LUTHO_TABLES.filter(
                               (table) =>
                                 table.id !== REMOTE_TABLE_ID &&
                                 !serviceMemberIds.includes(table.id) &&
@@ -13207,7 +13210,7 @@ export default function App() {
                               <option key={table.id} value={table.id}>{formatTableLabel(table.id)}</option>
                             ))}
                           </select>
-                          <button type="button" onClick={() => { void handleMoveCurrentTable(tableId); }} className="px-3 py-2 rounded-lg bg-black text-[#E78A3E] border border-[#E78A3E] text-[10px] font-black uppercase">Move</button>
+                          <button type="button" onClick={() => { void handleMoveCurrentTable(tableId); }} className="px-3 py-2 rounded-lg bg-black text-[#3E5E93] border border-[#3E5E93] text-[10px] font-black uppercase">Move</button>
                         </div>
 
                         <div className="border-t border-zinc-200 pt-3">
@@ -13224,7 +13227,7 @@ export default function App() {
                               ...serviceMemberIds.filter((id) => id !== tableId),
                               ...staffCombineTables,
                             ]}
-                            disabledTableIds={ROCO_TABLES.filter((table) => {
+                            disabledTableIds={LUTHO_TABLES.filter((table) => {
                               if (table.id === REMOTE_TABLE_ID) return true;
                               if (serviceMemberIds.includes(table.id)) return false;
                               const other = getActiveTableService(table.id);
@@ -13234,7 +13237,7 @@ export default function App() {
                             tableWaiterAssignments={tableWaiterAssignments}
                             tableServices={tableServices}
                             tableNotifications={Object.fromEntries(
-                              ROCO_TABLES.map((t) => [
+                              LUTHO_TABLES.map((t) => [
                                 t.id,
                                 {
                                   openOrders: 0,
@@ -13259,7 +13262,7 @@ export default function App() {
                               Combining: {formatTableShort(tableId)} + {staffCombineTables.map(formatTableShort).join(" + ")}
                             </p>
                           )}
-                          <button type="button" onClick={() => { void handleCombineCurrentTables(tableId); }} className="w-full mt-2 py-2.5 rounded-lg bg-[#E78A3E] text-black text-[10px] font-black uppercase">
+                          <button type="button" onClick={() => { void handleCombineCurrentTables(tableId); }} className="w-full mt-2 py-2.5 rounded-lg bg-[#3E5E93] text-black text-[10px] font-black uppercase">
                             Combine {staffCombineTables.length + 1} tables
                           </button>
                         </div>
@@ -13268,7 +13271,7 @@ export default function App() {
 
                     <div className="rounded-xl border border-zinc-200 p-3">
                       <div className="flex items-center justify-between mb-2">
-                        <h4 className="font-black uppercase text-xs text-[#E78A3E]">
+                        <h4 className="font-black uppercase text-xs text-[#3E5E93]">
                           Table chat {tableChat.length > 0 && `(${tableChat.length})`}
                         </h4>
                         <button type="button" onClick={() => setStaffInspectorChatOpen(v => !v)} className="text-[10px] font-mono uppercase text-zinc-600">{staffInspectorChatOpen ? "Hide" : "Show"}</button>
@@ -13277,7 +13280,7 @@ export default function App() {
                         <>
                           <div className="max-h-40 overflow-y-auto space-y-2 mb-2">
                             {tableChat.length === 0 ? <p className="text-xs text-zinc-500 italic">No messages yet.</p> : tableChat.map((msg, i) => (
-                              <div key={msg.id || i} className={`text-xs p-2 rounded-lg ${msg.sender === "Staff" ? "bg-zinc-100" : "bg-[#E78A3E]/15"}`}>
+                              <div key={msg.id || i} className={`text-xs p-2 rounded-lg ${msg.sender === "Staff" ? "bg-zinc-100" : "bg-[#3E5E93]/15"}`}>
                                 <span className="font-mono text-[9px] uppercase text-zinc-500">{msg.sender}</span>
                                 <p>{msg.text}</p>
                               </div>
@@ -13285,7 +13288,7 @@ export default function App() {
                           </div>
                           <div className="flex gap-2">
                             <input value={staffChatInput} onChange={e => setStaffChatInput(e.target.value)} onKeyDown={e => e.key === "Enter" && handleSendStaffTableChat()} placeholder="Reply to table..." className="flex-1 border border-zinc-300 rounded-lg px-3 py-2 text-sm" />
-                            <button type="button" onClick={handleSendStaffTableChat} className="px-3 py-2 bg-[#E78A3E] text-black font-black uppercase text-[10px] rounded-lg">Send</button>
+                            <button type="button" onClick={handleSendStaffTableChat} className="px-3 py-2 bg-[#3E5E93] text-black font-black uppercase text-[10px] rounded-lg">Send</button>
                           </div>
                         </>
                       )}
@@ -13305,7 +13308,7 @@ export default function App() {
                                   <p className="text-[10px] text-zinc-600 mt-1">{req.note || "Guest needs assistance"}</p>
                                 )}
                               </div>
-                              <button type="button" onClick={async () => { await updateDoc(doc(db, "service_requests", req.id), { status: "DONE" }); triggerToast("Request closed.", "success"); }} className="px-2 py-1 bg-[#E78A3E] text-black rounded text-[10px] font-black uppercase shrink-0">Done</button>
+                              <button type="button" onClick={async () => { await updateDoc(doc(db, "service_requests", req.id), { status: "DONE" }); triggerToast("Request closed.", "success"); }} className="px-2 py-1 bg-[#3E5E93] text-black rounded text-[10px] font-black uppercase shrink-0">Done</button>
                             </div>
                           </div>
                         ))}
@@ -13344,7 +13347,7 @@ export default function App() {
                                 <div className="flex flex-wrap gap-1.5">
                                   <button type="button" onClick={() => handleCopyPilotSummary(ord)} className="px-2 py-1 rounded-lg bg-zinc-900 text-white text-[9px] font-black uppercase">Pilot summary</button>
                                   {active && (
-                                    <button type="button" onClick={() => updateSharedOrderStatus(ord.id, "Served")} className="px-2 py-1 rounded-lg bg-[#E78A3E] text-black text-[9px] font-black uppercase">Mark served</button>
+                                    <button type="button" onClick={() => updateSharedOrderStatus(ord.id, "Served")} className="px-2 py-1 rounded-lg bg-[#3E5E93] text-black text-[9px] font-black uppercase">Mark served</button>
                                   )}
                                   <button type="button" onClick={() => updateSharedOrderStatus(ord.id, "Preparing")} className="px-2 py-1 rounded-lg border border-zinc-300 text-[9px] font-black uppercase">Preparing</button>
                                   <button type="button" onClick={() => updateSharedOrderStatus(ord.id, "Ready")} className="px-2 py-1 rounded-lg border border-zinc-300 text-[9px] font-black uppercase">Ready</button>
@@ -13366,12 +13369,12 @@ export default function App() {
 
                   <div className="p-4 bg-zinc-50 border-t border-zinc-200 flex flex-wrap gap-2">
                     {hasActiveOrders && (
-                      <button type="button" onClick={() => { void handleMarkAllServedForTable(tableId); }} className="flex-1 py-3 bg-[#E78A3E] text-black font-black uppercase text-xs rounded-xl">Mark all served</button>
+                      <button type="button" onClick={() => { void handleMarkAllServedForTable(tableId); }} className="flex-1 py-3 bg-[#3E5E93] text-black font-black uppercase text-xs rounded-xl">Mark all served</button>
                     )}
                     <button
                       type="button"
                       onClick={() => { void handleClearTableForNewParty(tableId); }}
-                      className="flex-1 py-3 bg-black text-[#E78A3E] border border-[#E78A3E] font-black uppercase text-xs rounded-xl"
+                      className="flex-1 py-3 bg-black text-[#3E5E93] border border-[#3E5E93] font-black uppercase text-xs rounded-xl"
                     >
                       Clear table
                     </button>
@@ -13404,11 +13407,11 @@ export default function App() {
                   initial={{ opacity: 0, scale: 0.95, y: 16 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.95, y: 16 }}
-                  className="fixed inset-x-3 top-[6%] bottom-[6%] sm:inset-x-6 max-w-2xl mx-auto bg-white border-2 border-[#E78A3E] rounded-3xl z-[165] overflow-hidden flex flex-col shadow-2xl"
+                  className="fixed inset-x-3 top-[6%] bottom-[6%] sm:inset-x-6 max-w-2xl mx-auto bg-white border-2 border-[#3E5E93] rounded-3xl z-[165] overflow-hidden flex flex-col shadow-2xl"
                 >
-                  <div className="p-4 bg-black border-b border-[#E78A3E] flex justify-between items-center gap-3">
+                  <div className="p-4 bg-black border-b border-[#3E5E93] flex justify-between items-center gap-3">
                     <div>
-                      <h3 className="font-display font-black text-[#E78A3E] text-lg uppercase">
+                      <h3 className="font-display font-black text-[#3E5E93] text-lg uppercase">
                         {formatTableLabel(tableId)} history
                       </h3>
                       <p className="text-[10px] font-mono text-white uppercase">{records.length} cleared sitting{records.length === 1 ? "" : "s"}</p>
@@ -13508,7 +13511,7 @@ export default function App() {
                 setHighlightKitchenOrders(true);
                 setTimeout(() => setHighlightKitchenOrders(false), 4000);
               } catch (error) {
-                console.error("[ROCO] Claim verification failed:", error);
+                console.error("[LUTHO] Claim verification failed:", error);
                 triggerToast("Could not update order after claim scan. Try again.", "info");
                 setIsClaimScannerOpen(false);
               }
@@ -13531,11 +13534,11 @@ export default function App() {
                 initial={{ opacity: 0, scale: 0.95, y: 16 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95, y: 16 }}
-                className="fixed inset-x-4 top-1/2 -translate-y-1/2 max-w-sm mx-auto bg-white border-2 border-[#E78A3E] rounded-3xl z-[9975] overflow-hidden shadow-2xl"
+                className="fixed inset-x-4 top-1/2 -translate-y-1/2 max-w-sm mx-auto bg-white border-2 border-[#3E5E93] rounded-3xl z-[9975] overflow-hidden shadow-2xl"
               >
-                <div className="p-4 bg-black border-b border-[#E78A3E] flex justify-between items-center gap-3">
+                <div className="p-4 bg-black border-b border-[#3E5E93] flex justify-between items-center gap-3">
                   <div>
-                    <h3 className="font-display font-black text-[#E78A3E] uppercase text-sm">Claim pass ready</h3>
+                    <h3 className="font-display font-black text-[#3E5E93] uppercase text-sm">Claim pass ready</h3>
                     {passDownloadPrompt.claimCode && (
                       <p className="text-[10px] font-mono text-white uppercase mt-1">Claim code {passDownloadPrompt.claimCode}</p>
                     )}
@@ -13555,7 +13558,7 @@ export default function App() {
                         await downloadOrderPassPdf(passDownloadPrompt);
                         setPendingPassFormat("pdf");
                       }}
-                      className="flex-1 py-3 rounded-xl bg-[#E78A3E] text-black font-black uppercase text-xs"
+                      className="flex-1 py-3 rounded-xl bg-[#3E5E93] text-black font-black uppercase text-xs"
                     >
                       Download PDF
                     </button>
@@ -13591,19 +13594,19 @@ export default function App() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          id="roco-print-sheet-root"
+          id="lutho-print-sheet-root"
           className="fixed inset-0 bg-white text-black z-[99999] overflow-y-auto font-sans p-6 print-container"
         >
           {/* Print Control Bar - Hidden during window.print() */}
           <div className="no-print bg-zinc-950 p-4 rounded-2xl border border-zinc-900 text-white flex flex-col md:flex-row justify-between items-center gap-4 mb-8 max-w-4xl mx-auto shadow-2xl">
             <div className="flex items-center gap-2.5">
-              <Printer className="w-5 h-5 text-[#FF5A00]" />
+              <Printer className="w-5 h-5 text-[#3E5E93]" />
               <div>
-                <h4 className="font-display font-black text-xs uppercase tracking-widest text-[#FF5A00]">
+                <h4 className="font-display font-black text-xs uppercase tracking-widest text-[#3E5E93]">
                   🖨️ Printable Table QR Code Cards Builder
                 </h4>
                 <p className="text-[9px] font-mono text-zinc-550 uppercase mt-0.5">
-                  Prints standard RocoMamas Table Labels cleanly!
+                  Prints standard Lutho Table Labels cleanly!
                 </p>
               </div>
             </div>
@@ -13620,7 +13623,7 @@ export default function App() {
                   }}
                   className={`px-2.5 py-1 rounded-md text-[9px] font-mono uppercase font-black tracking-wider transition-all border ${
                     qrPrintTheme === t
-                      ? "bg-[#FF5A00] text-black border-[#FF5A00] shadow"
+                      ? "bg-[#3E5E93] text-black border-[#3E5E93] shadow"
                       : "bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-zinc-200 cursor-pointer"
                   }`}
                 >
@@ -13638,7 +13641,7 @@ export default function App() {
                 }}
                 className={`px-4 py-2 font-mono text-xs font-black uppercase rounded-lg tracking-wider cursor-pointer border ${
                   qrCustomizeOpen
-                    ? "bg-[#E78A3E] text-black border-[#E78A3E]"
+                    ? "bg-[#3E5E93] text-black border-[#3E5E93]"
                     : "bg-zinc-900 border-zinc-800 text-zinc-300 hover:text-white"
                 }`}
               >
@@ -13649,7 +13652,7 @@ export default function App() {
                   playBeep(523, "sine", 0.08);
                   window.setTimeout(() => window.print(), 400);
                 }}
-                className="px-4 py-2 bg-[#FF5A00] hover:bg-orange-400 text-black font-mono text-xs font-black uppercase rounded-lg tracking-wider cursor-pointer shadow-md"
+                className="px-4 py-2 bg-[#3E5E93] hover:bg-orange-400 text-black font-mono text-xs font-black uppercase rounded-lg tracking-wider cursor-pointer shadow-md"
               >
                 Print Cards Sheet
               </button>
@@ -13667,10 +13670,10 @@ export default function App() {
           </div>
 
           {qrCustomizeOpen && (
-            <div className="no-print max-w-4xl mx-auto mb-8 rounded-2xl border-2 border-[#E78A3E] bg-[#1C1C1E] text-white overflow-hidden">
-              <div className="p-4 bg-black border-b border-[#E78A3E] flex flex-wrap items-center justify-between gap-3">
+            <div className="no-print max-w-4xl mx-auto mb-8 rounded-2xl border-2 border-[#3E5E93] bg-[#1C1C1E] text-white overflow-hidden">
+              <div className="p-4 bg-black border-b border-[#3E5E93] flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <h4 className="text-[#E78A3E] font-black uppercase text-sm flex items-center gap-2">
+                  <h4 className="text-[#3E5E93] font-black uppercase text-sm flex items-center gap-2">
                     <Sliders className="w-4 h-4" /> Upload printed QR images
                   </h4>
                   <p className="text-[10px] text-zinc-500 font-mono uppercase mt-1">
@@ -13678,7 +13681,7 @@ export default function App() {
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <label className="px-3 py-2 bg-[#E78A3E] text-black text-[10px] font-black uppercase rounded-lg cursor-pointer flex items-center gap-1.5">
+                  <label className="px-3 py-2 bg-[#3E5E93] text-black text-[10px] font-black uppercase rounded-lg cursor-pointer flex items-center gap-1.5">
                     <Upload className="w-3.5 h-3.5" />
                     Batch upload QR
                     <input type="file" accept="image/*" className="hidden" onChange={handleBatchQrUpload} />
@@ -13689,7 +13692,7 @@ export default function App() {
                 </div>
               </div>
               <div className="p-4 grid gap-3 sm:grid-cols-2">
-                {ROCO_TABLES.map((table) => {
+                {LUTHO_TABLES.map((table) => {
                   const tableId = table.id;
                   const hasCustom = !!customQrs[tableId];
                   return (
@@ -13708,7 +13711,7 @@ export default function App() {
                             <HalftoneQRCode
                               text={getSecureGuestUrl(tableId)}
                               size={52}
-                              colorDark="#FF5A00"
+                              colorDark="#3E5E93"
                               colorLight="#FFFFFF"
                             />
                           )}
@@ -13721,7 +13724,7 @@ export default function App() {
                         <button type="button" onClick={() => handleCopyUrl(tableId)} className="px-2 py-1 bg-zinc-900 border border-zinc-800 text-[9px] font-black uppercase text-zinc-300 rounded-md">
                           Copy link
                         </button>
-                        <label className="px-2 py-1 bg-[#E78A3E] text-black text-[9px] font-black uppercase rounded-md cursor-pointer">
+                        <label className="px-2 py-1 bg-[#3E5E93] text-black text-[9px] font-black uppercase rounded-md cursor-pointer">
                           Upload QR
                           <input type="file" accept="image/*" className="hidden" onChange={(e) => handleQrUpload(tableId, e)} />
                         </label>
@@ -13741,7 +13744,7 @@ export default function App() {
 
           {/* Printable sheet container structure */}
           <div className="max-w-4xl mx-auto grid grid-cols-1 sm:grid-cols-2 gap-6 print-grid">
-            {ROCO_TABLES.map((table) => {
+            {LUTHO_TABLES.map((table) => {
               const tableId = table.id;
               const guestUrl = getSecureGuestUrl(tableId);
               const hasCustom = !!customQrs[tableId];
@@ -13760,7 +13763,7 @@ export default function App() {
                       ? "bg-zinc-950 text-white border-zinc-900 shadow-xl" 
                       : isMinimalTheme 
                         ? "bg-white text-black border-black/80" 
-                        : "bg-white text-zinc-900 border-[#FF5A00] hover:shadow-xl"
+                        : "bg-white text-zinc-900 border-[#3E5E93] hover:shadow-xl"
                   }`}
                 >
                   {/* Geometric Texture Layer Backdrop matching main page feel */}
@@ -13771,20 +13774,20 @@ export default function App() {
                       backgroundImage: isDarkTheme 
                         ? `repeating-linear-gradient(45deg, #ffffff 0px, #ffffff 1px, transparent 1px, transparent 10px), repeating-linear-gradient(-45deg, #ffffff 0px, #ffffff 1px, transparent 1px, transparent 10px)`
                         : isOrangeTheme
-                          ? `repeating-linear-gradient(45deg, #FF5A00 0px, #FF5A00 1.5px, transparent 1.5px, transparent 12px), repeating-linear-gradient(-45deg, #FF5A00 0px, #FF5A00 1.5px, transparent 1.5px, transparent 12px)`
+                          ? `repeating-linear-gradient(45deg, #3E5E93 0px, #3E5E93 1.5px, transparent 1.5px, transparent 12px), repeating-linear-gradient(-45deg, #3E5E93 0px, #3E5E93 1.5px, transparent 1.5px, transparent 12px)`
                           : `repeating-linear-gradient(45deg, #000000 0px, #000000 1px, transparent 1px, transparent 10px), repeating-linear-gradient(-45deg, #000000 0px, #000000 1px, transparent 1px, transparent 10px)`,
                       zIndex: 1
                     }}
                   />
 
                   {/* Decorative top strip */}
-                  <div className={`absolute top-0 inset-x-0 h-3 z-10 ${isDarkTheme ? "bg-zinc-900" : isMinimalTheme ? "bg-black" : "bg-[#FF5A00]"}`} />
+                  <div className={`absolute top-0 inset-x-0 h-3 z-10 ${isDarkTheme ? "bg-zinc-900" : isMinimalTheme ? "bg-black" : "bg-[#3E5E93]"}`} />
                   
-                  {/* RocoMamas Combined Brand Logo - Larger and transparent background */}
+                  {/* Lutho Combined Brand Logo - Larger and transparent background */}
                   <div className="flex flex-col items-center justify-center relative z-10 mb-3 mt-4">
                     <img 
-                      src={ROCO_BRAND_LOGO_URL}
-                      alt="RocoMamas Brand Logo"
+                      src={LUTHO_BRAND_LOGO_URL}
+                      alt="Lutho Brand Logo"
                       className="h-14 w-auto object-contain drop-shadow-[0_3px_6px_rgba(0,0,0,0.2)]"
                       referrerPolicy="no-referrer"
                     />
@@ -13793,12 +13796,12 @@ export default function App() {
                   {/* Header Branding */}
                   <div className="space-y-1 relative z-10">
                     <span className={`font-mono text-[8.5px] font-black uppercase tracking-widest block ${isDarkTheme ? "text-zinc-550" : "text-zinc-450"}`}>
-                      ROCOMAMAS • DIGITAL ORDERING
+                      LUTHO • DIGITAL ORDERING
                     </span>
                     
                     <div className="flex items-center justify-center gap-2 mt-1">
                       <h2 className={`font-display font-extrabold text-3xl uppercase leading-none tracking-tighter ${
-                        isDarkTheme ? "text-[#FF5A00]" : isMinimalTheme ? "text-black" : "text-[#FF5A00]"
+                        isDarkTheme ? "text-[#3E5E93]" : isMinimalTheme ? "text-black" : "text-[#3E5E93]"
                       }`}>
                         {tableId === REMOTE_TABLE_ID ? "REMOTE ORDERING" : `TABLE ${tableId.padStart(2, "0")}`}
                       </h2>
@@ -13809,7 +13812,7 @@ export default function App() {
                         ? "bg-zinc-900 border-zinc-805 text-zinc-400" 
                         : isMinimalTheme 
                           ? "bg-zinc-50 border-zinc-200 text-zinc-700" 
-                          : "bg-orange-50/50 border-orange-100 text-[#FF5A00]"
+                          : "bg-orange-50/50 border-orange-100 text-[#3E5E93]"
                     }`}>
                       {tableId === REMOTE_TABLE_ID
                         ? "Scan • order • claim at the counter"
@@ -13832,7 +13835,7 @@ export default function App() {
                       <HalftoneQRCode 
                         text={guestUrl}
                         size={160}
-                        colorDark={isMinimalTheme ? "#000000" : "#FF5A00"}
+                        colorDark={isMinimalTheme ? "#000000" : "#3E5E93"}
                         colorLight={isDarkTheme ? "#050505" : "#FFFFFF"}
                       />
                     )}
@@ -13843,11 +13846,11 @@ export default function App() {
                       ? "bg-zinc-900 border-zinc-800" 
                       : isMinimalTheme 
                         ? "bg-white border-black" 
-                        : "bg-white border-[#FF5A00]"
+                        : "bg-white border-[#3E5E93]"
                   }`}>
                     <img 
-                      src={ROCO_BRAND_LOGO_URL}
-                      alt="RocoMamas"
+                      src={LUTHO_BRAND_LOGO_URL}
+                      alt="Lutho"
                       className="w-full h-full object-contain"
                       referrerPolicy="no-referrer"
                     />
@@ -13865,10 +13868,10 @@ export default function App() {
                     {/* Visually prominent table PIN badge */}
                     <div className={`mt-2.5 px-3.5 py-1 rounded-xl border font-mono text-[10px] uppercase font-black tracking-wider inline-flex items-center gap-1.5 shadow-xs ${
                       isDarkTheme 
-                        ? "bg-zinc-900 border-zinc-800 text-[#FF5A00]" 
+                        ? "bg-zinc-900 border-zinc-800 text-[#3E5E93]" 
                         : isMinimalTheme 
                           ? "bg-zinc-100 border-zinc-300 text-black" 
-                          : "bg-orange-50/80 border-orange-200 text-[#FF5A00]"
+                          : "bg-orange-50/80 border-orange-200 text-[#3E5E93]"
                     }`}>
                       🔐 TABLE PIN: <span className="text-xs font-extrabold tracking-widest">{tablePin}</span>
                     </div>
@@ -13902,10 +13905,10 @@ export default function App() {
                 min-height: auto !important;
                 overflow: visible !important;
               }
-              body > *:not(#roco-print-sheet-root) {
+              body > *:not(#lutho-print-sheet-root) {
                 display: none !important;
               }
-              #roco-print-sheet-root {
+              #lutho-print-sheet-root {
                 display: block !important;
                 position: absolute !important;
                 left: 0 !important;

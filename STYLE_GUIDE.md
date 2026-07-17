@@ -1,47 +1,50 @@
-# ROCO OS Style & Brand Design Guide
+# LUTHO OS Style & Brand Design Guide
 
-This document defines the strict styling and development conventions for the **ROCO OS** system. All future builds, component enhancements, and module layouts must adhere strictly to these guidelines to ensure consistency, high visual contrast, WCAG compliance, and brand alignment.
+This document defines the styling and development conventions for the **LUTHO OS** white-label hospitality platform. Lutho is a fully re-themeable operating system: every venue can match the app to its own colours from the in-app **Theme Studio**, but these are the defaults that ship with the product.
 
 ---
 
-## 1. Core Brand Colors
+## 1. Core Brand Colours
 
-The visual identity of ROCO OS is built on a high-octane, high-contrast urban palette.
+Lutho's default identity is a calm, premium, enterprise palette: creamy light beige, light navy blue, and silver/chrome.
 
 | Token Name | Hex Code | Usage Context |
 | :--- | :--- | :--- |
-| **Primary Orange** | `#E78A3E` | Highlights, active states, hover backgrounds, borders, focus rings, select icons, primary CTA accents. |
-| **Primary Black** | `#000000` | Dark sections (header, footers, drawer sidebars), background for deep containers, typography on white/orange. |
-| **Primary White** | `#FFFFFF` | Core application canvas background, card panels, standard text on black sections. |
+| **Primary Navy** | `#3E5E93` | Primary CTAs, active states, highlights, focus rings, links, key icons. |
+| **Silver / Chrome** | `#9AA6B8` | Secondary accents, dividers, muted controls, metadata chips. |
+| **Champagne / Beige** | `#C7A468` | Tertiary accents, awards, celebratory highlights. |
+| **Canvas Beige** | `#F4EEE1` | Core application canvas background. |
+| **Card White** | `#FFFFFF` | Card panels and modals. |
+| **Ink Navy** | `#20293A` | Body copy and headings on light surfaces. |
+
+The accent trio (primary / secondary / tertiary) is exposed as CSS variables — `--lutho-primary`, `--lutho-secondary`, `--lutho-tertiary` — so the Theme Studio can retheme the entire app live.
 
 ---
 
 ## 2. Accessibility & Typography Rules
 
-To pass strict WCAG AA/AAA visual standards across different screen resolutions and ambient light scenarios in a pub or restaurant environment:
-
-*   **Primary CTA Contrast:** Any button styled in **Primary Orange (`#E78A3E`)** MUST display label text in solid **Primary Black (`#000000`)** or heavy dark fonts. Never use white text over the primary orange.
-*   **Header / Footer Sections (Black Background):** Text and structural icons in these areas must use high-purity **Primary White (`#FFFFFF`)** or high-vibrancy **Primary Orange (`#E78A3E`)**. Never use dark charcoal or dim gray over black.
-*   **Main Canvas (White Background):** Standard text, body copy, and paragraph descriptions must utilize high-contrast black (`#000000`) or dark zinc (`#18181B`) text.
+* **Primary CTA Contrast:** Buttons using **Primary Navy (`#3E5E93`)** MUST display label text in **white (`#FFFFFF`)**. This is enforced automatically for any element carrying the `bg-[#3E5E93]` token.
+* **Main Canvas (Beige Background):** Standard text and body copy must use high-contrast **Ink Navy (`#20293A`)** or dark slate.
+* **Deep Surfaces:** Header, footer, and drawer surfaces render as deep beige with Ink Navy text and silver borders for a clean, high-legibility look in bright venues.
 
 ---
 
 ## 3. Brand Naming & Logos
 
-*   **Brand Name:** Always refer to the system as **ROCO** or **ROCO OS**. Ensure all references to the legacy "Staffordshire" brand remain retired.
-*   **Official Logo URL:** Use the combined logo asset exactly:
-    `https://www.rocomamas.co.ke/images//logo-combined.png`
+* **Brand Name:** Always refer to the system as **Lutho** or **Lutho OS**. No legacy brand references (RocoMamas / Staffordshire) should remain anywhere in the product.
+* **Logo Asset:** Use the local combined logo asset: `/lutho-logo.png`.
+* **Stamp / Emblem:** Loyalty stamps and the favicon use `/lutho-stamp-logo.png`.
 
 ---
 
 ## 4. Component Architecture & UI Elements
 
 ### Background Structure
-*   **Main Container:** Always use predominantly white `#FFFFFF` canvases combined with the `.grunge-pattern` class for urban texture.
-*   **Headers & Footers:** Lock to full solid black `#000000` with top/bottom primary orange borders (`border-[#E78A3E]`).
-*   **Modals & Overlays:** Standard modals must be clean white cards with solid orange borders and rich black shadows (`shadow-2xl`).
+* **Main Container:** Predominantly beige `#F4EEE1` canvas combined with the subtle `.grunge-pattern` texture.
+* **Headers & Footers:** Deep-beige surfaces with silver borders.
+* **Modals & Overlays:** Clean white cards with navy/silver accents and soft shadows (`shadow-2xl`).
 
 ### Inputs, Buttons & Interactive States
-*   **Standard Input Fields:** White backgrounds, black text, light borders, transitioning to a solid **Primary Orange** focus ring and border upon focus.
-*   **Primary Buttons:** Styled with background `#E78A3E` and black text. On hover, apply a slightly deeper accent shade with smooth transition curves.
-*   **Pills & Tabs:** Unselected pills use light backgrounds (`#F4F4F5`) with dark text; selected active state highlights immediately switch to Primary Orange or solid black with clear visual boundaries.
+* **Standard Input Fields:** White backgrounds, ink-navy text, silver borders, transitioning to a **Primary Navy** focus ring on focus.
+* **Primary Buttons:** Background `#3E5E93` with white text; hover deepens to `#2F4A73`.
+* **Pills & Tabs:** Unselected pills use light backgrounds with dark text; the selected/active state switches to Primary Navy with white text.
