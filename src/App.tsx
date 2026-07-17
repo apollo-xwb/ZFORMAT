@@ -5642,7 +5642,7 @@ export default function App() {
             initial={{ opacity: 1 }}
             exit={{ opacity: 0, scale: 1.05 }}
             transition={{ duration: 0.5, ease: "easeInOut" }}
-            className="fixed inset-0 z-[99999] flex flex-col items-center justify-center p-6 text-center select-none font-sans bg-cover bg-center"
+            className="lutho-dark-surface fixed inset-0 z-[99999] flex flex-col items-center justify-center p-6 text-center select-none font-sans bg-cover bg-center"
             style={{ backgroundImage: "url('')" }}
           >
             {/* Dark glass backdrop overlay for heavy contrast rendering */}
@@ -5767,7 +5767,7 @@ export default function App() {
 
       {onAdminKioskRoute && !(appMode === "STAFF" && activeStaffProfile) ? (
         <div
-          className="min-h-screen bg-cover bg-center flex flex-col items-center justify-center p-6 relative z-55 text-white font-sans overflow-y-auto select-none w-full max-w-[500px] mx-auto border-x border-[#1F1F22] shadow-[0_0_80px_rgba(0,0,0,0.85)]"
+          className="lutho-dark-surface min-h-screen bg-cover bg-center flex flex-col items-center justify-center p-6 relative z-55 text-white font-sans overflow-y-auto select-none w-full max-w-[500px] mx-auto border-x border-[#1F1F22] shadow-[0_0_80px_rgba(0,0,0,0.85)]"
           style={{ backgroundImage: "url('')" }}
         >
           <div className="absolute inset-0 bg-black/80 backdrop-blur-xs pointer-events-none" />
@@ -5828,7 +5828,7 @@ export default function App() {
         <>
           {!hasTableSlug ? (
             <div 
-              className="min-h-screen bg-cover bg-center flex flex-col items-center justify-center p-6 relative z-55 text-white font-sans overflow-y-auto select-none w-full max-w-[500px] mx-auto border-x border-[#1F1F22] shadow-[0_0_80px_rgba(0,0,0,0.85)]"
+              className="lutho-dark-surface min-h-screen bg-cover bg-center flex flex-col items-center justify-center p-6 relative z-55 text-white font-sans overflow-y-auto select-none w-full max-w-[500px] mx-auto border-x border-[#1F1F22] shadow-[0_0_80px_rgba(0,0,0,0.85)]"
               style={{ backgroundImage: "url('')" }}
             >
               <div className="absolute inset-0 bg-black/75 backdrop-blur-xs pointer-events-none" />
@@ -5911,7 +5911,7 @@ export default function App() {
             </div>
           ) : !isValidTable ? (
             <div 
-              className="min-h-screen bg-cover bg-center flex flex-col items-center justify-center p-4 relative z-55 text-white font-sans overflow-y-auto select-none w-full max-w-[500px] mx-auto border-x border-[#1F1F22] shadow-[0_0_80px_rgba(0,0,0,0.85)]"
+              className="lutho-dark-surface min-h-screen bg-cover bg-center flex flex-col items-center justify-center p-4 relative z-55 text-white font-sans overflow-y-auto select-none w-full max-w-[500px] mx-auto border-x border-[#1F1F22] shadow-[0_0_80px_rgba(0,0,0,0.85)]"
               style={{ backgroundImage: "url('')" }}
             >
               {/* Warm gradient and blur overlay for high contrast and beautiful branding overlay */}
@@ -5994,7 +5994,7 @@ export default function App() {
             </div>
           ) : !isTableUnlocked ? (
             <div 
-              className="min-h-screen bg-cover bg-center flex flex-col items-center justify-center p-4 relative z-55 text-white font-sans overflow-y-auto select-none w-full max-w-[500px] mx-auto border-x border-[#1F1F22] shadow-[0_0_80px_rgba(0,0,0,0.85)]"
+              className="lutho-dark-surface min-h-screen bg-cover bg-center flex flex-col items-center justify-center p-4 relative z-55 text-white font-sans overflow-y-auto select-none w-full max-w-[500px] mx-auto border-x border-[#1F1F22] shadow-[0_0_80px_rgba(0,0,0,0.85)]"
               style={{ backgroundImage: "url('')" }}
             >
               {/* Warm gradient and blur overlay for high contrast and beautiful branding overlay */}
@@ -8484,7 +8484,7 @@ export default function App() {
               aria-label="Staff sign in"
             >
               <div
-                className="h-full bg-cover bg-center flex flex-col items-center justify-center p-4 relative text-white font-sans overflow-y-auto select-none"
+                className="lutho-dark-surface h-full bg-cover bg-center flex flex-col items-center justify-center p-4 relative text-white font-sans overflow-y-auto select-none"
                 style={{ backgroundImage: "url('')" }}
               >
                 <div className="absolute inset-0 bg-black/75 backdrop-blur-xs pointer-events-none" />

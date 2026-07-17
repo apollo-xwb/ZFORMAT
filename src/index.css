@@ -274,6 +274,38 @@ html, body {
 #lutho-os-container [class~="text-[#3E5E93]"],
 [class~="text-[#3E5E93]"] { color: var(--lutho-primary) !important; }
 
+/* Keep labels/icons legible when nested inside a solid navy accent surface */
+#lutho-os-container [class~="bg-[#3E5E93]"] [class~="text-white"],
+#lutho-os-container [class~="bg-[#3E5E93]"] [class~="text-zinc-100"],
+#lutho-os-container [class~="bg-[#3E5E93]"] [class~="text-zinc-200"],
+#lutho-os-container [class~="bg-[#3E5E93]"] [class~="text-zinc-300"],
+[class~="bg-[#3E5E93]"] [class~="text-white"] {
+  color: var(--lutho-on-primary) !important;
+}
+
+/* ---------------------------------------------------------------------
+   INTENTIONAL DARK SURFACES (boot / gate / hero / error screens)
+   These full-bleed screens stay a premium navy even under the light theme,
+   so their light text must be preserved instead of flipped to ink.
+   --------------------------------------------------------------------- */
+.lutho-dark-surface {
+  color: var(--lutho-cream) !important;
+  background-color: #16233B !important;
+  background-image: radial-gradient(circle at 50% 0%, #2A3E5E 0%, #111B2E 72%) !important;
+}
+#lutho-os-container .lutho-dark-surface,
+.lutho-dark-surface { color: var(--lutho-cream) !important; }
+#lutho-os-container .lutho-dark-surface [class~="text-white"],
+#lutho-os-container .lutho-dark-surface [class~="text-zinc-100"],
+#lutho-os-container .lutho-dark-surface [class~="text-zinc-200"],
+#lutho-os-container .lutho-dark-surface [class~="text-zinc-300"] {
+  color: var(--lutho-cream) !important;
+}
+#lutho-os-container .lutho-dark-surface [class~="text-zinc-400"],
+#lutho-os-container .lutho-dark-surface [class~="text-zinc-500"] {
+  color: #AEB6C4 !important;
+}
+
 /* Elegant faint diagonal stripes */
 .diagonal-stripes {
   background-image: repeating-linear-gradient(
