@@ -1,5 +1,5 @@
 export const RONDEBOSCH_VENUE = {
-  name: "RocoMamas Rondebosch",
+  name: "Lutho Rondebosch",
   address: "Shop 37, Riverside Mall, Main Road",
   summary: "Open daily • Sun–Thu 09:00–21:00 • Fri–Sat 09:00–22:00"
 };

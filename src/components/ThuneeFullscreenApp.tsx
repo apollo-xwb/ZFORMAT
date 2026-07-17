@@ -135,7 +135,7 @@ export function ThuneeFullscreenApp({
           <span className="text-xl sm:text-2xl animate-pulse shrink-0">🃏</span>
           <div>
             <div className="flex items-center gap-1.5 sm:gap-2">
-              <h4 className="font-display font-black text-[10px] xs:text-xs sm:text-sm tracking-widest text-[#FF5A00] uppercase leading-none">
+              <h4 className="font-display font-black text-[10px] xs:text-xs sm:text-sm tracking-widest text-[#3E5E93] uppercase leading-none">
                 DURBAN THUNEE
               </h4>
               <span className="text-[7px] sm:text-[8px] bg-[#0c1810] text-emerald-400 font-mono px-1 sm:px-1.5 py-0.5 rounded uppercase border border-emerald-900/50 shrink-0">
@@ -202,7 +202,7 @@ export function ThuneeFullscreenApp({
                onClick={() => {
                  playBeep(450, "sine", 0.05);
                  if (window.confirm("Change/Reset Game Mode? This will reset the current table session.")) {
-                   localStorage.removeItem("roco_thunee_room_" + currentTableId);
+                   localStorage.removeItem("lutho_thunee_room_" + currentTableId);
                    updateThuneeGame({
                      mode: null,
                      seats: [null, null, null, null],
@@ -363,7 +363,7 @@ export function ThuneeFullscreenApp({
                       host: currentPlayerName,
                       lastUpdated: Date.now()
                     };
-                    localStorage.setItem("roco_thunee_room_" + currentTableId, JSON.stringify(stateObj));
+                    localStorage.setItem("lutho_thunee_room_" + currentTableId, JSON.stringify(stateObj));
                     triggerToast("Live Table Congregation Lounge Active! 👥", "success");
                   }}
                   className="p-5 bg-black/55 hover:bg-[#1a1208]/30 border border-amber-900/40 hover:border-amber-500/30 rounded-2xl text-left transition-all duration-300 cursor-pointer flex flex-col justify-between space-y-4 group"
@@ -374,7 +374,7 @@ export function ThuneeFullscreenApp({
                       👥 Live Table Congregate
                     </h4>
                     <p className="text-[11px] text-zinc-500 leading-normal">
-                      Share your current table ID with other participants sitting at RocoMamas to play together live.
+                      Share your current table ID with other participants sitting at Lutho to play together live.
                     </p>
                   </div>
                   <div className="text-[10px] font-mono text-amber-550 uppercase flex items-center gap-1 font-bold pt-1.5 border-t border-zinc-900/60">
@@ -391,7 +391,7 @@ export function ThuneeFullscreenApp({
               <div className="text-center space-y-1.5 mb-8">
                 <span className="text-4xl">🥘</span>
                 <h4 className="font-display font-black text-sm sm:text-base text-zinc-200 uppercase tracking-widest">
-                  ROCOMAMAS TABLE #{currentTableId} RECEPTION ZONE
+                  LUTHO TABLE #{currentTableId} RECEPTION ZONE
                 </h4>
                 <p className="text-[10px] font-mono text-zinc-500 uppercase">
                   Settle yourselves into open chairs around the griddle felt to play
@@ -560,13 +560,13 @@ export function ThuneeFullscreenApp({
                 <div className="w-full md:w-80 bg-zinc-900/40 rounded-2xl border border-zinc-800 p-5 flex flex-col justify-between space-y-4">
                   <div className="space-y-4">
                     <div className="border-b border-zinc-800 pb-3">
-                      <span className="text-[9px] font-mono text-[#FF5A00] font-bold uppercase">LOBBY ACTIVE</span>
+                      <span className="text-[9px] font-mono text-[#3E5E93] font-bold uppercase">LOBBY ACTIVE</span>
                       <h5 className="font-sans font-black text-white text-xs uppercase mt-0.5">Control Terminal</h5>
                       <p className="text-[9px] text-zinc-500 font-mono mt-1">Host Admin: {thuneeHostName || "GUEST"}</p>
                     </div>
 
                     <div className="bg-black/60 p-3 rounded-xl border border-zinc-950 font-mono text-[9px] leading-relaxed text-zinc-400 h-[100px] overflow-y-auto space-y-1">
-                      <p className="text-[#FF5A00]">📋 Status log feed:</p>
+                      <p className="text-[#3E5E93]">📋 Status log feed:</p>
                       <p>{thuneeGameStatusText}</p>
                       {thuneeSeats.filter(Boolean).map((s, i) => (
                         <p key={i} className="text-zinc-600">• Participant '{s}' connected.</p>
@@ -596,7 +596,7 @@ export function ThuneeFullscreenApp({
                             }
                             startThuneeRound();
                           }}
-                          className="w-full py-3 bg-[#FF5A00] hover:bg-orange-400 text-black font-sans font-black text-xs uppercase rounded-xl tracking-wider cursor-pointer duration-150 transition-all text-center block shadow-[0_4px_12px_rgba(255,90,0,0.2)]"
+                          className="w-full py-3 bg-[#3E5E93] hover:bg-orange-400 text-black font-sans font-black text-xs uppercase rounded-xl tracking-wider cursor-pointer duration-150 transition-all text-center block shadow-[0_4px_12px_rgba(62, 94, 147,0.2)]"
                         >
                           ⚡ COMMENCE CHICKEN CLASH!
                         </button>
@@ -629,7 +629,7 @@ export function ThuneeFullscreenApp({
               {/* STATUS ACTION BAR */}
               <div className="bg-black/60 p-2 sm:p-3 rounded-xl sm:rounded-2xl border border-zinc-900/60 flex flex-col sm:flex-row gap-2 justify-between items-center text-center sm:text-left shrink-0">
                 <div className="space-y-0.5">
-                  <span className="text-[8px] font-mono text-[#FF5A00] uppercase tracking-widest font-bold">LIVE MATCH ANNOUNCEMENT:</span>
+                  <span className="text-[8px] font-mono text-[#3E5E93] uppercase tracking-widest font-bold">LIVE MATCH ANNOUNCEMENT:</span>
                   <p className="text-[11px] font-mono font-bold text-zinc-300">
                     📢 {thuneeGameStatusText}
                   </p>
@@ -708,7 +708,7 @@ export function ThuneeFullscreenApp({
                               playBeep(600, "sine", 0.08);
                               startThuneeRound();
                             }}
-                            className="px-3 py-1.5 xs:px-4 xs:py-2 bg-[#FF5A00] hover:bg-orange-400 text-black font-sans font-black text-[9.5px] xs:text-xs uppercase rounded-xl tracking-wider cursor-pointer font-bold duration-150 active:scale-95 shadow-md text-nowrap"
+                            className="px-3 py-1.5 xs:px-4 xs:py-2 bg-[#3E5E93] hover:bg-orange-400 text-black font-sans font-black text-[9.5px] xs:text-xs uppercase rounded-xl tracking-wider cursor-pointer font-bold duration-150 active:scale-95 shadow-md text-nowrap"
                           >
                             🎴 DEAL CARDS
                           </button>
@@ -1023,7 +1023,7 @@ export function ThuneeFullscreenApp({
 
               {/* E. GAME OVER GRAND RESUOLUTION PANEL */}
               {thuneeStage === "GAME_OVER" && (
-                <div className="flex flex-col items-stretch gap-4 bg-black/75 p-6 rounded-3xl border border-[#FF5A00]/25 text-center max-w-md mx-auto w-full relative z-10 shadow-2xl">
+                <div className="flex flex-col items-stretch gap-4 bg-black/75 p-6 rounded-3xl border border-[#3E5E93]/25 text-center max-w-md mx-auto w-full relative z-10 shadow-2xl">
                   <span className="text-4xl animate-bounce">👑</span>
                   <div>
                     <h4 className="font-display font-black text-white text-sm uppercase tracking-widest">
@@ -1045,7 +1045,7 @@ export function ThuneeFullscreenApp({
                       setThuneeSuggestedCardId(null);
                       setThuneeGameMode(null);
                     }}
-                    className="w-full py-3 bg-[#FF5A00] hover:bg-orange-400 text-black font-sans font-bold text-xs uppercase rounded-xl cursor-pointer duration-150 text-center shadow-md font-black"
+                    className="w-full py-3 bg-[#3E5E93] hover:bg-orange-400 text-black font-sans font-bold text-xs uppercase rounded-xl cursor-pointer duration-150 text-center shadow-md font-black"
                   >
                     🃏 RETURN TO MODE LOBBY SELECTION
                   </button>
@@ -1147,7 +1147,7 @@ export function ThuneeFullscreenApp({
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: "auto" }}
               exit={{ opacity: 0, height: 0 }}
-              className="bg-[#121212]/95 border-2 border-[#FF5A00]/40 p-4 rounded-2xl space-y-3.5 relative shadow-2xl"
+              className="bg-[#121212]/95 border-2 border-[#3E5E93]/40 p-4 rounded-2xl space-y-3.5 relative shadow-2xl"
             >
               <button 
                 onClick={() => setThuneeShowHelpSheet(false)}
@@ -1157,7 +1157,7 @@ export function ThuneeFullscreenApp({
               </button>
               
               <div>
-                <span className="text-[#FF5A00] font-mono text-[8px] font-black uppercase tracking-wider block">OFFICIAL TOURNAMENT EDITION</span>
+                <span className="text-[#3E5E93] font-mono text-[8px] font-black uppercase tracking-wider block">OFFICIAL TOURNAMENT EDITION</span>
                 <h6 className="font-display font-black text-white text-xs uppercase tracking-widest">
                   THE DURBAN THUNEE RULEBOOK & MANUAL
                 </h6>
@@ -1179,7 +1179,7 @@ export function ThuneeFullscreenApp({
                     }}
                     className={`px-2 py-1 text-[8.5px] font-mono rounded border transition-all cursor-pointer whitespace-nowrap shrink-0 ${
                       manualTab === thb.id 
-                        ? "bg-[#FF5A00] border-[#FF5A00] text-black font-black" 
+                        ? "bg-[#3E5E93] border-[#3E5E93] text-black font-black" 
                         : "bg-black/60 border-zinc-850 text-zinc-400 hover:text-zinc-200"
                     }`}
                   >
@@ -1192,7 +1192,7 @@ export function ThuneeFullscreenApp({
               <div className="text-[9.5px] text-zinc-300 font-mono leading-relaxed bg-black/60 p-3 rounded-xl border border-zinc-900 space-y-2 max-h-[190px] overflow-y-auto">
                 {manualTab === "basics" && (
                   <div className="space-y-1.5">
-                    <p className="text-[#FF5A00] font-bold uppercase text-[9px]">📍 THE CRITICAL CORE GOAL:</p>
+                    <p className="text-[#3E5E93] font-bold uppercase text-[9px]">📍 THE CRITICAL CORE GOAL:</p>
                     <p>Thunee is a trick-taking card game played by <strong className="text-white">4 players in 2 competing partnership teams</strong>. It uses 24 cards (from Nine to Ace of all suits).</p>
                     <p>First team to secure <strong className="text-yellow-400">151 trick points</strong> during played hands wins the active round. Round victories reward match points; series is completed once a team reaches 4 match points first!</p>
                   </div>
@@ -1200,7 +1200,7 @@ export function ThuneeFullscreenApp({
 
                 {manualTab === "pointvals" && (
                   <div className="space-y-1.5">
-                    <p className="text-[#FF5A00] font-bold uppercase text-[9px]">🏆 DURBAN CARD EVALUATIONS (NOT STANDARD HIERARCHY):</p>
+                    <p className="text-[#3E5E93] font-bold uppercase text-[9px]">🏆 DURBAN CARD EVALUATIONS (NOT STANDARD HIERARCHY):</p>
                     <div className="grid grid-cols-2 gap-1.5 border-y border-zinc-900 py-1.5 text-[9px]">
                       <p>✨ <strong className="text-white">JACK:</strong> 30 PTS (highest rank)</p>
                       <p>⚡ <strong className="text-white">NINE:</strong> 20 PTS</p>
@@ -1215,7 +1215,7 @@ export function ThuneeFullscreenApp({
 
                 {manualTab === "trumps" && (
                   <div className="space-y-1.5">
-                    <p className="text-[#FF5A00] font-bold uppercase text-[9px]">🛡️ SUITING, LEADING & TRUMP CUTTING LAWS:</p>
+                    <p className="text-[#3E5E93] font-bold uppercase text-[9px]">🛡️ SUITING, LEADING & TRUMP CUTTING LAWS:</p>
                     <p>1. <strong className="text-white">The Lead Suit:</strong> The first thrown card in a round trick sets the "lead suit". All following players MUST match this suit if they have it.</p>
                     <p>2. <strong className="text-white">Hold Suit mandate:</strong> If you are holding cards of the trick's lead suit, throwing them is obligatory. Throwing another suit while matching is cheating.</p>
                     <p>3. <strong className="text-white">Elective Trump Cutting:</strong> If you are clean out of matching lead suit cards, you can throw a "TRUMP CARD" to CUT the trick and win it, or discard a low value spacer.</p>
@@ -1224,7 +1224,7 @@ export function ThuneeFullscreenApp({
 
                 {manualTab === "calls" && (
                   <div className="space-y-1.5">
-                    <p className="text-[#FF5A00] font-bold uppercase text-[9px]">📣 CHAMPIONSHIP CALL MECHANICS:</p>
+                    <p className="text-[#3E5E93] font-bold uppercase text-[9px]">📣 CHAMPIONSHIP CALL MECHANICS:</p>
                     <p>• <strong className="text-white">JORI (Double points):</strong> If you hold both Jack and Nine of the Trump suit, declaring Jori doubles match scores at the end of matches.</p>
                     <p>• <strong className="text-white">THUNEE (Trick Sweep):</strong> If you nominate yourself to sweeps ALL tricks single-handedly without partner assistance, call "Thunee". Successfully sweep the table to gain 4 instant match points!</p>
                   </div>

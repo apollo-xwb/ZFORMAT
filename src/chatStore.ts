@@ -6,7 +6,7 @@ export type ChatMessage = {
   timestamp: string;
 };
 
-const STORAGE_KEY = "roco_chat_messages";
+const STORAGE_KEY = "lutho_chat_messages";
 
 export function loadChatMessages(): ChatMessage[] {
   try {
@@ -19,7 +19,7 @@ export function loadChatMessages(): ChatMessage[] {
 
 export function saveChatMessages(messages: ChatMessage[]) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
-  window.dispatchEvent(new CustomEvent("roco_chat_updated"));
+  window.dispatchEvent(new CustomEvent("lutho_chat_updated"));
 }
 
 export function appendChatMessage(messages: ChatMessage[], message: ChatMessage): ChatMessage[] {

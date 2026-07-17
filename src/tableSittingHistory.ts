@@ -116,7 +116,7 @@ export function listenTableSittings(
       onData(rows);
     },
     (error) => {
-      console.error("[ROCO] Table sittings listen failed:", error);
+      console.error("[LUTHO] Table sittings listen failed:", error);
       onData([]);
     }
   );

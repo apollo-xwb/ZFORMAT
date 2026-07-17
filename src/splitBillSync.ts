@@ -66,7 +66,7 @@ export function listenSplitSession(
       });
     },
     (error) => {
-      console.error("[ROCO] Split session listen failed:", error);
+      console.error("[LUTHO] Split session listen failed:", error);
     }
   );
 }
@@ -106,7 +106,7 @@ export function listenSplitBill(
       onData(Array.isArray(data.items) ? data.items : []);
     },
     (error) => {
-      console.error("[ROCO] Split bill listen failed:", error);
+      console.error("[LUTHO] Split bill listen failed:", error);
     }
   );
 }

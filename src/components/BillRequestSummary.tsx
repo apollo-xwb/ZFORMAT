@@ -34,7 +34,7 @@ export function BillRequestSummary({
   const isCompact = variant === "compact";
   const labelClass = isGuest ? "text-zinc-700" : "text-zinc-500";
   const valueClass = isGuest ? "text-black font-bold" : "text-zinc-300";
-  const accentClass = isGuest ? "text-[#E78A3E]" : "text-[#FF5A00]";
+  const accentClass = isGuest ? "text-[#3E5E93]" : "text-[#3E5E93]";
 
   if (isCompact) {
     return (

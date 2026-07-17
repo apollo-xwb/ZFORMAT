@@ -11,7 +11,7 @@ export const MENU_ITEMS: MenuItem[] = [
     category: "EAT",
     emoji: "⚡",
     sectionName: "Promos",
-    image: "https://cms.rocomamas.com/uploads/29033_RM_Double_Points_Web_800x600_FA_0904278a09.jpg"
+    image: ""
   },
   {
     id: "promo-2",
@@ -22,7 +22,7 @@ export const MENU_ITEMS: MenuItem[] = [
     category: "EAT",
     emoji: "🍗",
     sectionName: "Promos",
-    image: "https://cms.rocomamas.com/uploads/BA_034_000040_02_Roco_Mamas_Treat_Yoself_VAC_3_Chaselist_800x600_000aac9572.png"
+    image: ""
   },
   {
     id: "promo-3",
@@ -33,42 +33,42 @@ export const MENU_ITEMS: MenuItem[] = [
     category: "EAT",
     emoji: "🍔",
     sectionName: "Promos",
-    image: "https://cms.rocomamas.com/uploads/26020_RM_Chicken_Smash_Drive_Web_Banners_800x600_V2_f1bd35f5d9.jpg"
+    image: ""
   },
 
-  // SECTION: Roco Drop
+  // SECTION: Lutho Drop
   {
     id: "drop-1",
     name: "Smashing Maccoy",
     price: 124,
     priceText: "R 124",
-    description: "RocoBun, RocoMayo, Butter Lettuce, Tomato Slices, Beef Smash, Aged Cheddar, Mac Puck, Sweet Pickles, Bronx BBQ",
+    description: "LuthoBun, LuthoMayo, Butter Lettuce, Tomato Slices, Beef Smash, Aged Cheddar, Mac Puck, Sweet Pickles, Bronx BBQ",
     category: "EAT",
     emoji: "🍔",
-    sectionName: "Roco Drop",
-    image: "https://cms.rocomamas.com/uploads/The_Smashing_Maccoy_3339e7a30b.png"
+    sectionName: "Lutho Drop",
+    image: ""
   },
   {
     id: "drop-2",
     name: "Cheeeeky Maccoy",
     price: 99,
     priceText: "R 99",
-    description: "RocoBun, RocoMayo, Mac Puck, SF Chicken Breast, Parmesan Cheese, Parmesan Mayo, RocoMamas Salsa",
+    description: "LuthoBun, LuthoMayo, Mac Puck, SF Chicken Breast, Parmesan Cheese, Parmesan Mayo, Lutho Salsa",
     category: "EAT",
     emoji: "🍔",
-    sectionName: "Roco Drop",
-    image: "https://cms.rocomamas.com/uploads/The_Cheeky_Maccoy_6c87a89deb.png"
+    sectionName: "Lutho Drop",
+    image: ""
   },
   {
     id: "drop-3",
     name: "The Real Maccoy Combo",
     price: 179,
     priceText: "R 179",
-    description: "Pork Ribs, Wings, Roco Slaw, Mac Puck, Thick Cut Fries, Parmesan Mayo",
+    description: "Pork Ribs, Wings, Lutho Slaw, Mac Puck, Thick Cut Fries, Parmesan Mayo",
     category: "EAT",
     emoji: "🍗",
-    sectionName: "Roco Drop",
-    image: "https://cms.rocomamas.com/uploads/Standard_Real_Maccoy_Combo_9a400ba4b4.png"
+    sectionName: "Lutho Drop",
+    image: ""
   },
   {
     id: "drop-4",
@@ -78,8 +78,8 @@ export const MENU_ITEMS: MenuItem[] = [
     description: "Macaroni, Cheese Sauce, Fresh Cream, Chip Seasoning, Black Pepper, Grated Moz & Chedder Mix, Panko Crumbs, Origanum, Nashville Chicken Breast, Freshly Chopped Parsley",
     category: "EAT",
     emoji: "🍝",
-    sectionName: "Roco Drop",
-    image: "https://cms.rocomamas.com/uploads/Mac_N_Nash_baf04895e1.png"
+    sectionName: "Lutho Drop",
+    image: ""
   },
   {
     id: "drop-5",
@@ -89,8 +89,8 @@ export const MENU_ITEMS: MenuItem[] = [
     description: "Macaroni, Cheese Sauce, Fresh Cream, Chip Seasoning, Black Pepper, Grated Moz & Chedder Mix, Panko Crumbs, Origanum",
     category: "EAT",
     emoji: "🍝",
-    sectionName: "Roco Drop",
-    image: "https://cms.rocomamas.com/uploads/Mac_N_Cheese_1e025aafa5.png"
+    sectionName: "Lutho Drop",
+    image: ""
   },
 
   // SECTION: Smashburgers
@@ -99,7 +99,7 @@ export const MENU_ITEMS: MenuItem[] = [
     name: "Old Skool Burger",
     price: 79,
     priceText: "R 79",
-    description: "150g Smash, Tomato, Red Onion & RocoMayo",
+    description: "150g Smash, Tomato, Red Onion & LuthoMayo",
     category: "EAT",
     emoji: "🍔",
     sectionName: "Smashburgers",
@@ -110,7 +110,7 @@ export const MENU_ITEMS: MenuItem[] = [
     name: "Classic Cheese Burger",
     price: 99,
     priceText: "R 99",
-    description: "150g Smash, Aged Cheddar, Sweet Pickle, Tomato, Red Onion & RocoMayo",
+    description: "150g Smash, Aged Cheddar, Sweet Pickle, Tomato, Red Onion & LuthoMayo",
     category: "EAT",
     emoji: "🍔",
     sectionName: "Smashburgers",
@@ -121,7 +121,7 @@ export const MENU_ITEMS: MenuItem[] = [
     name: "Rockstar Burger",
     price: 109,
     priceText: "R 109",
-    description: "150g Smash, Swiss Cheese, Caramelised Red Onions & RocoMayo",
+    description: "150g Smash, Swiss Cheese, Caramelised Red Onions & LuthoMayo",
     category: "EAT",
     emoji: "🍔",
     sectionName: "Smashburgers",
@@ -132,7 +132,7 @@ export const MENU_ITEMS: MenuItem[] = [
     name: "Cheese + Bacon Burger",
     price: 109,
     priceText: "R 109",
-    description: "150g Smash, Bacon, Aged Cheddar, Sweet Pickle, Tomato, Red Onion & RocoMayo",
+    description: "150g Smash, Bacon, Aged Cheddar, Sweet Pickle, Tomato, Red Onion & LuthoMayo",
     category: "EAT",
     emoji: "🍔",
     sectionName: "Smashburgers",
@@ -143,7 +143,7 @@ export const MENU_ITEMS: MenuItem[] = [
     name: "Mushroom Swizz Burger",
     price: 119,
     priceText: "R 119",
-    description: "150g Smash, Swiss Cheese, Sautéed Mushrooms & RocoMayo",
+    description: "150g Smash, Swiss Cheese, Sautéed Mushrooms & LuthoMayo",
     category: "EAT",
     emoji: "🍔",
     sectionName: "Smashburgers",
@@ -165,7 +165,7 @@ export const MENU_ITEMS: MenuItem[] = [
     name: "Slacker Burger",
     price: 159,
     priceText: "R 159",
-    description: "3 x 100g Beef Smash, 3 x Gouda Cheese, Sweet Pickle & RocoMayo",
+    description: "3 x 100g Beef Smash, 3 x Gouda Cheese, Sweet Pickle & LuthoMayo",
     category: "EAT",
     emoji: "🍔",
     sectionName: "Smashburgers",
@@ -292,7 +292,7 @@ export const MENU_ITEMS: MenuItem[] = [
     name: "Wings Eight",
     price: 109,
     priceText: "R 109",
-    description: "Eight fire-grilled Roco signature basted wings.",
+    description: "Eight fire-grilled Lutho signature basted wings.",
     category: "EAT",
     emoji: "🍗",
     sectionName: "Wings",
@@ -462,7 +462,7 @@ export const MENU_ITEMS: MenuItem[] = [
     name: "Hot Southern Fried Chicken Strips",
     price: 85,
     priceText: "R 85",
-    description: "Succulent hot hand-breaded chicken tenders with spicy Roco dipping mayo.",
+    description: "Succulent hot hand-breaded chicken tenders with spicy Lutho dipping mayo.",
     category: "EAT",
     emoji: "🍗",
     sectionName: "Salads & Chicken Strips",
@@ -525,7 +525,7 @@ export const MENU_ITEMS: MenuItem[] = [
     category: "EAT",
     emoji: "🍟",
     sectionName: "Fries",
-    image: "/img/menu/coming/rocomamas_menu_placeholder.png"
+    image: "/img/menu/coming/lutho_menu_placeholder.png"
   },
   {
     id: "fries-thick-share",
@@ -617,7 +617,7 @@ export const MENU_ITEMS: MenuItem[] = [
     name: "Lil' Rock Roadster Burger & Fries",
     price: 72,
     priceText: "R 72",
-    description: "100g Smashed Beef, RocoMayo, Small Fries.",
+    description: "100g Smashed Beef, LuthoMayo, Small Fries.",
     category: "EAT",
     emoji: "🍔",
     sectionName: "Kid Rock",
@@ -628,7 +628,7 @@ export const MENU_ITEMS: MenuItem[] = [
     name: "Lil' Rock Cheese Burger & Fries",
     price: 79,
     priceText: "R 79",
-    description: "100g Beef Smash, Gouda Cheese, RocoMayo, Small Fries.",
+    description: "100g Beef Smash, Gouda Cheese, LuthoMayo, Small Fries.",
     category: "EAT",
     emoji: "🍔",
     sectionName: "Kid Rock",
@@ -1089,7 +1089,7 @@ export const SPECIALS = [
     deal: "LOCK IN X2 POINTS EVERY TUESDAY",
     description: "Order any meal & double your cashbacks. Click & Collect or in-store table orders only.",
     badge: "WEEKLY FIRE SPECIAL",
-    imageUrl: "https://cms.rocomamas.com/uploads/29033_RM_Double_Points_Web_800x600_FA_0904278a09.jpg"
+    imageUrl: ""
   },
   {
     id: "promo-2",
@@ -1097,7 +1097,7 @@ export const SPECIALS = [
     deal: "CHOOSE YOUR DELIGHT FROM R139",
     description: "Cheeseburger + fries. Upgrade to wings/strips for R139 or half-kilo basted ribs for R189. Ts &Cs apply.",
     badge: "WEEKEND COMFORT DEAL",
-    imageUrl: "https://cms.rocomamas.com/uploads/BA_034_000040_02_Roco_Mamas_Treat_Yoself_VAC_3_Chaselist_800x600_000aac9572.png"
+    imageUrl: ""
   },
   {
     id: "promo-3",
@@ -1105,6 +1105,6 @@ export const SPECIALS = [
     deal: "SOUTHERN FRIED CHICKEN R129",
     description: "Crispy basted southern fried chicken burger paired with 4 signature wings & golden fries.",
     badge: "LIMITED DROP DEALS",
-    imageUrl: "https://cms.rocomamas.com/uploads/26020_RM_Chicken_Smash_Drive_Web_Banners_800x600_V2_f1bd35f5d9.jpg"
+    imageUrl: ""
   }
 ];

@@ -1,4 +1,4 @@
-# Roco Guest OS × Pilot POS — Owner Action Guide
+# Lutho Guest OS × Pilot POS — Owner Action Guide
 
 **Purpose:** This document explains what you (the restaurant owner or franchisee) need to do so guest phone ordering can connect to your Pilot POS — including kitchen printing, table tracking, and menu sync.
 
@@ -267,5 +267,5 @@ Everything else — hosting, menu mapping, secure API connection, and wiring the
 
 ---
 
-*Document prepared for Roco Guest OS (Lutho) × Pilot POS integration.*  
+*Document prepared for Lutho Guest OS (Lutho) × Pilot POS integration.*  
 *For technical implementation details, see the development plan in the project repository.*

@@ -14,7 +14,7 @@ function getAudioContext(): AudioContext | null {
   return audioCtx;
 }
 
-export async function unlockRocoAudio(): Promise<boolean> {
+export async function unlockLuthoAudio(): Promise<boolean> {
   if (!audioCtx) {
     audioCtx = createAudioContext();
   }
@@ -31,12 +31,12 @@ export async function unlockRocoAudio(): Promise<boolean> {
   return audioUnlocked;
 }
 
-export function setupRocoAudioUnlock(): void {
+export function setupLuthoAudioUnlock(): void {
   if (listenersAttached || typeof window === "undefined") return;
   listenersAttached = true;
 
   const unlock = () => {
-    void unlockRocoAudio();
+    void unlockLuthoAudio();
   };
 
   window.addEventListener("pointerdown", unlock, { passive: true });
@@ -44,7 +44,7 @@ export function setupRocoAudioUnlock(): void {
   window.addEventListener("touchstart", unlock, { passive: true });
 }
 
-export function isRocoAudioReady(): boolean {
+export function isLuthoAudioReady(): boolean {
   return getAudioContext()?.state === "running";
 }
 

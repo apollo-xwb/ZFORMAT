@@ -1,6 +1,6 @@
 import { jsPDF } from "jspdf";
 import html2canvas from "html2canvas";
-import { ROCO_STAMP_LOGO_LOCAL_URL } from "./qrConfig";
+import { LUTHO_STAMP_LOGO_LOCAL_URL } from "./qrConfig";
 
 const PAGE_W = 595.28;
 const PAGE_H = 841.89;
@@ -29,7 +29,7 @@ function buildSections(): ManualSection[] {
     { s: "Ticket stuck on Sent while cooking.", a: "Move to Preparing so guest status matches reality." },
     { s: "Food plated and waiting.", a: "Ready → run food → Served." },
     { s: "Whole table's food is out.", a: "Table inspector → Mark all served." },
-    { s: "Need lines for Pilot POS.", a: "Pilot summary → copy/download → enter in Pilot → update ROCO status." },
+    { s: "Need lines for Pilot POS.", a: "Pilot summary → copy/download → enter in Pilot → update LUTHO status." },
     { s: "Guest asks how long.", a: "Use the live timer; be honest if the board is slammed." },
     { s: "Wrong item cooked.", a: "Fix in kitchen/Pilot. Do not invent payment status. Manager decides comps." },
     { s: "Remote guest: I ordered on my phone.", a: "Ask for claim code or pass QR → Scan claim." },
@@ -105,7 +105,7 @@ function buildSections(): ManualSection[] {
       <h3>A1. Walk-in (dine-in tables 1–13)</h3>
       <ol class="steps">
         <li>Guest is seated and scans the table QR placard.</li>
-        <li>ROCO opens in Customer mode. Enter Table PIN if asked.</li>
+        <li>LUTHO opens in Customer mode. Enter Table PIN if asked.</li>
         <li>Pick a nickname → browse EAT/DRINK → Your Order → Send Order to Kitchen.</li>
         <li>Watch Live Kitchen Feed / Active Kitchen Orders.</li>
         <li>Need help → Call (waiter) or Chat.</li>
@@ -131,7 +131,7 @@ function buildSections(): ManualSection[] {
       `
       <h3>B1. Opening Staff mode</h3>
       <ol class="steps">
-        <li>Tap the ROCO brand logo 5 times (or use /admin kiosk).</li>
+        <li>Tap the LUTHO brand logo 5 times (or use /admin kiosk).</li>
         <li>Enter your staff PIN → Staff Console.</li>
         <li>Big Clock In at the top when your shift starts.</li>
         <li>Nav: Overview · Orders · Floor · Requests · Team · Settings · Scan claim (+ Menu for admins).</li>
@@ -215,7 +215,7 @@ function buildSections(): ManualSection[] {
         <li>20–25: Request Bill as guest; Mark Paid as staff</li>
         <li>25–30: Clear table; find history; Clock Out</li>
       </ul>
-      <p class="closing">Remember: ROCO OS is the shared brain between guests and crew. Pilot still cooks the food; you still deliver the hospitality. The portal wins when the board matches the floor — every time.</p>`
+      <p class="closing">Remember: LUTHO OS is the shared brain between guests and crew. Pilot still cooks the food; you still deliver the hospitality. The portal wins when the board matches the floor — every time.</p>`
     ),
   ];
 }
@@ -254,7 +254,7 @@ function manualStyles(): string {
       position: absolute;
       left: 0; top: 0; right: 0;
       height: 10px;
-      background: #E78A3E;
+      background: #3E5E93;
     }
     .page-foot {
       position: absolute;
@@ -275,7 +275,7 @@ function manualStyles(): string {
       position: absolute;
       left: 0; right: 0; top: 0;
       height: 3px;
-      background: #E78A3E;
+      background: #3E5E93;
     }
     .kicker {
       color: #71717a;
@@ -292,7 +292,7 @@ function manualStyles(): string {
       width: 42px;
       height: 42px;
       border-radius: 999px;
-      border: 2px solid #E78A3E;
+      border: 2px solid #3E5E93;
       background: #fff;
       object-fit: cover;
     }
@@ -303,24 +303,24 @@ function manualStyles(): string {
       font-size: 18px;
       line-height: 1.2;
       padding: 12px 14px 12px 18px;
-      border-left: 6px solid #E78A3E;
+      border-left: 6px solid #3E5E93;
       text-transform: uppercase;
       letter-spacing: 0.02em;
     }
     h3 {
       margin: 18px 0 8px;
-      color: #E78A3E;
+      color: #3E5E93;
       font-size: 14px;
       text-transform: uppercase;
       letter-spacing: 0.04em;
-      border-bottom: 1px solid #E78A3E;
+      border-bottom: 1px solid #3E5E93;
       padding-bottom: 4px;
     }
     p, li { font-size: 13px; line-height: 1.45; margin: 0 0 8px; }
     .lead { color: #3f3f46; font-size: 13px; margin-bottom: 14px; }
     .ladder {
       background: #fff7ed;
-      border: 1px solid #E78A3E;
+      border: 1px solid #3E5E93;
       border-radius: 10px;
       padding: 10px 12px;
       font-weight: 800;
@@ -339,7 +339,7 @@ function manualStyles(): string {
       left: 0; top: -1px;
       width: 24px; height: 24px;
       border-radius: 6px;
-      background: #E78A3E;
+      background: #3E5E93;
       color: #0a0a0b;
       font-weight: 800;
       font-size: 12px;
@@ -352,7 +352,7 @@ function manualStyles(): string {
     .card {
       display: flex;
       gap: 12px;
-      border: 1.5px solid #E78A3E;
+      border: 1.5px solid #3E5E93;
       background: #fafafa;
       border-radius: 12px;
       padding: 10px 12px;
@@ -362,7 +362,7 @@ function manualStyles(): string {
       flex: 0 0 28px;
       width: 28px; height: 28px;
       border-radius: 8px;
-      background: #E78A3E;
+      background: #3E5E93;
       color: #0a0a0b;
       font-weight: 900;
       font-size: 12px;
@@ -400,22 +400,22 @@ function manualStyles(): string {
       position: absolute;
       left: 0; right: 0;
       height: 12px;
-      background: #E78A3E;
+      background: #3E5E93;
     }
     .cover::before { top: 0; }
     .cover::after { bottom: 0; }
     .cover-grid {
       position: absolute; inset: 0;
       background-image:
-        linear-gradient(rgba(231,138,62,0.08) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(231,138,62,0.08) 1px, transparent 1px);
+        linear-gradient(rgba(62, 94, 147,0.08) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(62, 94, 147,0.08) 1px, transparent 1px);
       background-size: 28px 28px;
       pointer-events: none;
     }
     .cover-stamp {
       width: 120px; height: 120px;
       border-radius: 999px;
-      border: 4px solid #E78A3E;
+      border: 4px solid #3E5E93;
       background: #fff;
       object-fit: cover;
       margin-bottom: 28px;
@@ -423,7 +423,7 @@ function manualStyles(): string {
       z-index: 1;
     }
     .cover-brand {
-      color: #E78A3E;
+      color: #3E5E93;
       font-weight: 900;
       letter-spacing: 0.2em;
       font-size: 14px;
@@ -444,7 +444,7 @@ function manualStyles(): string {
     }
     .cover-badge {
       margin-top: 22px;
-      background: #E78A3E;
+      background: #3E5E93;
       color: #0a0a0b;
       font-weight: 900;
       font-size: 13px;
@@ -463,7 +463,7 @@ function manualStyles(): string {
     }
     .cover-meta {
       margin-top: 64px;
-      color: #E78A3E;
+      color: #3E5E93;
       font-weight: 800;
       font-size: 12px;
       letter-spacing: 0.12em;
@@ -477,8 +477,8 @@ function buildCoverHtml(stampSrc: string): string {
   return `
     <div class="cover">
       <div class="cover-grid"></div>
-      <img class="cover-stamp" src="${stampSrc}" alt="ROCO stamp" />
-      <div class="cover-brand">ROCO OS</div>
+      <img class="cover-stamp" src="${stampSrc}" alt="LUTHO stamp" />
+      <div class="cover-brand">LUTHO OS</div>
       <h1>STAFF &amp; ADMIN<br/>TRAINING MANUAL</h1>
       <div class="cover-badge">FIRST TRAINING SESSION</div>
       <div class="cover-sub">
@@ -493,12 +493,12 @@ function buildCoverHtml(stampSrc: string): string {
 function buildPageHtml(sectionData: ManualSection, pageNum: number, total: number, stampSrc: string): string {
   return `
     <div class="page">
-      <p class="kicker">ROCO OS Training · Keep near the staff kiosk</p>
+      <p class="kicker">LUTHO OS Training · Keep near the staff kiosk</p>
       <img class="stamp" src="${stampSrc}" alt="" />
       <h1>${escapeHtml(sectionData.title)}</h1>
       ${sectionData.html}
       <div class="page-foot">
-        <span>ROCO OS · STAFF TRAINING MANUAL</span>
+        <span>LUTHO OS · STAFF TRAINING MANUAL</span>
         <span>${pageNum} / ${total}</span>
       </div>
     </div>
@@ -515,11 +515,11 @@ async function renderNodeToCanvas(node: HTMLElement): Promise<HTMLCanvasElement>
 }
 
 /**
- * Builds and downloads a branded multi-page ROCO OS training PDF.
+ * Builds and downloads a branded multi-page LUTHO OS training PDF.
  * Uses HTML + html2canvas so browser fonts render cleanly (no jsPDF text spacing bugs).
  */
 export async function downloadTrainingManualPdf(): Promise<void> {
-  const stampSrc = ROCO_STAMP_LOGO_LOCAL_URL;
+  const stampSrc = LUTHO_STAMP_LOGO_LOCAL_URL;
   const sections = buildSections();
   const totalPages = sections.length + 1;
 
@@ -554,7 +554,7 @@ export async function downloadTrainingManualPdf(): Promise<void> {
       host.removeChild(wrap);
     }
 
-    pdf.save(`ROCO-OS-Training-Manual-${new Date().toISOString().slice(0, 10)}.pdf`);
+    pdf.save(`LUTHO-OS-Training-Manual-${new Date().toISOString().slice(0, 10)}.pdf`);
   } finally {
     host.remove();
   }
