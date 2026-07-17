@@ -50,19 +50,19 @@ function TableShape({
 }) {
   const isBooked = state === "Booked";
   const isOccupied = state === "Occupied";
-  const accent = isSelected ? "bg-[#3E5E93]" : isBooked ? "bg-purple-700" : isOccupied ? "bg-amber-600" : "bg-[#2f190a]";
+  const accent = isSelected ? "bg-[#3E5E93]" : isBooked ? "bg-[#C7A468]" : isOccupied ? "bg-[#3E5E93]" : "bg-[#9AA6B8]";
   const surface = isSelected
-    ? "bg-[#5a3a22] border-[#3E5E93]"
+    ? "bg-[#3E5E93] border-[#3E5E93]"
     : isBooked
-      ? "bg-purple-950/50 border-purple-600/40"
+      ? "bg-[#C7A468]/20 border-[#C7A468]/50"
       : isOccupied
-        ? "bg-amber-950/40 border-amber-500/30"
-        : "bg-[#4a2f1b] border-[#3e2413]";
+        ? "bg-[#3E5E93]/25 border-[#3E5E93]/50"
+        : "bg-[#1b2740] border-[#3E5E93]/30";
 
   if (isRemote) {
     return (
       <div className="relative w-full h-[clamp(40px,10vw,72px)] flex items-center justify-center">
-        <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full border-2 flex flex-col items-center justify-center font-mono text-[9px] sm:text-[10px] font-black leading-none z-10 ${isSelected ? "border-[#3E5E93] bg-[#5a3a22] text-[#3E5E93]" : "border-[#3e2413] bg-[#4a2f1b] text-zinc-200"}`}>
+        <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-full border-2 flex flex-col items-center justify-center font-mono text-[9px] sm:text-[10px] font-black leading-none z-10 ${isSelected ? "border-[#3E5E93] bg-[#3E5E93] text-[#3E5E93]" : "border-[#3E5E93]/30 bg-[#1b2740] text-zinc-200"}`}>
           <span>Remote</span>
         </div>
       </div>
@@ -104,7 +104,7 @@ function TableShape({
             style={{ transform: `rotate(${angle}deg) translateY(clamp(-10px, -2.5vw, -14px))` }}
           />
         ))}
-        <div className={`w-7 h-7 sm:w-9 sm:h-9 rounded-full border flex flex-col items-center justify-center font-mono text-[8px] sm:text-[9px] font-black leading-none z-10 ${isSelected ? "border-[#3E5E93] bg-[#5a3a22] text-[#3E5E93]" : surface}`}>
+        <div className={`w-7 h-7 sm:w-9 sm:h-9 rounded-full border flex flex-col items-center justify-center font-mono text-[8px] sm:text-[9px] font-black leading-none z-10 ${isSelected ? "border-[#3E5E93] bg-[#3E5E93] text-[#3E5E93]" : surface}`}>
           <span>T{tableId}</span>
         </div>
       </div>
@@ -120,7 +120,7 @@ function TableShape({
           style={{ transform: `rotate(${angle}deg) translateY(clamp(-9px, -2.2vw, -12px))` }}
         />
       ))}
-      <div className={`w-6 h-6 sm:w-7 sm:h-7 rotate-45 border rounded flex items-center justify-center relative ${isSelected ? "border-[#3E5E93] bg-[#5a3a22]" : surface}`}>
+      <div className={`w-6 h-6 sm:w-7 sm:h-7 rotate-45 border rounded flex items-center justify-center relative ${isSelected ? "border-[#3E5E93] bg-[#3E5E93]" : surface}`}>
         <div className="-rotate-45 flex flex-col items-center justify-center font-mono text-[7px] sm:text-[8px] font-black leading-none">
           <span>T{tableId}</span>
         </div>
@@ -171,7 +171,7 @@ export function StaffFloorBlueprint({
 
   return (
     <div className="w-full h-full flex flex-col items-center justify-center max-w-5xl mx-auto">
-      <div className={`w-full bg-zinc-950 text-zinc-300 rounded-2xl border border-[#3E5E93]/30 shadow-inner ${compact ? "p-2 sm:p-3" : "p-3 sm:p-4"}`}>
+      <div className={`lutho-dark-surface w-full text-zinc-300 rounded-2xl border border-[#3E5E93]/30 shadow-inner ${compact ? "p-2 sm:p-3" : "p-3 sm:p-4"}`}>
         <div className="flex justify-between items-center mb-2 flex-wrap gap-2">
           <span className="text-[8px] sm:text-[9px] font-mono text-zinc-500 uppercase tracking-wider font-extrabold">
             {isCombine ? "Tap tables to combine" : "Intuitive floor matrix"}
@@ -236,7 +236,7 @@ export function StaffFloorBlueprint({
         <div
           className="grid grid-cols-5 gap-1.5 sm:gap-2 md:gap-2.5 p-2 sm:p-3 rounded-2xl border border-zinc-950 shadow-2xl relative overflow-hidden w-full"
           style={{
-            backgroundColor: "#0b0b0c",
+            backgroundColor: "#0e1728",
             backgroundImage:
               "repeating-linear-gradient(45deg, rgba(62, 94, 147, 0.035) 0px, rgba(62, 94, 147, 0.035) 2px, transparent 2px, transparent 14px), repeating-linear-gradient(-45deg, rgba(0, 0, 0, 0.5) 0px, rgba(0, 0, 0, 0.5) 4px, transparent 4px, transparent 8px)"
           }}
