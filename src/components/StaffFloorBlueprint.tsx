@@ -324,7 +324,7 @@ export function StaffFloorBlueprint({
                       isDisabled
                         ? "bg-zinc-950/50 border-zinc-800 opacity-40 cursor-not-allowed"
                         : isCombine && isLead
-                          ? "bg-[#3E5E93]/25 border-[#3E5E93] ring-2 ring-[#3E5E93] shadow-[0_0_12px_rgba(231,138,62,0.45)] cursor-default"
+                          ? "bg-[#3E5E93]/25 border-[#3E5E93] ring-2 ring-[#3E5E93] shadow-[0_0_12px_rgba(62, 94, 147,0.45)] cursor-default"
                           : isCombine && isMultiSelected
                             ? "bg-[#3E5E93]/20 border-[#3E5E93] ring-1 ring-[#3E5E93]/70 cursor-pointer"
                             : isCombine
@@ -334,11 +334,11 @@ export function StaffFloorBlueprint({
                         : notify.billRequests > 0
                           ? "bg-purple-950/35 border-purple-500 shadow-[0_0_12px_rgba(168,85,247,0.45)] ring-1 ring-purple-500/50 cursor-pointer"
                           : notify.openOrders > 0
-                            ? "bg-[#3E5E93]/20 border-[#3E5E93] shadow-[0_0_10px_rgba(231,138,62,0.4)] cursor-pointer"
+                            ? "bg-[#3E5E93]/20 border-[#3E5E93] shadow-[0_0_10px_rgba(62, 94, 147,0.4)] cursor-pointer"
                             : isAssigned
                               ? "bg-emerald-950/25 border-emerald-500/50 shadow-[0_0_10px_rgba(16,185,129,0.35)] cursor-pointer"
                               : isSelected
-                                ? "bg-[#3E5E93]/15 border-[#3E5E93] shadow-[0_0_12px_rgba(231,138,62,0.35)] scale-[1.02] z-10 cursor-pointer"
+                                ? "bg-[#3E5E93]/15 border-[#3E5E93] shadow-[0_0_12px_rgba(62, 94, 147,0.35)] scale-[1.02] z-10 cursor-pointer"
                                 : state === "Booked"
                                   ? "bg-purple-950/20 border-purple-600/30 cursor-pointer"
                                   : state === "Occupied"

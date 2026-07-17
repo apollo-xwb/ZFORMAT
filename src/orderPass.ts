@@ -150,12 +150,12 @@ function drawGridBackground(ctx: CanvasRenderingContext2D, width: number, height
 
   // Soft radial glow behind badge area
   const glow = ctx.createRadialGradient(width / 2, 210, 20, width / 2, 210, 280);
-  glow.addColorStop(0, "rgba(231, 138, 62, 0.22)");
-  glow.addColorStop(1, "rgba(231, 138, 62, 0)");
+  glow.addColorStop(0, "rgba(62, 94, 147, 0.22)");
+  glow.addColorStop(1, "rgba(62, 94, 147, 0)");
   ctx.fillStyle = glow;
   ctx.fillRect(0, 0, width, 480);
 
-  ctx.strokeStyle = "rgba(231, 138, 62, 0.12)";
+  ctx.strokeStyle = "rgba(62, 94, 147, 0.12)";
   ctx.lineWidth = 1;
   const step = 28;
   for (let x = 0; x <= width; x += step) {
@@ -225,7 +225,7 @@ async function buildPassCanvas(payload: OrderPassPayload): Promise<HTMLCanvasEle
   roundRect(ctx, 36, 36, canvas.width - 72, 118, 20);
   ctx.fillStyle = "rgba(255,255,255,0.04)";
   ctx.fill();
-  ctx.strokeStyle = "rgba(231, 138, 62, 0.45)";
+  ctx.strokeStyle = "rgba(62, 94, 147, 0.45)";
   ctx.lineWidth = 1.5;
   ctx.stroke();
 
@@ -322,7 +322,7 @@ async function buildPassCanvas(payload: OrderPassPayload): Promise<HTMLCanvasEle
   roundRect(ctx, 36, itemsY, canvas.width - 72, 280, 18);
   ctx.fillStyle = "rgba(255,255,255,0.04)";
   ctx.fill();
-  ctx.strokeStyle = "rgba(231, 138, 62, 0.35)";
+  ctx.strokeStyle = "rgba(62, 94, 147, 0.35)";
   ctx.lineWidth = 1.25;
   ctx.stroke();
 
@@ -351,7 +351,7 @@ async function buildPassCanvas(payload: OrderPassPayload): Promise<HTMLCanvasEle
     y += 28;
   }
 
-  ctx.strokeStyle = "rgba(231, 138, 62, 0.35)";
+  ctx.strokeStyle = "rgba(62, 94, 147, 0.35)";
   ctx.beginPath();
   ctx.moveTo(56, y + 4);
   ctx.lineTo(canvas.width - 56, y + 4);

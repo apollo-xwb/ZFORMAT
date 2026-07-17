@@ -407,8 +407,8 @@ function manualStyles(): string {
     .cover-grid {
       position: absolute; inset: 0;
       background-image:
-        linear-gradient(rgba(231,138,62,0.08) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(231,138,62,0.08) 1px, transparent 1px);
+        linear-gradient(rgba(62, 94, 147,0.08) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(62, 94, 147,0.08) 1px, transparent 1px);
       background-size: 28px 28px;
       pointer-events: none;
     }

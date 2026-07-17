@@ -177,6 +177,12 @@ import {
   type GroupOrderDraft,
 } from "./groupOrderSync";
 import { playBeep as luthoPlayBeep, setupLuthoAudioUnlock } from "./luthoAudio";
+import { OnboardingWizard } from "./components/OnboardingWizard";
+import { ThemeStudio } from "./components/ThemeStudio";
+import { MenuImporter } from "./components/MenuImporter";
+import { bootstrapTheme, type LuthoPalette } from "./theme";
+import { readKnowledgeBase, isOnboardingComplete } from "./onboarding";
+import { readImportedMenu } from "./menuImport";
 import {
   fetchSplitSession,
   listenSplitBill,
@@ -283,7 +289,7 @@ export { LUTHO_TABLES, REMOTE_TABLE_ID, formatTableLabel, formatTableShort, getS
 export type { TableConfig };
 
 type StaffRole = "admin" | "general";
-type StaffWorkspace = "overview" | "orders" | "tables" | "requests" | "team" | "menu" | "settings";
+type StaffWorkspace = "overview" | "orders" | "tables" | "requests" | "team" | "onboarding" | "theme" | "menu" | "settings";
 type ServiceRequestType = "WAITER" | "BILL";
 type ServiceRequestStatus = "OPEN" | "ACKNOWLEDGED" | "DONE";
 
@@ -460,6 +466,28 @@ export default function App() {
   useEffect(() => {
     try { localStorage.setItem("lutho_theme", theme); } catch {}
   }, [theme]);
+
+  // Runtime brand palette (Theme Studio) — applied to CSS variables on boot.
+  const [luthoPalette, setLuthoPalette] = useState<LuthoPalette>(() => bootstrapTheme());
+  useEffect(() => {
+    bootstrapTheme();
+  }, []);
+
+  // Owner-imported custom menu (overrides the seed menu when present).
+  const [importedMenu, setImportedMenu] = useState<MenuItem[]>(() => readImportedMenu());
+  useEffect(() => {
+    const handler = () => setImportedMenu(readImportedMenu());
+    window.addEventListener("lutho_menu_updated", handler);
+    return () => window.removeEventListener("lutho_menu_updated", handler);
+  }, []);
+
+  // Onboarding completion (drives the first-run prompt in the staff console).
+  const [onboardingDone, setOnboardingDone] = useState<boolean>(() => isOnboardingComplete());
+  useEffect(() => {
+    const handler = () => setOnboardingDone(isOnboardingComplete());
+    window.addEventListener("lutho_kb_updated", handler);
+    return () => window.removeEventListener("lutho_kb_updated", handler);
+  }, []);
 
   const [cart, setCart] = useState<CartItem[]>(() => {
     try {
@@ -1486,10 +1514,11 @@ export default function App() {
     };
   }, []);
 
-  // Guard: Menu workspace is admin-only.
+  // Guard: Menu, Onboarding and Theme workspaces are admin-only.
   useEffect(() => {
     if (!activeStaffProfile) return;
-    if (activeStaffProfile.role !== "admin" && staffWorkspace === "menu") {
+    const adminOnly: StaffWorkspace[] = ["menu", "onboarding", "theme"];
+    if (activeStaffProfile.role !== "admin" && adminOnly.includes(staffWorkspace)) {
       setStaffWorkspace("overview");
     }
   }, [activeStaffProfile, staffWorkspace]);
@@ -6314,7 +6343,7 @@ export default function App() {
               y: 0,
               borderColor: highlightKitchenOrders ? "#3E5E93" : "rgba(44, 44, 46, 0.4)",
               boxShadow: highlightKitchenOrders 
-                ? "0 0 20px rgba(231, 138, 62, 0.45)" 
+                ? "0 0 20px rgba(62, 94, 147, 0.45)" 
                 : "0 10px 15px -3px rgba(0, 0, 0, 0.3)"
             }}
             transition={{ type: "spring", damping: 18, stiffness: 155 }}
@@ -6975,7 +7004,7 @@ export default function App() {
                   }}
                   className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[10.5px] font-sub font-black uppercase tracking-wider transition-all shrink-0 cursor-pointer ${
                     isSelected
-                      ? "bg-[#3E5E93] text-black border border-[#3E5E93] shadow-[0_2px_8px_rgba(231, 138, 62,0.25)] scale-[1.03]"
+                      ? "bg-[#3E5E93] text-black border border-[#3E5E93] shadow-[0_2px_8px_rgba(62, 94, 147,0.25)] scale-[1.03]"
                       : "bg-[#1C1C1E] text-zinc-400 hover:text-zinc-200 border border-zinc-850"
                   }`}
                 >
@@ -7210,7 +7239,7 @@ export default function App() {
           id="active-kitchen-orders-section" 
           className={`px-4 py-4 border-t border-zinc-900 mt-6 md:pb-8 rounded-xl transition-all duration-500 ${
             highlightKitchenOrders 
-              ? "bg-amber-950/20 ring-2 ring-[#3E5E93] shadow-[0_0_25px_rgba(231, 138, 62,0.45)]" 
+              ? "bg-amber-950/20 ring-2 ring-[#3E5E93] shadow-[0_0_25px_rgba(62, 94, 147,0.45)]" 
               : ""
           }`}
         >
@@ -7333,7 +7362,7 @@ export default function App() {
                 setAppMode("STAFF");
                 triggerToast("Logged in as Lutho Crew (Staff View active)", "success");
               }}
-              className="tracking-widest uppercase font-bold text-[#3E5E93]/80 hover:text-[#3E5E93] transition-all hover:scale-105 active:scale-95 cursor-pointer bg-[#3E5E93]/5 hover:bg-[#3E5E93]/15 px-2.5 py-1.5 rounded-lg border border-[#3E5E93]/20 font-mono text-[9px] hover:shadow-[0_0_10px_rgba(231, 138, 62,0.15)]"
+              className="tracking-widest uppercase font-bold text-[#3E5E93]/80 hover:text-[#3E5E93] transition-all hover:scale-105 active:scale-95 cursor-pointer bg-[#3E5E93]/5 hover:bg-[#3E5E93]/15 px-2.5 py-1.5 rounded-lg border border-[#3E5E93]/20 font-mono text-[9px] hover:shadow-[0_0_10px_rgba(62, 94, 147,0.15)]"
             >
               Staff View ➔
             </button>
@@ -8588,7 +8617,7 @@ export default function App() {
                       animate={{ opacity: 1, scale: 1, y: 0 }}
                       exit={{ opacity: 0, scale: 0.95, y: 30 }}
                       transition={{ type: "spring", damping: 26, stiffness: 210 }}
-                      className="w-full max-w-[460px] h-[88vh] max-h-[92%] sm:max-h-[580px] bg-[#3E5E93] text-zinc-950 rounded-3xl shadow-[0_0_50px_rgba(231,138,62,0.4)] overflow-hidden flex flex-col font-sans pointer-events-auto"
+                      className="w-full max-w-[460px] h-[88vh] max-h-[92%] sm:max-h-[580px] bg-[#3E5E93] text-zinc-950 rounded-3xl shadow-[0_0_50px_rgba(62, 94, 147,0.4)] overflow-hidden flex flex-col font-sans pointer-events-auto"
                     >
                   {/* Title Bar (Typeform minimalist layout) */}
                   <div className="p-4 bg-zinc-950 text-white flex justify-between items-center shrink-0 border-b border-[#3E5E93]/20">
@@ -8880,7 +8909,7 @@ export default function App() {
                                           isBooked 
                                             ? "bg-red-950/20 border-red-500/25 text-red-500 cursor-not-allowed opacity-50" 
                                             : isSelected
-                                            ? "bg-[#3E5E93]/15 border-[#3E5E93] text-[#3E5E93] shadow-[0_0_8px_rgba(231,138,62,0.3)] scale-[1.03]"
+                                            ? "bg-[#3E5E93]/15 border-[#3E5E93] text-[#3E5E93] shadow-[0_0_8px_rgba(62, 94, 147,0.3)] scale-[1.03]"
                                             : "bg-zinc-900/40 border-zinc-800 text-zinc-300 hover:border-zinc-700"
                                         }`}
                                         title={`${table.name} (Max ${table.capacity} guests)`}
@@ -9278,7 +9307,7 @@ export default function App() {
                       className={`w-full h-[90vh] max-h-[725px] bg-[#141614] border-2 rounded-3xl overflow-hidden flex flex-col font-sans pointer-events-auto transition-all duration-300 ${
                         isThuneePlaying 
                           ? "max-w-[980px] border-emerald-500 shadow-[0_0_50px_rgba(16,185,129,0.3)]" 
-                          : "max-w-[440px] border-[#3E5E93] shadow-[0_0_40px_rgba(231,138,62,0.3)]"
+                          : "max-w-[440px] border-[#3E5E93] shadow-[0_0_40px_rgba(62, 94, 147,0.3)]"
                       }`}
                     >
                   {/* Header Bar */}
@@ -11827,7 +11856,7 @@ export default function App() {
                       {/* Custom Progress Bar */}
                       <div className="w-full bg-[#1C1C1E] h-3 rounded-full overflow-hidden border border-zinc-850 p-0.5 flex relative">
                         <div 
-                          className="bg-gradient-to-r from-orange-600 to-[#3E5E93] h-full rounded-full transition-all duration-500 shadow-[0_0_8px_rgba(231, 138, 62,0.5)]"
+                          className="bg-gradient-to-r from-orange-600 to-[#3E5E93] h-full rounded-full transition-all duration-500 shadow-[0_0_8px_rgba(62, 94, 147,0.5)]"
                           style={{ width: `${billPaidPercent}%` }}
                         />
                       </div>
@@ -12257,7 +12286,13 @@ export default function App() {
                 ["tables", "Floor layout"],
                 ["requests", "Requests"],
                 ["team", "Team"],
-                ...(isAdminStaff ? ([["menu", "Menu"]] as [StaffWorkspace, string][]) : []),
+                ...(isAdminStaff
+                  ? ([
+                      ["onboarding", onboardingDone ? "Onboarding" : "Onboarding •"],
+                      ["theme", "Theme Studio"],
+                      ["menu", "Menu"],
+                    ] as [StaffWorkspace, string][])
+                  : []),
                 ["settings", "Settings"]
               ] as [StaffWorkspace, string][]).map(([key, label]) => (
                 <button
@@ -12397,6 +12432,25 @@ export default function App() {
             )}
 
             <div className={`flex-1 min-h-0 overflow-y-auto ${staffWorkspace === "tables" ? "p-0" : "p-4 md:p-6 pt-4"}`}>
+            {isAdminStaff && !onboardingDone && staffWorkspace !== "onboarding" && (
+              <button
+                onClick={() => setStaffWorkspace("onboarding")}
+                className="w-full text-left mb-4 rounded-3xl border-2 border-[#3E5E93] bg-[#3E5E93]/10 p-4 flex items-center gap-4 hover:bg-[#3E5E93]/15 transition-colors"
+              >
+                <div className="w-11 h-11 rounded-2xl bg-[#3E5E93] flex items-center justify-center shrink-0">
+                  <Sparkles className="w-5 h-5" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-white font-black uppercase text-sm">Finish setting up your venue</p>
+                  <p className="text-zinc-400 text-xs">
+                    Answer a few questions to build your knowledge base, brand the app, and go live in minutes.
+                  </p>
+                </div>
+                <span className="px-4 py-2 rounded-xl bg-[#3E5E93] font-black uppercase text-xs shrink-0 flex items-center gap-1.5">
+                  Start <ChevronRight className="w-4 h-4" />
+                </span>
+              </button>
+            )}
             {staffWorkspace === "overview" && (
               <div className="grid xl:grid-cols-2 gap-4">
                 <div className="xl:col-span-2 rounded-3xl border-2 border-[#3E5E93] bg-gradient-to-r from-black via-[#1C1C1E] to-black p-5 flex flex-col sm:flex-row sm:items-center gap-4">
@@ -12882,28 +12936,75 @@ export default function App() {
               </div>
             )}
 
+            {staffWorkspace === "onboarding" && (
+              isAdminStaff ? (
+                <div className="max-w-3xl">
+                  <OnboardingWizard
+                    onToast={(m, t) => triggerToast(m, t)}
+                    onComplete={() => setOnboardingDone(true)}
+                  />
+                </div>
+              ) : (
+                <div className="bg-[#1C1C1E] border border-zinc-800 rounded-3xl p-5">
+                  <h3 className="text-white font-black uppercase text-sm mb-2">Admin only</h3>
+                  <p className="text-zinc-400 text-sm">Business onboarding is restricted to admin profiles.</p>
+                </div>
+              )
+            )}
+
+            {staffWorkspace === "theme" && (
+              isAdminStaff ? (
+                <div className="max-w-2xl">
+                  <ThemeStudio
+                    palette={luthoPalette}
+                    onChange={setLuthoPalette}
+                    onToast={(m, t) => triggerToast(m, t)}
+                  />
+                </div>
+              ) : (
+                <div className="bg-[#1C1C1E] border border-zinc-800 rounded-3xl p-5">
+                  <h3 className="text-white font-black uppercase text-sm mb-2">Admin only</h3>
+                  <p className="text-zinc-400 text-sm">Theming is restricted to admin profiles.</p>
+                </div>
+              )
+            )}
+
             {staffWorkspace === "menu" && (
               isAdminStaff ? (
-                <div className="bg-[#1C1C1E] border border-zinc-800 rounded-3xl p-5 space-y-4">
-                  <h3 className="text-white font-black uppercase text-sm">Menu & QR management</h3>
-                  <p className="text-zinc-400 text-sm">
-                    Manage live menu items and table QR codes from the staff console.
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      onClick={() => openQrPrintSheet(true)}
-                      className="px-4 py-3 rounded-2xl bg-[#3E5E93] text-black font-black uppercase text-xs"
-                    >
-                      Customize table QRs
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => openQrPrintSheet(false)}
-                      className="px-4 py-3 rounded-2xl bg-zinc-900 border border-zinc-800 text-zinc-300 font-black uppercase text-xs"
-                    >
-                      Printable QR sheet
-                    </button>
+                <div className="grid gap-4 xl:grid-cols-2 items-start">
+                  <div className="max-w-none">
+                    <MenuImporter
+                      onToast={(m, t) => triggerToast(m, t)}
+                      onImported={(items) => {
+                        setImportedMenu(items);
+                        setMenuItems(items);
+                        try { localStorage.setItem("lutho_menu_items_v4", JSON.stringify(items)); } catch {}
+                      }}
+                    />
+                  </div>
+                  <div className="bg-[#1C1C1E] border border-zinc-800 rounded-3xl p-5 space-y-4">
+                    <h3 className="text-white font-black uppercase text-sm">Menu & QR management</h3>
+                    <p className="text-zinc-400 text-sm">
+                      {importedMenu.length > 0
+                        ? `${importedMenu.length} custom items are live from your import.`
+                        : `Currently serving ${menuItems.length} seed items. Import above to replace them.`}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => openQrPrintSheet(true)}
+                        className="px-4 py-3 rounded-2xl bg-[#3E5E93] font-black uppercase text-xs"
+                      >
+                        Customize table QRs
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => openQrPrintSheet(false)}
+                        className="px-4 py-3 rounded-2xl bg-zinc-900 border border-zinc-800 text-zinc-300 font-black uppercase text-xs"
+                      >
+                        Printable QR sheet
+                      </button>
+                    </div>
                   </div>
                 </div>
               ) : (
