@@ -41,6 +41,11 @@ export type TableSittingRecord = {
   total: number;
   orders: SittingOrderSummary[];
   guestNames: string[];
+  /** Captured for records created after table-service analytics was introduced. */
+  covers?: number;
+  partyId?: string;
+  primaryTableId?: string;
+  memberTableIds?: string[];
 };
 
 export function buildSittingFromOrders(input: {
@@ -49,6 +54,10 @@ export function buildSittingFromOrders(input: {
   waiterStaffId?: string;
   clearedBy?: string;
   orders: StaffOrderRecord[];
+  covers?: number;
+  partyId?: string;
+  primaryTableId?: string;
+  memberTableIds?: string[];
 }): TableSittingRecord {
   const orders: SittingOrderSummary[] = input.orders.map((order) => ({
     orderId: order.id,
@@ -91,6 +100,10 @@ export function buildSittingFromOrders(input: {
     total,
     orders,
     guestNames,
+    covers: input.covers,
+    partyId: input.partyId,
+    primaryTableId: input.primaryTableId,
+    memberTableIds: input.memberTableIds,
   };
 }
 

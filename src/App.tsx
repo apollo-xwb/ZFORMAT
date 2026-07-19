@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
+﻿import React, { lazy, Suspense, useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { db, auth } from "./firebase";
 import { collection, doc, getDoc, onSnapshot, setDoc, updateDoc, deleteDoc } from "firebase/firestore";
@@ -225,6 +225,12 @@ import {
   type TableServiceRecord,
 } from "./tableServiceSync";
 
+const AdminAnalyticsDashboard = lazy(() =>
+  import("./components/AdminAnalyticsDashboard").then((module) => ({
+    default: module.AdminAnalyticsDashboard,
+  }))
+);
+
 const MY_ORDER_IDS_KEY = "roco_my_kitchen_order_ids";
 
 function readMyOrderIds(): Set<string> {
@@ -283,7 +289,7 @@ export { ROCO_TABLES, REMOTE_TABLE_ID, formatTableLabel, formatTableShort, getSt
 export type { TableConfig };
 
 type StaffRole = "admin" | "general";
-type StaffWorkspace = "overview" | "orders" | "tables" | "requests" | "team" | "menu" | "settings";
+type StaffWorkspace = "overview" | "analytics" | "orders" | "tables" | "requests" | "team" | "menu" | "settings";
 type ServiceRequestType = "WAITER" | "BILL";
 type ServiceRequestStatus = "OPEN" | "ACKNOWLEDGED" | "DONE";
 
@@ -307,6 +313,8 @@ interface ServiceRequest {
   note?: string;
   billDetails?: BillRequestDetails;
   partyId?: string;
+  acknowledgedAt?: number;
+  doneAt?: number;
 }
 
 const DEFAULT_GENERAL_PROFILE: StaffProfile = {
@@ -1483,10 +1491,13 @@ export default function App() {
     };
   }, []);
 
-  // Guard: Menu workspace is admin-only.
+  // Guard: owner reporting and menu administration are admin-only.
   useEffect(() => {
     if (!activeStaffProfile) return;
-    if (activeStaffProfile.role !== "admin" && staffWorkspace === "menu") {
+    if (
+      activeStaffProfile.role !== "admin" &&
+      (staffWorkspace === "menu" || staffWorkspace === "analytics")
+    ) {
       setStaffWorkspace("overview");
     }
   }, [activeStaffProfile, staffWorkspace]);
@@ -4573,6 +4584,10 @@ export default function App() {
           waiterStaffId: waiterProfile?.id,
           clearedBy: activeStaffProfile?.name || waiterName,
           orders: openOrders,
+          covers: isRemoteClear ? undefined : service?.covers,
+          partyId: isRemoteClear ? undefined : service?.partyId,
+          primaryTableId,
+          memberTableIds: isRemoteClear ? undefined : memberTableIds,
         });
         await saveTableSitting(sitting);
 
@@ -4640,7 +4655,13 @@ export default function App() {
         return memberTableIds.includes(String(r.tableId)) || r.partyId === service?.partyId;
       });
       await Promise.all(
-        openRequests.map((r) => updateDoc(doc(db, "service_requests", r.id), { status: "DONE" }))
+        openRequests.map((r) =>
+          updateDoc(doc(db, "service_requests", r.id), {
+            status: "DONE",
+            acknowledgedAt: r.acknowledgedAt || Date.now(),
+            doneAt: Date.now(),
+          })
+        )
       );
 
       setChatMessages((prev) =>
@@ -12250,6 +12271,7 @@ export default function App() {
             <nav className="flex flex-col gap-2">
               {([
                 ["overview", "Overview"],
+                ...(isAdminStaff ? ([["analytics", "Analytics & Reports"]] as [StaffWorkspace, string][]) : []),
                 ["orders", "Orders"],
                 ["tables", "Floor layout"],
                 ["requests", "Requests"],
@@ -12352,7 +12374,7 @@ export default function App() {
                 </div>
               </div>
             )}
-            {staffWorkspace !== "tables" && (
+            {staffWorkspace !== "tables" && staffWorkspace !== "analytics" && (
             <div className="shrink-0 p-4 md:p-6 pb-0">
             <div className="bg-[#1C1C1E] border border-zinc-800/80 rounded-3xl p-5 shadow-2xl">
               <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
@@ -12393,7 +12415,13 @@ export default function App() {
             </div>
             )}
 
-            <div className={`flex-1 min-h-0 overflow-y-auto ${staffWorkspace === "tables" ? "p-0" : "p-4 md:p-6 pt-4"}`}>
+            <div className={`flex-1 min-h-0 overflow-y-auto ${
+              staffWorkspace === "tables"
+                ? "p-0"
+                : staffWorkspace === "analytics"
+                  ? "p-2 sm:p-4 lg:p-5"
+                  : "p-4 md:p-6 pt-4"
+            }`}>
             {staffWorkspace === "overview" && (
               <div className="grid xl:grid-cols-2 gap-4">
                 <div className="xl:col-span-2 rounded-3xl border-2 border-[#E78A3E] bg-gradient-to-r from-black via-[#1C1C1E] to-black p-5 flex flex-col sm:flex-row sm:items-center gap-4">
@@ -12436,7 +12464,10 @@ export default function App() {
                           <div className="flex gap-2 shrink-0">
                             <button
                               onClick={async () => {
-                                await updateDoc(doc(db, "service_requests", request.id), { status: "ACKNOWLEDGED" });
+                                await updateDoc(doc(db, "service_requests", request.id), {
+                                  status: "ACKNOWLEDGED",
+                                  acknowledgedAt: Date.now(),
+                                });
                                 triggerToast(`Request at ${formatTableLabel(request.tableId)} acknowledged.`, "success");
                               }}
                               className="px-3 py-2 rounded-xl bg-[#FF5A00] text-black text-xs font-black uppercase"
@@ -12445,7 +12476,11 @@ export default function App() {
                             </button>
                             <button
                               onClick={async () => {
-                                await updateDoc(doc(db, "service_requests", request.id), { status: "DONE" });
+                                await updateDoc(doc(db, "service_requests", request.id), {
+                                  status: "DONE",
+                                  acknowledgedAt: request.acknowledgedAt || Date.now(),
+                                  doneAt: Date.now(),
+                                });
                                 triggerToast(`Request at ${formatTableLabel(request.tableId)} marked done.`, "success");
                               }}
                               className="px-3 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 text-xs font-black uppercase"
@@ -12519,6 +12554,29 @@ export default function App() {
                   />
                 </div>
               </div>
+            )}
+
+            {staffWorkspace === "analytics" && isAdminStaff && (
+              <Suspense
+                fallback={
+                  <div className="flex min-h-[60vh] items-center justify-center rounded-3xl border border-white/10 bg-black/30 text-center">
+                    <div>
+                      <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-zinc-700 border-t-[#E78A3E]" />
+                      <p className="mt-3 text-[10px] font-black uppercase tracking-widest text-zinc-500">
+                        Loading owner analytics
+                      </p>
+                    </div>
+                  </div>
+                }
+              >
+                <AdminAnalyticsDashboard
+                  orders={sharedStaffOrders}
+                  sittings={tableSittings}
+                  requests={serviceRequests}
+                  staffProfiles={staffProfiles}
+                  tableServices={tableServices}
+                />
+              </Suspense>
             )}
 
             {staffWorkspace === "orders" && (
@@ -12723,7 +12781,18 @@ export default function App() {
                           <button
                             key={status}
                             onClick={async () => {
-                              await updateDoc(doc(db, "service_requests", request.id), { status });
+                              await updateDoc(
+                                doc(db, "service_requests", request.id),
+                                status === "ACKNOWLEDGED"
+                                  ? { status, acknowledgedAt: Date.now() }
+                                  : status === "DONE"
+                                    ? {
+                                        status,
+                                        acknowledgedAt: request.acknowledgedAt || Date.now(),
+                                        doneAt: Date.now(),
+                                      }
+                                    : { status, acknowledgedAt: null, doneAt: null }
+                              );
                               triggerToast(`Request ${request.id} set to ${status}.`, "success");
                             }}
                             className={`px-3 py-2 rounded-xl text-xs font-black uppercase border ${
@@ -13305,7 +13374,7 @@ export default function App() {
                                   <p className="text-[10px] text-zinc-600 mt-1">{req.note || "Guest needs assistance"}</p>
                                 )}
                               </div>
-                              <button type="button" onClick={async () => { await updateDoc(doc(db, "service_requests", req.id), { status: "DONE" }); triggerToast("Request closed.", "success"); }} className="px-2 py-1 bg-[#E78A3E] text-black rounded text-[10px] font-black uppercase shrink-0">Done</button>
+                              <button type="button" onClick={async () => { await updateDoc(doc(db, "service_requests", req.id), { status: "DONE", acknowledgedAt: req.acknowledgedAt || Date.now(), doneAt: Date.now() }); triggerToast("Request closed.", "success"); }} className="px-2 py-1 bg-[#E78A3E] text-black rounded text-[10px] font-black uppercase shrink-0">Done</button>
                             </div>
                           </div>
                         ))}
